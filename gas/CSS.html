@@ -1,0 +1,127 @@
+<style>
+  :root {
+    --blu: #4285F4;
+    --blu-scuro: #1a56c4;
+    --verde: #34A853;
+    --rosso: #EA4335;
+    --arancio: #FBBC05;
+    --grigio-100: #f5f6f8;
+    --grigio-200: #e8eaed;
+    --grigio-400: #b0b3b8;
+    --grigio-600: #6b7075;
+    --grigio-900: #202124;
+    --radius: 8px;
+    --ombra: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--grigio-100); color: var(--grigio-900); font-family: 'Google Sans', Roboto, Arial, sans-serif; font-size: 14px; }
+  #app { display: flex; flex-direction: column; min-height: 100vh; }
+
+  header.topbar { background: #fff; border-bottom: 1px solid var(--grigio-200); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 60px; position: sticky; top: 0; z-index: 20; }
+  header.topbar h1 { font-size: 18px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 8px; }
+  header.topbar h1 .logo { width: 26px; height: 26px; border-radius: 6px; background: linear-gradient(135deg, var(--blu), var(--verde)); display: inline-block; }
+  header.topbar .utente { color: var(--grigio-600); font-size: 12px; }
+
+  nav.tabs { display: flex; gap: 4px; background: #fff; border-bottom: 1px solid var(--grigio-200); padding: 0 20px; position: sticky; top: 60px; z-index: 19; overflow-x: auto; }
+  nav.tabs button { border: none; background: none; padding: 14px 16px; font-size: 14px; font-weight: 500; color: var(--grigio-600); cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
+  nav.tabs button:hover { color: var(--grigio-900); }
+  nav.tabs button.active { color: var(--blu-scuro); border-bottom-color: var(--blu); }
+
+  main { flex: 1; padding: 20px 24px 60px; max-width: 1400px; width: 100%; margin: 0 auto; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .card { background: #fff; border-radius: var(--radius); box-shadow: var(--ombra); padding: 18px 20px; margin-bottom: 18px; }
+  .card h2 { margin: 0 0 14px; font-size: 16px; font-weight: 600; }
+  .card .sub { color: var(--grigio-600); font-size: 12.5px; margin: -8px 0 14px; }
+
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--grigio-600); font-weight: 500; }
+  input, select, textarea { font-family: inherit; font-size: 13.5px; padding: 8px 10px; border: 1px solid var(--grigio-400); border-radius: 6px; background: #fff; color: var(--grigio-900); }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--blu); outline-offset: -1px; border-color: var(--blu); }
+  input[type=checkbox] { width: 16px; height: 16px; }
+  input[type=color] { padding: 2px; width: 46px; height: 34px; }
+
+  button.btn { background: var(--blu); color: #fff; border: none; padding: 9px 16px; border-radius: 6px; font-size: 13.5px; font-weight: 500; cursor: pointer; }
+  button.btn:hover { background: var(--blu-scuro); }
+  button.btn.secondary { background: #fff; color: var(--grigio-900); border: 1px solid var(--grigio-400); }
+  button.btn.secondary:hover { background: var(--grigio-100); }
+  button.btn.danger { background: #fff; color: var(--rosso); border: 1px solid #f3c2bd; }
+  button.btn.danger:hover { background: #fdecea; }
+  button.btn.small { padding: 5px 10px; font-size: 12px; }
+  button.btn:disabled { opacity: .5; cursor: default; }
+
+  table { width: 100%; border-collapse: collapse; }
+  table th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--grigio-600); padding: 8px 10px; border-bottom: 2px solid var(--grigio-200); white-space: nowrap; }
+  table td { padding: 9px 10px; border-bottom: 1px solid var(--grigio-200); font-size: 13px; vertical-align: middle; }
+  table tr:hover td { background: #fafbfc; }
+  .actions-cell { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 12px; font-size: 11.5px; font-weight: 600; }
+  .badge.Urgente { background: #fce8e6; color: #c5221f; }
+  .badge.Alta { background: #fef7e0; color: #b06000; }
+  .badge.Normale { background: #e8f0fe; color: #1a56c4; }
+  .badge.Bassa { background: var(--grigio-200); color: var(--grigio-600); }
+  .badge.stato-Pianificato { background: #e6f4ea; color: #137333; }
+  .badge.stato-Da-pianificare { background: #e8eaed; color: var(--grigio-600); }
+  .badge.stato-Completato { background: #d2e3fc; color: #174ea6; }
+  .badge.stato-Annullato { background: #f1f3f4; color: #9aa0a6; text-decoration: line-through; }
+  .badge.stato-Non-pianificabile { background: #fce8e6; color: #c5221f; }
+
+  .empty-hint { color: var(--grigio-600); font-size: 13px; padding: 20px 0; text-align: center; }
+
+  .summary-cards { display: flex; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
+  .summary-card { flex: 1; min-width: 160px; background: #fff; border-radius: var(--radius); box-shadow: var(--ombra); padding: 16px; }
+  .summary-card .num { font-size: 26px; font-weight: 700; }
+  .summary-card .lbl { font-size: 12px; color: var(--grigio-600); margin-top: 2px; }
+  .summary-card.ok .num { color: var(--verde); }
+  .summary-card.warn .num { color: var(--rosso); }
+
+  .board { display: flex; flex-direction: column; gap: 16px; }
+  .board-day { background: #fff; border-radius: var(--radius); box-shadow: var(--ombra); overflow: hidden; }
+  .board-day > .day-title { background: var(--grigio-900); color: #fff; padding: 10px 16px; font-weight: 600; font-size: 13px; }
+  .board-teams { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0; }
+  .board-team { padding: 12px 14px; border-right: 1px solid var(--grigio-200); border-top: 1px solid var(--grigio-200); }
+  .board-team .team-head { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .team-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .stop { border-left: 3px solid var(--blu); background: var(--grigio-100); border-radius: 4px; padding: 6px 8px; margin-bottom: 6px; font-size: 12.5px; }
+  .stop .ora { font-weight: 700; }
+  .stop .cliente { font-weight: 600; }
+  .stop .meta { color: var(--grigio-600); font-size: 11.5px; }
+
+  .non-pianificabili-list { display: flex; flex-direction: column; gap: 8px; }
+  .np-item { display: flex; justify-content: space-between; align-items: center; background: #fce8e6; border-radius: 6px; padding: 8px 12px; font-size: 13px; }
+  .np-item .motivo { color: #c5221f; font-size: 12px; }
+
+  #modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  #modal-overlay.hidden { display: none; }
+  #modal-box { background: #fff; border-radius: var(--radius); width: min(560px, 92vw); max-height: 88vh; overflow-y: auto; padding: 22px; }
+  #modal-box h3 { margin: 0 0 16px; }
+  #modal-form { display: flex; flex-direction: column; gap: 12px; }
+  #modal-form .field { width: 100%; }
+  #modal-form input, #modal-form select { width: 100%; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  .field-help { font-size: 11px; color: var(--grigio-600); }
+
+  #toast { position: fixed; bottom: 20px; right: 20px; background: var(--grigio-900); color: #fff; padding: 12px 18px; border-radius: 6px; font-size: 13px; z-index: 200; box-shadow: var(--ombra); transition: opacity .2s; }
+  #toast.hidden { opacity: 0; pointer-events: none; }
+  #toast.error { background: var(--rosso); }
+  #toast.success { background: var(--verde); }
+
+  .hidden { display: none !important; }
+  .filters { margin-bottom: 14px; }
+  .table-wrap { overflow-x: auto; }
+
+  @media (prefers-color-scheme: dark) {
+    html, body { background: #17181a; color: #e8eaed; }
+    header.topbar, nav.tabs, .card, .summary-card, .board-day, #modal-box { background: #232427; }
+    header.topbar, nav.tabs { border-color: #35363a; }
+    table th { border-color: #35363a; color: #9aa0a6; }
+    table td { border-color: #2c2d30; }
+    table tr:hover td { background: #2a2b2e; }
+    input, select, textarea { background: #1b1c1e; color: #e8eaed; border-color: #46474b; }
+    .stop { background: #1b1c1e; }
+    .board-team { border-color: #35363a; }
+  }
+</style>

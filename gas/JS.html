@@ -1,0 +1,532 @@
+<script>
+(function () {
+  'use strict';
+
+  var state = { schema: {}, squadre: [], zone: [], interventi: [], utente: '' };
+  var modalState = { schemaKey: null, editObj: null };
+
+  var SAVE_FN = { SQUADRE: 'salvaSquadra', ZONE: 'salvaZona', INTERVENTI: 'salvaIntervento' };
+  var DELETE_FN = { SQUADRE: 'eliminaSquadra', ZONE: 'eliminaZona', INTERVENTI: 'eliminaIntervento' };
+
+  // ---------- utilità ----------
+  function escapeHtml(str) {
+    return String(str === null || str === undefined ? '' : str).replace(/[&<>"']/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+    });
+  }
+
+  function callServer(fnName) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      var runner = google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(function (err) { reject(err); });
+      runner[fnName].apply(runner, args);
+    });
+  }
+
+  function toast(msg, type) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = type || '';
+    el.classList.remove('hidden');
+    clearTimeout(window.__toastTimer);
+    window.__toastTimer = setTimeout(function () { el.classList.add('hidden'); }, 3800);
+  }
+
+  function toInputDate(date) {
+    var y = date.getFullYear(), m = ('0' + (date.getMonth() + 1)).slice(-2), d = ('0' + date.getDate()).slice(-2);
+    return y + '-' + m + '-' + d;
+  }
+  function fromInputDate(str) {
+    var p = str.split('-');
+    return p[2] + '/' + p[1] + '/' + p[0];
+  }
+  function parseDdMmYyyy(str) {
+    var p = str.split('/');
+    return new Date(parseInt(p[2], 10), parseInt(p[1], 10) - 1, parseInt(p[0], 10)).getTime();
+  }
+  function timeToMinutesClient(hhmm) {
+    var p = String(hhmm || '0:0').split(':');
+    return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
+  }
+  function minutesToTimeClient(mins) {
+    var h = Math.floor(mins / 60) % 24, m = Math.round(mins % 60);
+    return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+  }
+
+  // ---------- tabs ----------
+  function setupTabs() {
+    document.querySelectorAll('.tab-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+        document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
+        btn.classList.add('active');
+        document.getElementById('view-' + btn.dataset.view).classList.add('active');
+        onShowView(btn.dataset.view);
+      });
+    });
+  }
+
+  function onShowView(view) {
+    if (view === 'interventi') loadInterventi();
+    if (view === 'squadre') loadSquadre();
+    if (view === 'zone') loadZone();
+    if (view === 'impostazioni') { loadRegole(); loadLog(); }
+    if (view === 'pianificazione') refreshPianoSalvato();
+  }
+
+  // ---------- modale generico basato su schema ----------
+  function getOptionsForField(field) {
+    if (field.options) return field.options.map(function (o) { return { value: o, label: o }; });
+    if (field.optionsFrom === 'ZONE') return state.zone.map(function (z) { return { value: z.nome, label: z.nome }; });
+    if (field.optionsFrom === 'SQUADRE') return state.squadre.map(function (s) { return { value: s.id, label: s.nome }; });
+    return [];
+  }
+
+  function openModal(schemaKey, existingObj) {
+    modalState.schemaKey = schemaKey;
+    modalState.editObj = existingObj || null;
+    var def = state.schema[schemaKey];
+    document.getElementById('modal-title').textContent = (existingObj ? 'Modifica' : 'Nuovo/a') + ' — ' + def.label;
+    var form = document.getElementById('modal-form');
+    form.innerHTML = '';
+    def.fields.forEach(function (field) {
+      if (field.readonly) return;
+      var wrap = document.createElement('div');
+      wrap.className = 'field';
+      var label = document.createElement('label');
+      label.textContent = field.label + (field.required ? ' *' : '');
+      wrap.appendChild(label);
+      var input;
+      if (field.type === 'select') {
+        input = document.createElement('select');
+        getOptionsForField(field).forEach(function (o) {
+          var opt = document.createElement('option');
+          opt.value = o.value; opt.textContent = o.label;
+          input.appendChild(opt);
+        });
+      } else if (field.type === 'checkbox') {
+        input = document.createElement('input'); input.type = 'checkbox';
+      } else if (field.type === 'date') {
+        input = document.createElement('input'); input.type = 'text'; input.placeholder = 'gg/mm/aaaa';
+      } else if (field.type === 'color') {
+        input = document.createElement('input'); input.type = 'color';
+      } else if (field.type === 'number') {
+        input = document.createElement('input'); input.type = 'number';
+      } else {
+        input = document.createElement('input'); input.type = 'text';
+      }
+      input.dataset.key = field.key;
+      var value = existingObj && existingObj[field.key] !== undefined && existingObj[field.key] !== null
+        ? existingObj[field.key]
+        : (field.default !== undefined ? field.default : '');
+      if (field.type === 'checkbox') input.checked = !!value; else input.value = value;
+      wrap.appendChild(input);
+      if (field.help) {
+        var help = document.createElement('div');
+        help.className = 'field-help';
+        help.textContent = field.help;
+        wrap.appendChild(help);
+      }
+      form.appendChild(wrap);
+    });
+    document.getElementById('modal-overlay').classList.remove('hidden');
+  }
+
+  function closeModal() {
+    document.getElementById('modal-overlay').classList.add('hidden');
+  }
+
+  function setupModal() {
+    document.getElementById('modal-cancel').addEventListener('click', closeModal);
+    document.getElementById('modal-save').addEventListener('click', function () {
+      var def = state.schema[modalState.schemaKey];
+      var obj = modalState.editObj ? Object.assign({}, modalState.editObj) : {};
+      var form = document.getElementById('modal-form');
+      var mancante = null;
+      form.querySelectorAll('[data-key]').forEach(function (input) {
+        var key = input.dataset.key;
+        var fieldDef = def.fields.filter(function (f) { return f.key === key; })[0];
+        if (input.type === 'checkbox') obj[key] = input.checked;
+        else if (input.type === 'number') obj[key] = input.value === '' ? null : parseFloat(input.value);
+        else obj[key] = input.value;
+        if (fieldDef && fieldDef.required && !obj[key]) mancante = fieldDef.label;
+      });
+      if (mancante) { toast('Campo obbligatorio mancante: ' + mancante, 'error'); return; }
+      var fnName = SAVE_FN[modalState.schemaKey];
+      callServer(fnName, obj).then(function () {
+        toast('Salvato con successo.', 'success');
+        closeModal();
+        reloadAfterSave(modalState.schemaKey);
+      }).catch(function (err) { toast(err.message || String(err), 'error'); });
+    });
+  }
+
+  function reloadAfterSave(schemaKey) {
+    if (schemaKey === 'SQUADRE') loadSquadre();
+    if (schemaKey === 'ZONE') loadZone();
+    if (schemaKey === 'INTERVENTI') loadInterventi();
+  }
+
+  // ---------- Squadre ----------
+  function loadSquadre() {
+    return callServer('listaSquadre').then(function (list) {
+      state.squadre = list;
+      renderSquadre(list);
+    });
+  }
+
+  function renderSquadre(list) {
+    var tbody = document.querySelector('#tabella-squadre tbody');
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="8"><div class="empty-hint">Nessuna squadra. Aggiungine una.</div></td></tr>'; return; }
+    tbody.innerHTML = list.map(function (s) {
+      return '<tr>' +
+        '<td><span class="team-dot" style="background:' + (s.colore || '#999') + '"></span></td>' +
+        '<td>' + escapeHtml(s.nome) + '</td>' +
+        '<td>' + escapeHtml(s.competenze || '') + '</td>' +
+        '<td>' + escapeHtml(s.zoneCoperte || '') + '</td>' +
+        '<td>' + (s.capacitaMinuti || '') + '</td>' +
+        '<td>' + (s.oraInizio || '') + ' - ' + (s.oraFine || '') + '</td>' +
+        '<td>' + (s.attiva ? '✅' : '❌') + '</td>' +
+        '<td><div class="actions-cell">' +
+          '<button class="btn small secondary" data-action="modifica" data-id="' + s.id + '">Modifica</button>' +
+          '<button class="btn small danger" data-action="elimina" data-id="' + s.id + '">Elimina</button>' +
+        '</div></td></tr>';
+    }).join('');
+  }
+
+  function setupSquadreTab() {
+    document.getElementById('btn-nuova-squadra').addEventListener('click', function () { openModal('SQUADRE', null); });
+    document.querySelector('#tabella-squadre tbody').addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      var id = btn.dataset.id;
+      var obj = state.squadre.filter(function (s) { return s.id === id; })[0];
+      if (btn.dataset.action === 'modifica') openModal('SQUADRE', obj);
+      if (btn.dataset.action === 'elimina') {
+        if (!window.confirm('Eliminare definitivamente la squadra "' + obj.nome + '"?')) return;
+        callServer('eliminaSquadra', id).then(function () { toast('Squadra eliminata.', 'success'); loadSquadre(); })
+          .catch(function (err) { toast(err.message || String(err), 'error'); });
+      }
+    });
+  }
+
+  // ---------- Zone ----------
+  function loadZone() {
+    return callServer('listaZone').then(function (list) {
+      state.zone = list;
+      renderZone(list);
+    });
+  }
+
+  function renderZone(list) {
+    var tbody = document.querySelector('#tabella-zone tbody');
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="5"><div class="empty-hint">Nessuna zona. Aggiungine una.</div></td></tr>'; return; }
+    tbody.innerHTML = list.map(function (z) {
+      return '<tr>' +
+        '<td>' + escapeHtml(z.nome) + '</td>' +
+        '<td>' + (z.lat != null ? z.lat : '') + '</td>' +
+        '<td>' + (z.lng != null ? z.lng : '') + '</td>' +
+        '<td>' + escapeHtml(z.note || '') + '</td>' +
+        '<td><div class="actions-cell">' +
+          '<button class="btn small secondary" data-action="modifica" data-id="' + z.id + '">Modifica</button>' +
+          '<button class="btn small danger" data-action="elimina" data-id="' + z.id + '">Elimina</button>' +
+        '</div></td></tr>';
+    }).join('');
+  }
+
+  function setupZoneTab() {
+    document.getElementById('btn-nuova-zona').addEventListener('click', function () { openModal('ZONE', null); });
+    document.querySelector('#tabella-zone tbody').addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      var id = btn.dataset.id;
+      var obj = state.zone.filter(function (z) { return z.id === id; })[0];
+      if (btn.dataset.action === 'modifica') openModal('ZONE', obj);
+      if (btn.dataset.action === 'elimina') {
+        if (!window.confirm('Eliminare definitivamente la zona "' + obj.nome + '"?')) return;
+        callServer('eliminaZona', id).then(function () { toast('Zona eliminata.', 'success'); loadZone(); })
+          .catch(function (err) { toast(err.message || String(err), 'error'); });
+      }
+    });
+  }
+
+  // ---------- Interventi ----------
+  function popolaSelectFiltri() {
+    var selStato = document.getElementById('filtro-stato');
+    ['Da pianificare', 'Pianificato', 'Completato', 'Annullato', 'Non pianificabile'].forEach(function (s) {
+      var opt = document.createElement('option'); opt.value = s; opt.textContent = s; selStato.appendChild(opt);
+    });
+    var selZona = document.getElementById('filtro-zona');
+    state.zone.forEach(function (z) {
+      var opt = document.createElement('option'); opt.value = z.nome; opt.textContent = z.nome; selZona.appendChild(opt);
+    });
+    var selSquadra = document.getElementById('filtro-squadra');
+    state.squadre.forEach(function (s) {
+      var opt = document.createElement('option'); opt.value = s.id; opt.textContent = s.nome; selSquadra.appendChild(opt);
+    });
+  }
+
+  function loadInterventi() {
+    var filtri = {
+      stato: document.getElementById('filtro-stato').value,
+      zona: document.getElementById('filtro-zona').value,
+      squadraId: document.getElementById('filtro-squadra').value
+    };
+    return callServer('listaInterventi', filtri).then(function (list) {
+      state.interventi = list;
+      renderInterventi(list);
+    });
+  }
+
+  function renderInterventi(list) {
+    var tbody = document.querySelector('#tabella-interventi tbody');
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="10"><div class="empty-hint">Nessun intervento trovato.</div></td></tr>'; return; }
+    tbody.innerHTML = list.map(function (i) {
+      var squadra = state.squadre.filter(function (s) { return s.id === i.squadraId; })[0];
+      var statoClass = 'stato-' + String(i.stato || '').replace(/\s+/g, '-');
+      var azioni = '<button class="btn small secondary" data-action="modifica" data-id="' + i.id + '">Modifica</button>';
+      if (i.stato === 'Pianificato') {
+        azioni += '<button class="btn small secondary" data-action="completa" data-id="' + i.id + '">Completa</button>' +
+          '<button class="btn small secondary" data-action="sblocca" data-id="' + i.id + '">Sblocca</button>';
+      }
+      if (i.stato === 'Non pianificabile') {
+        azioni += '<button class="btn small secondary" data-action="sblocca" data-id="' + i.id + '">Riprova</button>';
+      }
+      if (i.stato !== 'Annullato' && i.stato !== 'Completato') {
+        azioni += '<button class="btn small secondary" data-action="annulla" data-id="' + i.id + '">Annulla</button>';
+      }
+      azioni += '<button class="btn small danger" data-action="elimina" data-id="' + i.id + '">Elimina</button>';
+      return '<tr>' +
+        '<td>' + escapeHtml(i.cliente) + '<div style="color:#888;font-size:11px;">' + escapeHtml(i.indirizzo || '') + '</div></td>' +
+        '<td>' + escapeHtml(i.zona) + '</td>' +
+        '<td>' + escapeHtml(i.competenza || '-') + '</td>' +
+        '<td><span class="badge ' + i.priorita + '">' + i.priorita + '</span></td>' +
+        '<td>' + (i.durataMinuti || '') + ' min</td>' +
+        '<td>' + (i.finestraInizio || '') + ' - ' + (i.finestraFine || '') + '</td>' +
+        '<td><span class="badge ' + statoClass + '">' + i.stato + '</span>' +
+          (i.motivoNonPianificato ? '<div style="color:#c5221f;font-size:11px;margin-top:3px;">' + escapeHtml(i.motivoNonPianificato) + '</div>' : '') + '</td>' +
+        '<td>' + (squadra ? escapeHtml(squadra.nome) : '-') + '</td>' +
+        '<td>' + (i.dataPianificata ? i.dataPianificata + ' ' + (i.oraPianificata || '') : '-') + '</td>' +
+        '<td><div class="actions-cell">' + azioni + '</div></td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  function setupInterventiTab() {
+    document.getElementById('btn-nuovo-intervento').addEventListener('click', function () { openModal('INTERVENTI', null); });
+    document.getElementById('btn-filtra-interventi').addEventListener('click', loadInterventi);
+    document.querySelector('#tabella-interventi tbody').addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      var id = btn.dataset.id;
+      var obj = state.interventi.filter(function (i) { return i.id === id; })[0];
+      var action = btn.dataset.action;
+      if (action === 'modifica') { openModal('INTERVENTI', obj); return; }
+      if (action === 'elimina') {
+        if (!window.confirm('Eliminare definitivamente l\'intervento per "' + obj.cliente + '"?')) return;
+        callServer('eliminaIntervento', id).then(function () { toast('Intervento eliminato.', 'success'); loadInterventi(); })
+          .catch(function (err) { toast(err.message || String(err), 'error'); });
+        return;
+      }
+      if (action === 'completa') {
+        callServer('segnaCompletato', id).then(function () { toast('Intervento completato.', 'success'); loadInterventi(); })
+          .catch(function (err) { toast(err.message || String(err), 'error'); });
+        return;
+      }
+      if (action === 'sblocca') {
+        callServer('ripianificaIntervento', id).then(function () { toast('Intervento riportato a "Da pianificare".', 'success'); loadInterventi(); })
+          .catch(function (err) { toast(err.message || String(err), 'error'); });
+        return;
+      }
+      if (action === 'annulla') {
+        if (!window.confirm('Annullare l\'intervento per "' + obj.cliente + '"?')) return;
+        callServer('annullaIntervento', id).then(function () { toast('Intervento annullato.', 'success'); loadInterventi(); })
+          .catch(function (err) { toast(err.message || String(err), 'error'); });
+      }
+    });
+  }
+
+  // ---------- Regole ----------
+  function loadRegole() {
+    return callServer('listaRegole').then(renderRegole);
+  }
+
+  function renderRegole(list) {
+    var tbody = document.querySelector('#tabella-regole tbody');
+    tbody.innerHTML = list.map(function (r) {
+      return '<tr>' +
+        '<td>' + escapeHtml(r.chiave) + '</td>' +
+        '<td><input type="text" data-chiave="' + escapeHtml(r.chiave) + '" value="' + escapeHtml(r.valore) + '" style="width:140px"></td>' +
+        '<td style="max-width:460px;color:#666;font-size:12.5px;">' + escapeHtml(r.descrizione || '') + '</td>' +
+        '<td><button class="btn small secondary" data-action="salva-regola" data-chiave="' + escapeHtml(r.chiave) + '">Salva</button></td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  function setupRegoleTab() {
+    document.querySelector('#tabella-regole tbody').addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-action="salva-regola"]');
+      if (!btn) return;
+      var chiave = btn.dataset.chiave;
+      var input = document.querySelector('#tabella-regole input[data-chiave="' + CSS.escape(chiave) + '"]');
+      callServer('salvaRegola', { chiave: chiave, valore: input.value }).then(function () {
+        toast('Regola aggiornata.', 'success');
+      }).catch(function (err) { toast(err.message || String(err), 'error'); });
+    });
+  }
+
+  function loadLog() {
+    return callServer('getLogPianificazioni').then(function (list) {
+      var tbody = document.querySelector('#tabella-log tbody');
+      if (!list.length) { tbody.innerHTML = '<tr><td colspan="4"><div class="empty-hint">Nessuna esecuzione registrata.</div></td></tr>'; return; }
+      tbody.innerHTML = list.map(function (l) {
+        return '<tr><td>' + escapeHtml(l.timestamp) + '</td><td>' + escapeHtml(l.utente) + '</td><td>' + l.pianificati + '</td><td>' + l.nonPianificabili + '</td></tr>';
+      }).join('');
+    });
+  }
+
+  // ---------- Pianificazione ----------
+  function normalizeFromEngine(piano) {
+    var perGiorno = {};
+    piano.forEach(function (blocco) {
+      if (!perGiorno[blocco.data]) perGiorno[blocco.data] = {};
+      var squadraInfo = state.squadre.filter(function (s) { return s.id === blocco.squadraId; })[0] || {};
+      perGiorno[blocco.data][blocco.squadraId] = {
+        squadraNome: blocco.squadraNome,
+        colore: squadraInfo.colore || '#999999',
+        tappe: blocco.tappe.map(function (t) {
+          return { oraInizio: t.oraInizio, oraFine: t.oraFine, cliente: t.intervento.cliente, indirizzo: t.intervento.indirizzo, durata: t.intervento.durataMinuti };
+        })
+      };
+    });
+    return perGiorno;
+  }
+
+  function normalizeFromSaved(gruppi) {
+    var perGiorno = {};
+    gruppi.forEach(function (g) {
+      if (!perGiorno[g.data]) perGiorno[g.data] = {};
+      perGiorno[g.data][g.squadraId] = {
+        squadraNome: g.squadraNome,
+        colore: g.colore,
+        tappe: g.tappe.map(function (i) {
+          var fine = minutesToTimeClient(timeToMinutesClient(i.oraPianificata) + (i.durataMinuti || 0));
+          return { oraInizio: i.oraPianificata, oraFine: fine, cliente: i.cliente, indirizzo: i.indirizzo, durata: i.durataMinuti };
+        })
+      };
+    });
+    return perGiorno;
+  }
+
+  function renderBoard(perGiorno) {
+    var boardEl = document.getElementById('pian-board');
+    var giorni = Object.keys(perGiorno).sort(function (a, b) { return parseDdMmYyyy(a) - parseDdMmYyyy(b); });
+    if (!giorni.length) {
+      boardEl.innerHTML = '<div class="empty-hint">Nessun intervento pianificato nell\'intervallo selezionato.</div>';
+      return;
+    }
+    boardEl.innerHTML = giorni.map(function (giorno) {
+      var squadreDelGiorno = perGiorno[giorno];
+      var teamsHtml = Object.keys(squadreDelGiorno).map(function (sid) {
+        var t = squadreDelGiorno[sid];
+        var stopsHtml = t.tappe.map(function (s) {
+          return '<div class="stop"><span class="ora">' + s.oraInizio + '-' + s.oraFine + '</span> <span class="cliente">' + escapeHtml(s.cliente) + '</span>' +
+            '<div class="meta">' + escapeHtml(s.indirizzo || '') + ' · ' + s.durata + ' min</div></div>';
+        }).join('');
+        return '<div class="board-team"><div class="team-head"><span class="team-dot" style="background:' + t.colore + '"></span>' + escapeHtml(t.squadraNome) + '</div>' + stopsHtml + '</div>';
+      }).join('');
+      return '<div class="board-day"><div class="day-title">' + giorno + '</div><div class="board-teams">' + teamsHtml + '</div></div>';
+    }).join('');
+  }
+
+  function renderSummary(riepilogo) {
+    var el = document.getElementById('pian-summary');
+    el.style.display = 'flex';
+    el.innerHTML =
+      '<div class="summary-card ok"><div class="num">' + riepilogo.pianificati + '</div><div class="lbl">Interventi pianificati</div></div>' +
+      '<div class="summary-card warn"><div class="num">' + riepilogo.nonPianificabili + '</div><div class="lbl">Non pianificabili</div></div>' +
+      '<div class="summary-card"><div class="num" style="font-size:15px;">' + riepilogo.dataInizio + '</div><div class="lbl">Dal</div></div>' +
+      '<div class="summary-card"><div class="num" style="font-size:15px;">' + riepilogo.dataFine + '</div><div class="lbl">Al</div></div>';
+  }
+
+  function renderNonPianificabili(list) {
+    var card = document.getElementById('pian-non-pianificabili-card');
+    var container = document.getElementById('pian-non-pianificabili');
+    if (!list || !list.length) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    container.innerHTML = list.map(function (n) {
+      return '<div class="np-item"><div><strong>' + escapeHtml(n.cliente) + '</strong><div class="motivo">' + escapeHtml(n.motivo) + '</div></div>' +
+        '<button class="btn small secondary" data-action="riprova-np" data-id="' + n.id + '">Riporta a "Da pianificare"</button></div>';
+    }).join('');
+  }
+
+  function eseguiPianificazione() {
+    var btn = document.getElementById('btn-esegui-pianificazione');
+    var dataInizio = fromInputDate(document.getElementById('pian-data-inizio').value);
+    var dataFine = fromInputDate(document.getElementById('pian-data-fine').value);
+    btn.disabled = true; btn.textContent = 'Pianificazione in corso…';
+    callServer('eseguiPianificazione', { dataInizio: dataInizio, dataFine: dataFine }).then(function (riepilogo) {
+      renderSummary(riepilogo);
+      renderNonPianificabili(riepilogo.dettagliNonPianificabili);
+      renderBoard(normalizeFromEngine(riepilogo.piano));
+      toast('Pianificazione completata: ' + riepilogo.pianificati + ' interventi assegnati.', 'success');
+    }).catch(function (err) {
+      toast(err.message || String(err), 'error');
+    }).finally(function () {
+      btn.disabled = false; btn.textContent = '▶ Esegui pianificazione';
+    });
+  }
+
+  function refreshPianoSalvato() {
+    var dataInizio = fromInputDate(document.getElementById('pian-data-inizio').value);
+    var dataFine = fromInputDate(document.getElementById('pian-data-fine').value);
+    return callServer('getPianificazione', dataInizio, dataFine).then(function (gruppi) {
+      renderBoard(normalizeFromSaved(gruppi));
+    });
+  }
+
+  function setupPianificazioneTab() {
+    var oggi = new Date();
+    var fra6 = new Date(oggi.getTime() + 6 * 24 * 3600 * 1000);
+    document.getElementById('pian-data-inizio').value = toInputDate(oggi);
+    document.getElementById('pian-data-fine').value = toInputDate(fra6);
+    document.getElementById('btn-esegui-pianificazione').addEventListener('click', eseguiPianificazione);
+    document.getElementById('btn-aggiorna-piano').addEventListener('click', refreshPianoSalvato);
+    document.getElementById('pian-non-pianificabili').addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-action="riprova-np"]');
+      if (!btn) return;
+      callServer('ripianificaIntervento', btn.dataset.id).then(function () {
+        toast('Intervento riportato a "Da pianificare". Ri-esegui la pianificazione per assegnarlo.', 'success');
+        btn.closest('.np-item').remove();
+      }).catch(function (err) { toast(err.message || String(err), 'error'); });
+    });
+  }
+
+  // ---------- bootstrap ----------
+  function init() {
+    setupTabs();
+    setupModal();
+    setupPianificazioneTab();
+    setupInterventiTab();
+    setupSquadreTab();
+    setupZoneTab();
+    setupRegoleTab();
+
+    callServer('getBootstrapData').then(function (data) {
+      state.schema = data.schema;
+      state.squadre = data.squadre;
+      state.zone = data.zone;
+      state.utente = data.utente;
+      document.getElementById('utente-corrente').textContent = data.utente;
+      popolaSelectFiltri();
+      renderSquadre(state.squadre);
+      renderZone(state.zone);
+      refreshPianoSalvato();
+    }).catch(function (err) { toast('Errore di inizializzazione: ' + (err.message || err), 'error'); });
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
