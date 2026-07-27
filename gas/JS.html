@@ -10,6 +10,22 @@
   var DELETE_FN = { SQUADRE: 'eliminaSquadra', INTERVENTI: 'eliminaIntervento' };
 
   // ---------- utilità ----------
+  /** Collega un listener solo se l'elemento esiste: un ID mancante (file HTML disallineato) non blocca il resto. */
+  function on(id, event, handler) {
+    var el = document.getElementById(id);
+    if (el) { el.addEventListener(event, handler); return true; }
+    console.warn('Elemento mancante nel DOM: #' + id + ' (controlla che Index.html sia aggiornato)');
+    return false;
+  }
+
+  /** Come on(), ma per selettori CSS generici (es. 'tbody' dentro una tabella). */
+  function onQuery(selector, event, handler) {
+    var el = document.querySelector(selector);
+    if (el) { el.addEventListener(event, handler); return true; }
+    console.warn('Elemento mancante nel DOM: ' + selector + ' (controlla che Index.html sia aggiornato)');
+    return false;
+  }
+
   function escapeHtml(str) {
     return String(str === null || str === undefined ? '' : str).replace(/[&<>"']/g, function (ch) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
@@ -139,8 +155,8 @@
   }
 
   function setupModal() {
-    document.getElementById('modal-cancel').addEventListener('click', closeModal);
-    document.getElementById('modal-save').addEventListener('click', function () {
+    on('modal-cancel', 'click', closeModal);
+    on('modal-save', 'click', function () {
       var def = state.schema[modalState.schemaKey];
       var obj = modalState.editObj ? Object.assign({}, modalState.editObj) : {};
       var form = document.getElementById('modal-form');
@@ -201,8 +217,8 @@
   }
 
   function setupSquadreTab() {
-    document.getElementById('btn-nuova-squadra').addEventListener('click', function () { openModal('SQUADRE', null); });
-    document.querySelector('#tabella-squadre tbody').addEventListener('click', function (e) {
+    on('btn-nuova-squadra', 'click', function () { openModal('SQUADRE', null); });
+    onQuery('#tabella-squadre tbody', 'click', function (e) {
       var btn = e.target.closest('button[data-action]');
       if (!btn) return;
       // Identifica la riga per numero di riga fisica (sempre univoco), non per id:
@@ -273,9 +289,9 @@
   }
 
   function setupInterventiTab() {
-    document.getElementById('btn-nuovo-intervento').addEventListener('click', function () { openModal('INTERVENTI', null); });
-    document.getElementById('btn-filtra-interventi').addEventListener('click', loadInterventi);
-    document.querySelector('#tabella-interventi tbody').addEventListener('click', function (e) {
+    on('btn-nuovo-intervento', 'click', function () { openModal('INTERVENTI', null); });
+    on('btn-filtra-interventi', 'click', loadInterventi);
+    onQuery('#tabella-interventi tbody', 'click', function (e) {
       var btn = e.target.closest('button[data-action]');
       if (!btn) return;
       // Identifica la riga per numero di riga fisica (sempre univoco), non per id:
@@ -327,7 +343,7 @@
   }
 
   function setupRegoleTab() {
-    document.querySelector('#tabella-regole tbody').addEventListener('click', function (e) {
+    onQuery('#tabella-regole tbody', 'click', function (e) {
       var btn = e.target.closest('button[data-action="salva-regola"]');
       if (!btn) return;
       var chiave = btn.dataset.chiave;
@@ -581,19 +597,25 @@
   function setupPianificazioneTab() {
     var oggi = new Date();
     var fra6 = new Date(oggi.getTime() + 6 * 24 * 3600 * 1000);
-    document.getElementById('pian-giorno').value = toInputDate(oggi);
-    document.getElementById('pian-intervallo-dal').value = toInputDate(oggi);
-    document.getElementById('pian-intervallo-al').value = toInputDate(fra6);
-    document.getElementById('btn-carica-contesto').addEventListener('click', caricaContesto);
-    document.getElementById('btn-ottimizza-percorso').addEventListener('click', ottimizzaPercorso);
-    document.getElementById('btn-conferma-percorso').addEventListener('click', confermaPercorsoClick);
-    document.getElementById('btn-pianifica-intervallo').addEventListener('click', pianificaIntervalloClick);
+    var elGiorno = document.getElementById('pian-giorno');
+    if (elGiorno) elGiorno.value = toInputDate(oggi);
+    var elDal = document.getElementById('pian-intervallo-dal');
+    if (elDal) elDal.value = toInputDate(oggi);
+    var elAl = document.getElementById('pian-intervallo-al');
+    if (elAl) elAl.value = toInputDate(fra6);
+    on('btn-carica-contesto', 'click', caricaContesto);
+    on('btn-ottimizza-percorso', 'click', ottimizzaPercorso);
+    on('btn-conferma-percorso', 'click', confermaPercorsoClick);
+    on('btn-pianifica-intervallo', 'click', pianificaIntervalloClick);
 
-    document.querySelector('#tabella-selezione-interventi tbody').addEventListener('change', function (e) {
-      if (e.target.matches('input[type=checkbox]')) aggiornaContatoreSelezione();
-    });
+    var tbodySelezione = document.querySelector('#tabella-selezione-interventi tbody');
+    if (tbodySelezione) {
+      tbodySelezione.addEventListener('change', function (e) {
+        if (e.target.matches('input[type=checkbox]')) aggiornaContatoreSelezione();
+      });
+    }
 
-    document.getElementById('pian-anteprima-tappe').addEventListener('click', function (e) {
+    on('pian-anteprima-tappe', 'click', function (e) {
       var btn = e.target.closest('button[data-action]');
       if (!btn) return;
       var stopEl = btn.closest('.route-stop');
@@ -620,13 +642,25 @@
   }
 
   // ---------- bootstrap ----------
+  // Ogni setup viene isolato: se una parte fallisce (es. un elemento mancante perché
+  // un file HTML non è stato aggiornato/copiato insieme agli altri) non deve impedire
+  // alle altre schede di funzionare — altrimenti un solo errore blocca tutti i pulsanti.
+  function safeRun_(nome, fn) {
+    try {
+      fn();
+    } catch (e) {
+      console.error('Errore inizializzazione "' + nome + '":', e);
+      toast('Errore di inizializzazione (' + nome + '). Apri la console del browser (F12) per i dettagli; verifica che tutti i file gas/ siano aggiornati e ripubblicati.', 'error');
+    }
+  }
+
   function init() {
-    setupTabs();
-    setupModal();
-    setupPianificazioneTab();
-    setupInterventiTab();
-    setupSquadreTab();
-    setupRegoleTab();
+    safeRun_('tabs', setupTabs);
+    safeRun_('modal', setupModal);
+    safeRun_('pianificazione', setupPianificazioneTab);
+    safeRun_('interventi', setupInterventiTab);
+    safeRun_('squadre', setupSquadreTab);
+    safeRun_('regole', setupRegoleTab);
 
     callServer('getBootstrapData').then(function (data) {
       state.schema = data.schema;
