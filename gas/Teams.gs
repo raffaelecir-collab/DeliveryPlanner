@@ -23,7 +23,7 @@ function salvaSquadra(squadra) {
     !isNum_(esistente.latPartenza) || !isNum_(esistente.lngPartenza);
   if (partenzaDaGeocodificare) {
     var coordPartenza = geocodifica_(squadra.indirizzoPartenza);
-    if (!coordPartenza) throw new Error('Indirizzo di partenza non trovato: "' + squadra.indirizzoPartenza + '". Verifica che sia corretto e completo (via, città).');
+    if (!coordPartenza) throw new Error('Indirizzo di partenza non trovato (provato sia con Google Maps sia con OpenStreetMap): "' + squadra.indirizzoPartenza + '". Verifica che sia corretto e completo (via, numero civico, città).');
     squadra.latPartenza = coordPartenza.lat;
     squadra.lngPartenza = coordPartenza.lng;
   }
@@ -33,7 +33,7 @@ function salvaSquadra(squadra) {
     esistente.indirizzoPartenza !== squadra.indirizzoPartenza || !isNum_(esistente.latRientro) || !isNum_(esistente.lngRientro);
   if (rientroDaGeocodificare) {
     var coordRientro = geocodifica_(indirizzoRientro);
-    if (!coordRientro) throw new Error('Indirizzo di rientro non trovato: "' + indirizzoRientro + '". Verifica che sia corretto e completo (via, città).');
+    if (!coordRientro) throw new Error('Indirizzo di rientro non trovato (provato sia con Google Maps sia con OpenStreetMap): "' + indirizzoRientro + '". Verifica che sia corretto e completo (via, numero civico, città).');
     squadra.latRientro = coordRientro.lat;
     squadra.lngRientro = coordRientro.lng;
   }

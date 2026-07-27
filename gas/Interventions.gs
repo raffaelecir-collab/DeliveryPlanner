@@ -23,7 +23,7 @@ function salvaIntervento(intervento) {
   // ancora mancanti (riga creata a mano, o salvata prima che esistesse la geocodifica).
   if (!esistente || esistente.indirizzo !== intervento.indirizzo || !isNum_(esistente.lat) || !isNum_(esistente.lng)) {
     var coord = geocodifica_(intervento.indirizzo);
-    if (!coord) throw new Error('Indirizzo non trovato: "' + intervento.indirizzo + '". Verifica che sia corretto e completo (via, città).');
+    if (!coord) throw new Error('Indirizzo non trovato (provato sia con Google Maps sia con OpenStreetMap): "' + intervento.indirizzo + '". Verifica che sia corretto e completo (via, numero civico, città).');
     intervento.lat = coord.lat;
     intervento.lng = coord.lng;
   }
