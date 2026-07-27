@@ -2,17 +2,22 @@
 (function () {
   'use strict';
 
-  var state = { schema: {}, squadre: [], zone: [], interventi: [], utente: '' };
+  var state = { schema: {}, squadre: [], utente: '' };
   var modalState = { schemaKey: null, editObj: null };
+  var pianState = { squadraId: null, giorno: null, disponibili: [], pianificati: [], ordineCorrente: [], anteprima: null };
 
-  var SAVE_FN = { SQUADRE: 'salvaSquadra', ZONE: 'salvaZona', INTERVENTI: 'salvaIntervento' };
-  var DELETE_FN = { SQUADRE: 'eliminaSquadra', ZONE: 'eliminaZona', INTERVENTI: 'eliminaIntervento' };
+  var SAVE_FN = { SQUADRE: 'salvaSquadra', INTERVENTI: 'salvaIntervento' };
+  var DELETE_FN = { SQUADRE: 'eliminaSquadra', INTERVENTI: 'eliminaIntervento' };
 
   // ---------- utilità ----------
   function escapeHtml(str) {
     return String(str === null || str === undefined ? '' : str).replace(/[&<>"']/g, function (ch) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
     });
+  }
+
+  function splitListClient(str) {
+    return String(str || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
   }
 
   function callServer(fnName) {
@@ -42,16 +47,13 @@
     var p = str.split('-');
     return p[2] + '/' + p[1] + '/' + p[0];
   }
-  function parseDdMmYyyy(str) {
-    var p = str.split('/');
-    return new Date(parseInt(p[2], 10), parseInt(p[1], 10) - 1, parseInt(p[0], 10)).getTime();
-  }
   function timeToMinutesClient(hhmm) {
     var p = String(hhmm || '0:0').split(':');
     return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
   }
   function minutesToTimeClient(mins) {
-    var h = Math.floor(mins / 60) % 24, m = Math.round(mins % 60);
+    var total = ((Math.round(mins) % 1440) + 1440) % 1440;
+    var h = Math.floor(total / 60), m = total % 60;
     return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
   }
 
@@ -71,15 +73,13 @@
   function onShowView(view) {
     if (view === 'interventi') loadInterventi();
     if (view === 'squadre') loadSquadre();
-    if (view === 'zone') loadZone();
     if (view === 'impostazioni') { loadRegole(); loadLog(); }
-    if (view === 'pianificazione') refreshPianoSalvato();
+    if (view === 'pianificazione' && pianState.giorno) aggiornaBoardGiorno();
   }
 
   // ---------- modale generico basato su schema ----------
   function getOptionsForField(field) {
     if (field.options) return field.options.map(function (o) { return { value: o, label: o }; });
-    if (field.optionsFrom === 'ZONE') return state.zone.map(function (z) { return { value: z.nome, label: z.nome }; });
     if (field.optionsFrom === 'SQUADRE') return state.squadre.map(function (s) { return { value: s.id, label: s.nome }; });
     return [];
   }
@@ -155,17 +155,18 @@
       });
       if (mancante) { toast('Campo obbligatorio mancante: ' + mancante, 'error'); return; }
       var fnName = SAVE_FN[modalState.schemaKey];
+      var saveBtn = document.getElementById('modal-save');
+      saveBtn.disabled = true;
       callServer(fnName, obj).then(function () {
         toast('Salvato con successo.', 'success');
         closeModal();
         reloadAfterSave(modalState.schemaKey);
-      }).catch(function (err) { toast(err.message || String(err), 'error'); });
+      }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () { saveBtn.disabled = false; });
     });
   }
 
   function reloadAfterSave(schemaKey) {
-    if (schemaKey === 'SQUADRE') loadSquadre();
-    if (schemaKey === 'ZONE') loadZone();
+    if (schemaKey === 'SQUADRE') loadSquadre().then(populaSelectSquadra);
     if (schemaKey === 'INTERVENTI') loadInterventi();
   }
 
@@ -174,6 +175,7 @@
     return callServer('listaSquadre').then(function (list) {
       state.squadre = list;
       renderSquadre(list);
+      return list;
     });
   }
 
@@ -181,13 +183,15 @@
     var tbody = document.querySelector('#tabella-squadre tbody');
     if (!list.length) { tbody.innerHTML = '<tr><td colspan="8"><div class="empty-hint">Nessuna squadra. Aggiungine una.</div></td></tr>'; return; }
     tbody.innerHTML = list.map(function (s) {
+      var rientro = s.indirizzoRientro ? escapeHtml(s.indirizzoRientro) : '<span style="color:#999;">= partenza</span>';
+      var pausa = (s.pausaPranzoInizio && s.pausaPranzoFine) ? (s.pausaPranzoInizio + ' - ' + s.pausaPranzoFine) : '<span style="color:#999;">nessuna</span>';
       return '<tr>' +
         '<td><span class="team-dot" style="background:' + (s.colore || '#999') + '"></span></td>' +
         '<td>' + escapeHtml(s.nome) + '</td>' +
-        '<td>' + escapeHtml(s.competenze || '') + '</td>' +
-        '<td>' + escapeHtml(s.zoneCoperte || '') + '</td>' +
-        '<td>' + (s.capacitaMinuti || '') + '</td>' +
+        '<td>' + escapeHtml(s.indirizzoPartenza || '') + '</td>' +
+        '<td>' + rientro + '</td>' +
         '<td>' + (s.oraInizio || '') + ' - ' + (s.oraFine || '') + '</td>' +
+        '<td>' + pausa + '</td>' +
         '<td>' + (s.attiva ? '✅' : '❌') + '</td>' +
         '<td><div class="actions-cell">' +
           '<button class="btn small secondary" data-action="modifica" data-id="' + s.id + '">Modifica</button>' +
@@ -206,47 +210,7 @@
       if (btn.dataset.action === 'modifica') openModal('SQUADRE', obj);
       if (btn.dataset.action === 'elimina') {
         if (!window.confirm('Eliminare definitivamente la squadra "' + obj.nome + '"?')) return;
-        callServer('eliminaSquadra', id).then(function () { toast('Squadra eliminata.', 'success'); loadSquadre(); })
-          .catch(function (err) { toast(err.message || String(err), 'error'); });
-      }
-    });
-  }
-
-  // ---------- Zone ----------
-  function loadZone() {
-    return callServer('listaZone').then(function (list) {
-      state.zone = list;
-      renderZone(list);
-    });
-  }
-
-  function renderZone(list) {
-    var tbody = document.querySelector('#tabella-zone tbody');
-    if (!list.length) { tbody.innerHTML = '<tr><td colspan="5"><div class="empty-hint">Nessuna zona. Aggiungine una.</div></td></tr>'; return; }
-    tbody.innerHTML = list.map(function (z) {
-      return '<tr>' +
-        '<td>' + escapeHtml(z.nome) + '</td>' +
-        '<td>' + (z.lat != null ? z.lat : '') + '</td>' +
-        '<td>' + (z.lng != null ? z.lng : '') + '</td>' +
-        '<td>' + escapeHtml(z.note || '') + '</td>' +
-        '<td><div class="actions-cell">' +
-          '<button class="btn small secondary" data-action="modifica" data-id="' + z.id + '">Modifica</button>' +
-          '<button class="btn small danger" data-action="elimina" data-id="' + z.id + '">Elimina</button>' +
-        '</div></td></tr>';
-    }).join('');
-  }
-
-  function setupZoneTab() {
-    document.getElementById('btn-nuova-zona').addEventListener('click', function () { openModal('ZONE', null); });
-    document.querySelector('#tabella-zone tbody').addEventListener('click', function (e) {
-      var btn = e.target.closest('button[data-action]');
-      if (!btn) return;
-      var id = btn.dataset.id;
-      var obj = state.zone.filter(function (z) { return z.id === id; })[0];
-      if (btn.dataset.action === 'modifica') openModal('ZONE', obj);
-      if (btn.dataset.action === 'elimina') {
-        if (!window.confirm('Eliminare definitivamente la zona "' + obj.nome + '"?')) return;
-        callServer('eliminaZona', id).then(function () { toast('Zona eliminata.', 'success'); loadZone(); })
+        callServer('eliminaSquadra', id).then(function () { toast('Squadra eliminata.', 'success'); loadSquadre().then(populaSelectSquadra); })
           .catch(function (err) { toast(err.message || String(err), 'error'); });
       }
     });
@@ -255,12 +219,8 @@
   // ---------- Interventi ----------
   function popolaSelectFiltri() {
     var selStato = document.getElementById('filtro-stato');
-    ['Da pianificare', 'Pianificato', 'Completato', 'Annullato', 'Non pianificabile'].forEach(function (s) {
+    ['Da pianificare', 'Pianificato', 'Completato', 'Annullato'].forEach(function (s) {
       var opt = document.createElement('option'); opt.value = s; opt.textContent = s; selStato.appendChild(opt);
-    });
-    var selZona = document.getElementById('filtro-zona');
-    state.zone.forEach(function (z) {
-      var opt = document.createElement('option'); opt.value = z.nome; opt.textContent = z.nome; selZona.appendChild(opt);
     });
     var selSquadra = document.getElementById('filtro-squadra');
     state.squadre.forEach(function (s) {
@@ -271,7 +231,6 @@
   function loadInterventi() {
     var filtri = {
       stato: document.getElementById('filtro-stato').value,
-      zona: document.getElementById('filtro-zona').value,
       squadraId: document.getElementById('filtro-squadra').value
     };
     return callServer('listaInterventi', filtri).then(function (list) {
@@ -282,7 +241,7 @@
 
   function renderInterventi(list) {
     var tbody = document.querySelector('#tabella-interventi tbody');
-    if (!list.length) { tbody.innerHTML = '<tr><td colspan="10"><div class="empty-hint">Nessun intervento trovato.</div></td></tr>'; return; }
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="9"><div class="empty-hint">Nessun intervento trovato.</div></td></tr>'; return; }
     tbody.innerHTML = list.map(function (i) {
       var squadra = state.squadre.filter(function (s) { return s.id === i.squadraId; })[0];
       var statoClass = 'stato-' + String(i.stato || '').replace(/\s+/g, '-');
@@ -291,16 +250,12 @@
         azioni += '<button class="btn small secondary" data-action="completa" data-id="' + i.id + '">Completa</button>' +
           '<button class="btn small secondary" data-action="sblocca" data-id="' + i.id + '">Sblocca</button>';
       }
-      if (i.stato === 'Non pianificabile') {
-        azioni += '<button class="btn small secondary" data-action="sblocca" data-id="' + i.id + '">Riprova</button>';
-      }
       if (i.stato !== 'Annullato' && i.stato !== 'Completato') {
         azioni += '<button class="btn small secondary" data-action="annulla" data-id="' + i.id + '">Annulla</button>';
       }
       azioni += '<button class="btn small danger" data-action="elimina" data-id="' + i.id + '">Elimina</button>';
       return '<tr>' +
         '<td>' + escapeHtml(i.cliente) + '<div style="color:#888;font-size:11px;">' + escapeHtml(i.indirizzo || '') + '</div></td>' +
-        '<td>' + escapeHtml(i.zona) + '</td>' +
         '<td>' + escapeHtml(i.competenza || '-') + '</td>' +
         '<td><span class="badge ' + i.priorita + '">' + i.priorita + '</span></td>' +
         '<td>' + (i.durataMinuti || '') + ' min</td>' +
@@ -380,127 +335,224 @@
   function loadLog() {
     return callServer('getLogPianificazioni').then(function (list) {
       var tbody = document.querySelector('#tabella-log tbody');
-      if (!list.length) { tbody.innerHTML = '<tr><td colspan="4"><div class="empty-hint">Nessuna esecuzione registrata.</div></td></tr>'; return; }
+      if (!list.length) { tbody.innerHTML = '<tr><td colspan="5"><div class="empty-hint">Nessun percorso confermato registrato.</div></td></tr>'; return; }
       tbody.innerHTML = list.map(function (l) {
-        return '<tr><td>' + escapeHtml(l.timestamp) + '</td><td>' + escapeHtml(l.utente) + '</td><td>' + l.pianificati + '</td><td>' + l.nonPianificabili + '</td></tr>';
+        return '<tr><td>' + escapeHtml(l.timestamp) + '</td><td>' + escapeHtml(l.utente) + '</td><td>' + escapeHtml(l.squadra) + '</td><td>' + escapeHtml(l.giorno) + '</td><td>' + l.tappe + '</td></tr>';
       }).join('');
     });
   }
 
   // ---------- Pianificazione ----------
-  function normalizeFromEngine(piano) {
-    var perGiorno = {};
-    piano.forEach(function (blocco) {
-      if (!perGiorno[blocco.data]) perGiorno[blocco.data] = {};
-      var squadraInfo = state.squadre.filter(function (s) { return s.id === blocco.squadraId; })[0] || {};
-      perGiorno[blocco.data][blocco.squadraId] = {
-        squadraNome: blocco.squadraNome,
-        colore: squadraInfo.colore || '#999999',
-        tappe: blocco.tappe.map(function (t) {
-          return { oraInizio: t.oraInizio, oraFine: t.oraFine, cliente: t.intervento.cliente, indirizzo: t.intervento.indirizzo, durata: t.intervento.durataMinuti };
-        })
-      };
+  function populaSelectSquadra() {
+    var sel = document.getElementById('pian-squadra');
+    var valorePrecedente = sel.value;
+    sel.innerHTML = '';
+    state.squadre.filter(function (s) { return s.attiva; }).forEach(function (s) {
+      var opt = document.createElement('option'); opt.value = s.id; opt.textContent = s.nome; sel.appendChild(opt);
     });
-    return perGiorno;
+    if (valorePrecedente && state.squadre.some(function (s) { return s.id === valorePrecedente; })) sel.value = valorePrecedente;
   }
 
-  function normalizeFromSaved(gruppi) {
-    var perGiorno = {};
-    gruppi.forEach(function (g) {
-      if (!perGiorno[g.data]) perGiorno[g.data] = {};
-      perGiorno[g.data][g.squadraId] = {
-        squadraNome: g.squadraNome,
-        colore: g.colore,
-        tappe: g.tappe.map(function (i) {
-          var fine = minutesToTimeClient(timeToMinutesClient(i.oraPianificata) + (i.durataMinuti || 0));
-          return { oraInizio: i.oraPianificata, oraFine: fine, cliente: i.cliente, indirizzo: i.indirizzo, durata: i.durataMinuti };
-        })
-      };
-    });
-    return perGiorno;
+  function idsSelezionatiCorrenti() {
+    return Array.prototype.slice.call(document.querySelectorAll('#tabella-selezione-interventi input[type=checkbox]:checked'))
+      .map(function (cb) { return cb.dataset.id; });
   }
 
-  function renderBoard(perGiorno) {
-    var boardEl = document.getElementById('pian-board');
-    var giorni = Object.keys(perGiorno).sort(function (a, b) { return parseDdMmYyyy(a) - parseDdMmYyyy(b); });
-    if (!giorni.length) {
-      boardEl.innerHTML = '<div class="empty-hint">Nessun intervento pianificato nell\'intervallo selezionato.</div>';
+  function aggiornaContatoreSelezione() {
+    document.getElementById('pian-selezione-count').textContent = idsSelezionatiCorrenti().length + ' intervento/i selezionato/i';
+  }
+
+  function renderSelezioneInterventi() {
+    var tbody = document.querySelector('#tabella-selezione-interventi tbody');
+    var tutti = pianState.disponibili.concat(pianState.pianificati);
+    if (!tutti.length) {
+      tbody.innerHTML = '<tr><td colspan="8"><div class="empty-hint">Nessun intervento "Da pianificare" disponibile.</div></td></tr>';
+      document.getElementById('pian-selezione-count').textContent = '';
       return;
     }
-    boardEl.innerHTML = giorni.map(function (giorno) {
-      var squadreDelGiorno = perGiorno[giorno];
-      var teamsHtml = Object.keys(squadreDelGiorno).map(function (sid) {
-        var t = squadreDelGiorno[sid];
-        var stopsHtml = t.tappe.map(function (s) {
-          return '<div class="stop"><span class="ora">' + s.oraInizio + '-' + s.oraFine + '</span> <span class="cliente">' + escapeHtml(s.cliente) + '</span>' +
-            '<div class="meta">' + escapeHtml(s.indirizzo || '') + ' · ' + s.durata + ' min</div></div>';
-        }).join('');
-        return '<div class="board-team"><div class="team-head"><span class="team-dot" style="background:' + t.colore + '"></span>' + escapeHtml(t.squadraNome) + '</div>' + stopsHtml + '</div>';
+    var squadra = state.squadre.filter(function (s) { return s.id === pianState.squadraId; })[0];
+    var competenzeSquadra = squadra ? splitListClient(squadra.competenze).map(function (c) { return c.toLowerCase(); }) : [];
+    var pianificatiIds = pianState.pianificati.map(function (i) { return i.id; });
+    tbody.innerHTML = tutti.map(function (i) {
+      var checked = pianificatiIds.indexOf(i.id) !== -1 ? 'checked' : '';
+      var warn = (i.competenza && competenzeSquadra.length && competenzeSquadra.indexOf(i.competenza.toLowerCase()) === -1)
+        ? ' <span class="warn-icon" title="Competenza non tra quelle della squadra">⚠</span>' : '';
+      return '<tr>' +
+        '<td><input type="checkbox" data-id="' + i.id + '" ' + checked + '></td>' +
+        '<td>' + escapeHtml(i.cliente) + '</td>' +
+        '<td>' + escapeHtml(i.indirizzo || '') + '</td>' +
+        '<td>' + escapeHtml(i.competenza || '-') + warn + '</td>' +
+        '<td><span class="badge ' + i.priorita + '">' + i.priorita + '</span></td>' +
+        '<td>' + (i.durataMinuti || '') + ' min</td>' +
+        '<td>' + (i.finestraInizio || '') + ' - ' + (i.finestraFine || '') + '</td>' +
+        '<td></td>' +
+      '</tr>';
+    }).join('');
+    aggiornaContatoreSelezione();
+  }
+
+  function caricaContesto() {
+    var squadraId = document.getElementById('pian-squadra').value;
+    var giornoInput = document.getElementById('pian-giorno').value;
+    if (!squadraId) { toast('Seleziona una squadra.', 'error'); return; }
+    if (!giornoInput) { toast('Seleziona un giorno.', 'error'); return; }
+    var giornoStr = fromInputDate(giornoInput);
+    pianState.squadraId = squadraId;
+    pianState.giorno = giornoStr;
+    callServer('getContestoPianificazione', squadraId, giornoStr).then(function (ctx) {
+      pianState.disponibili = ctx.disponibili;
+      pianState.pianificati = ctx.pianificati;
+      renderSelezioneInterventi();
+      document.getElementById('pian-selezione-card').style.display = 'block';
+      if (ctx.pianificati.length > 0) {
+        pianState.ordineCorrente = ctx.pianificati.map(function (i) { return i.id; });
+        ricalcolaConOrdineCorrente();
+      } else {
+        pianState.ordineCorrente = [];
+        pianState.anteprima = null;
+        document.getElementById('pian-anteprima-card').style.display = 'none';
+      }
+      aggiornaBoardGiorno();
+    }).catch(function (err) { toast(err.message || String(err), 'error'); });
+  }
+
+  function ottimizzaPercorso() {
+    var ids = idsSelezionatiCorrenti();
+    if (!ids.length) { toast('Seleziona almeno un intervento.', 'error'); return; }
+    var btn = document.getElementById('btn-ottimizza-percorso');
+    btn.disabled = true; btn.textContent = 'Calcolo in corso…';
+    callServer('anteprimaPercorso', pianState.squadraId, pianState.giorno, ids).then(function (anteprima) {
+      pianState.anteprima = anteprima;
+      pianState.ordineCorrente = anteprima.tappe.map(function (t) { return t.interventoId; });
+      renderAnteprima(anteprima);
+    }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () {
+      btn.disabled = false; btn.textContent = '🧭 Ottimizza percorso';
+    });
+  }
+
+  function ricalcolaConOrdineCorrente() {
+    if (!pianState.ordineCorrente.length) {
+      pianState.anteprima = null;
+      document.getElementById('pian-anteprima-card').style.display = 'none';
+      return Promise.resolve();
+    }
+    return callServer('anteprimaPercorso', pianState.squadraId, pianState.giorno, pianState.ordineCorrente, pianState.ordineCorrente).then(function (anteprima) {
+      pianState.anteprima = anteprima;
+      pianState.ordineCorrente = anteprima.tappe.map(function (t) { return t.interventoId; });
+      renderAnteprima(anteprima);
+    }).catch(function (err) { toast(err.message || String(err), 'error'); });
+  }
+
+  function renderAnteprima(anteprima) {
+    document.getElementById('pian-anteprima-card').style.display = 'block';
+    var summary = document.getElementById('pian-anteprima-summary');
+    summary.innerHTML =
+      '<div class="summary-card ok"><div class="num">' + anteprima.tappe.length + '</div><div class="lbl">Tappe pianificate</div></div>' +
+      '<div class="summary-card warn"><div class="num">' + anteprima.nonIncluse.length + '</div><div class="lbl">Non incluse</div></div>' +
+      '<div class="summary-card"><div class="num" style="font-size:16px;">' + (anteprima.distanzaTotaleKm || 0) + ' km</div><div class="lbl">Distanza totale</div></div>' +
+      '<div class="summary-card"><div class="num" style="font-size:16px;">' + Math.round(anteprima.tempoViaggioTotaleMinuti || 0) + ' min</div><div class="lbl">Tempo di viaggio</div></div>';
+
+    var nonInclEl = document.getElementById('pian-anteprima-nonincluse');
+    nonInclEl.innerHTML = anteprima.nonIncluse.length ? anteprima.nonIncluse.map(function (n) {
+      return '<div class="np-item"><div><strong>' + escapeHtml(n.cliente) + '</strong><div class="motivo">' + escapeHtml(n.motivo) + '</div></div></div>';
+    }).join('') : '';
+
+    var tappeEl = document.getElementById('pian-anteprima-tappe');
+    var html = '';
+    if (anteprima.partenzaStimata) {
+      html += '<div class="route-endpoint">🚗 Partenza stimata: <strong>' + anteprima.partenzaStimata.orario + '</strong> (' +
+        Math.round(anteprima.partenzaStimata.viaggioMinuti) + ' min' + (anteprima.partenzaStimata.stimato ? ' stimati' : '') + ' per arrivare in tempo alla prima tappa)</div>';
+    }
+    anteprima.tappe.forEach(function (t, idx) {
+      html += '<div class="route-stop" data-id="' + t.interventoId + '">' +
+        '<div class="route-stop-order">' + (idx + 1) + '</div>' +
+        '<div class="route-stop-body">' +
+          '<div class="route-stop-time">' + t.oraInizio + ' - ' + t.oraFine + '</div>' +
+          '<div class="route-stop-client">' + escapeHtml(t.cliente) + ' <span class="badge ' + t.priorita + '">' + t.priorita + '</span></div>' +
+          '<div class="route-stop-meta">' + escapeHtml(t.indirizzo || '') + ' · ' + t.durataMinuti + ' min' +
+            (idx > 0 ? ' · viaggio ' + Math.round(t.viaggioMinuti) + ' min (' + t.distanzaKm + ' km)' + (t.stimato ? ' stimato' : '') : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="route-stop-actions">' +
+          '<button data-action="su" ' + (idx === 0 ? 'disabled' : '') + ' title="Sposta su">▲</button>' +
+          '<button data-action="giu" ' + (idx === anteprima.tappe.length - 1 ? 'disabled' : '') + ' title="Sposta giù">▼</button>' +
+          '<button data-action="rimuovi" title="Rimuovi dal percorso">✕</button>' +
+        '</div>' +
+      '</div>';
+    });
+    if (anteprima.rientroStimato) {
+      html += '<div class="route-endpoint">🏠 Rientro stimato: <strong>' + anteprima.rientroStimato.orario + '</strong> (' +
+        Math.round(anteprima.rientroStimato.viaggioMinuti) + ' min' + (anteprima.rientroStimato.stimato ? ' stimati' : '') + ', ' + anteprima.rientroStimato.distanzaKm + ' km)</div>';
+    }
+    tappeEl.innerHTML = html || '<div class="empty-hint">Nessuna tappa pianificabile con la selezione corrente.</div>';
+  }
+
+  function confermaPercorsoClick() {
+    if (!pianState.ordineCorrente.length) { toast('Nessuna tappa da confermare.', 'error'); return; }
+    var btn = document.getElementById('btn-conferma-percorso');
+    btn.disabled = true;
+    callServer('confermaPercorso', pianState.squadraId, pianState.giorno, pianState.ordineCorrente).then(function (anteprima) {
+      toast('Percorso confermato: ' + anteprima.tappe.length + ' tappe salvate.', 'success');
+      pianState.anteprima = anteprima;
+      pianState.ordineCorrente = anteprima.tappe.map(function (t) { return t.interventoId; });
+      renderAnteprima(anteprima);
+      aggiornaBoardGiorno();
+      caricaContesto();
+    }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () { btn.disabled = false; });
+  }
+
+  function aggiornaBoardGiorno() {
+    if (!pianState.giorno) return;
+    callServer('getPercorsiGiorno', pianState.giorno).then(renderBoardPercorsi);
+  }
+
+  function renderBoardPercorsi(gruppi) {
+    var boardEl = document.getElementById('pian-board');
+    if (!gruppi.length) { boardEl.innerHTML = '<div class="empty-hint">Nessun percorso confermato per il giorno selezionato.</div>'; return; }
+    var teamsHtml = gruppi.map(function (g) {
+      var stopsHtml = g.tappe.map(function (i) {
+        var fine = minutesToTimeClient(timeToMinutesClient(i.oraPianificata) + (i.durataMinuti || 0));
+        return '<div class="stop"><span class="ora">' + i.oraPianificata + '-' + fine + '</span> <span class="cliente">' + escapeHtml(i.cliente) + '</span>' +
+          '<div class="meta">' + escapeHtml(i.indirizzo || '') + ' · ' + i.durataMinuti + ' min</div></div>';
       }).join('');
-      return '<div class="board-day"><div class="day-title">' + giorno + '</div><div class="board-teams">' + teamsHtml + '</div></div>';
+      return '<div class="board-team"><div class="team-head"><span class="team-dot" style="background:' + g.colore + '"></span>' + escapeHtml(g.squadraNome) + '</div>' + stopsHtml + '</div>';
     }).join('');
-  }
-
-  function renderSummary(riepilogo) {
-    var el = document.getElementById('pian-summary');
-    el.style.display = 'flex';
-    el.innerHTML =
-      '<div class="summary-card ok"><div class="num">' + riepilogo.pianificati + '</div><div class="lbl">Interventi pianificati</div></div>' +
-      '<div class="summary-card warn"><div class="num">' + riepilogo.nonPianificabili + '</div><div class="lbl">Non pianificabili</div></div>' +
-      '<div class="summary-card"><div class="num" style="font-size:15px;">' + riepilogo.dataInizio + '</div><div class="lbl">Dal</div></div>' +
-      '<div class="summary-card"><div class="num" style="font-size:15px;">' + riepilogo.dataFine + '</div><div class="lbl">Al</div></div>';
-  }
-
-  function renderNonPianificabili(list) {
-    var card = document.getElementById('pian-non-pianificabili-card');
-    var container = document.getElementById('pian-non-pianificabili');
-    if (!list || !list.length) { card.style.display = 'none'; return; }
-    card.style.display = 'block';
-    container.innerHTML = list.map(function (n) {
-      return '<div class="np-item"><div><strong>' + escapeHtml(n.cliente) + '</strong><div class="motivo">' + escapeHtml(n.motivo) + '</div></div>' +
-        '<button class="btn small secondary" data-action="riprova-np" data-id="' + n.id + '">Riporta a "Da pianificare"</button></div>';
-    }).join('');
-  }
-
-  function eseguiPianificazione() {
-    var btn = document.getElementById('btn-esegui-pianificazione');
-    var dataInizio = fromInputDate(document.getElementById('pian-data-inizio').value);
-    var dataFine = fromInputDate(document.getElementById('pian-data-fine').value);
-    btn.disabled = true; btn.textContent = 'Pianificazione in corso…';
-    callServer('eseguiPianificazione', { dataInizio: dataInizio, dataFine: dataFine }).then(function (riepilogo) {
-      renderSummary(riepilogo);
-      renderNonPianificabili(riepilogo.dettagliNonPianificabili);
-      renderBoard(normalizeFromEngine(riepilogo.piano));
-      toast('Pianificazione completata: ' + riepilogo.pianificati + ' interventi assegnati.', 'success');
-    }).catch(function (err) {
-      toast(err.message || String(err), 'error');
-    }).finally(function () {
-      btn.disabled = false; btn.textContent = '▶ Esegui pianificazione';
-    });
-  }
-
-  function refreshPianoSalvato() {
-    var dataInizio = fromInputDate(document.getElementById('pian-data-inizio').value);
-    var dataFine = fromInputDate(document.getElementById('pian-data-fine').value);
-    return callServer('getPianificazione', dataInizio, dataFine).then(function (gruppi) {
-      renderBoard(normalizeFromSaved(gruppi));
-    });
+    boardEl.innerHTML = '<div class="board-day"><div class="day-title">' + pianState.giorno + '</div><div class="board-teams">' + teamsHtml + '</div></div>';
   }
 
   function setupPianificazioneTab() {
-    var oggi = new Date();
-    var fra6 = new Date(oggi.getTime() + 6 * 24 * 3600 * 1000);
-    document.getElementById('pian-data-inizio').value = toInputDate(oggi);
-    document.getElementById('pian-data-fine').value = toInputDate(fra6);
-    document.getElementById('btn-esegui-pianificazione').addEventListener('click', eseguiPianificazione);
-    document.getElementById('btn-aggiorna-piano').addEventListener('click', refreshPianoSalvato);
-    document.getElementById('pian-non-pianificabili').addEventListener('click', function (e) {
-      var btn = e.target.closest('button[data-action="riprova-np"]');
+    document.getElementById('pian-giorno').value = toInputDate(new Date());
+    document.getElementById('btn-carica-contesto').addEventListener('click', caricaContesto);
+    document.getElementById('btn-ottimizza-percorso').addEventListener('click', ottimizzaPercorso);
+    document.getElementById('btn-conferma-percorso').addEventListener('click', confermaPercorsoClick);
+
+    document.querySelector('#tabella-selezione-interventi tbody').addEventListener('change', function (e) {
+      if (e.target.matches('input[type=checkbox]')) aggiornaContatoreSelezione();
+    });
+
+    document.getElementById('pian-anteprima-tappe').addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-action]');
       if (!btn) return;
-      callServer('ripianificaIntervento', btn.dataset.id).then(function () {
-        toast('Intervento riportato a "Da pianificare". Ri-esegui la pianificazione per assegnarlo.', 'success');
-        btn.closest('.np-item').remove();
-      }).catch(function (err) { toast(err.message || String(err), 'error'); });
+      var stopEl = btn.closest('.route-stop');
+      var id = stopEl.dataset.id;
+      var idx = pianState.ordineCorrente.indexOf(id);
+      var action = btn.dataset.action;
+      if (action === 'su' && idx > 0) {
+        var tmp = pianState.ordineCorrente[idx - 1];
+        pianState.ordineCorrente[idx - 1] = pianState.ordineCorrente[idx];
+        pianState.ordineCorrente[idx] = tmp;
+        ricalcolaConOrdineCorrente();
+      } else if (action === 'giu' && idx < pianState.ordineCorrente.length - 1) {
+        var tmp2 = pianState.ordineCorrente[idx + 1];
+        pianState.ordineCorrente[idx + 1] = pianState.ordineCorrente[idx];
+        pianState.ordineCorrente[idx] = tmp2;
+        ricalcolaConOrdineCorrente();
+      } else if (action === 'rimuovi') {
+        pianState.ordineCorrente.splice(idx, 1);
+        var cb = document.querySelector('#tabella-selezione-interventi input[data-id="' + CSS.escape(id) + '"]');
+        if (cb) { cb.checked = false; aggiornaContatoreSelezione(); }
+        ricalcolaConOrdineCorrente();
+      }
     });
   }
 
@@ -511,19 +563,16 @@
     setupPianificazioneTab();
     setupInterventiTab();
     setupSquadreTab();
-    setupZoneTab();
     setupRegoleTab();
 
     callServer('getBootstrapData').then(function (data) {
       state.schema = data.schema;
       state.squadre = data.squadre;
-      state.zone = data.zone;
       state.utente = data.utente;
       document.getElementById('utente-corrente').textContent = data.utente;
       popolaSelectFiltri();
+      populaSelectSquadra();
       renderSquadre(state.squadre);
-      renderZone(state.zone);
-      refreshPianoSalvato();
     }).catch(function (err) { toast('Errore di inizializzazione: ' + (err.message || err), 'error'); });
   }
 

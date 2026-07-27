@@ -7,7 +7,6 @@ function listaInterventi(filtri) {
   if (!filtri) return tutti;
   return tutti.filter(function (i) {
     if (filtri.stato && i.stato !== filtri.stato) return false;
-    if (filtri.zona && i.zona !== filtri.zona) return false;
     if (filtri.squadraId && i.squadraId !== filtri.squadraId) return false;
     return true;
   });
@@ -15,9 +14,16 @@ function listaInterventi(filtri) {
 
 function salvaIntervento(intervento) {
   if (!intervento.cliente) throw new Error('Il cliente è obbligatorio.');
-  if (!intervento.zona) throw new Error('La zona è obbligatoria.');
-  // Se l'utente modifica manualmente un intervento già pianificato, lo si riporta
-  // in "Da pianificare" a meno che non stia solo aggiornando stato/assegnazione esplicitamente.
+  if (!intervento.indirizzo) throw new Error('L\'indirizzo è obbligatorio.');
+
+  var esistente = intervento.id ? readAll_('INTERVENTI').filter(function (i) { return i.id === intervento.id; })[0] : null;
+  if (!esistente || esistente.indirizzo !== intervento.indirizzo) {
+    var coord = geocodifica_(intervento.indirizzo);
+    if (!coord) throw new Error('Indirizzo non trovato: "' + intervento.indirizzo + '". Verifica che sia corretto e completo (via, città).');
+    intervento.lat = coord.lat;
+    intervento.lng = coord.lng;
+  }
+
   return upsertRow_('INTERVENTI', intervento);
 }
 
@@ -34,6 +40,7 @@ function ripianificaIntervento(id) {
     squadraId: '',
     dataPianificata: '',
     oraPianificata: '',
+    ordineTappa: '',
     motivoNonPianificato: ''
   });
   return true;

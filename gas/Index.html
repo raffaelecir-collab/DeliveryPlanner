@@ -15,7 +15,6 @@
       <button class="tab-btn active" data-view="pianificazione">Pianificazione</button>
       <button class="tab-btn" data-view="interventi">Interventi</button>
       <button class="tab-btn" data-view="squadre">Squadre</button>
-      <button class="tab-btn" data-view="zone">Zone</button>
       <button class="tab-btn" data-view="impostazioni">Regole</button>
     </nav>
 
@@ -23,36 +22,52 @@
       <!-- VISTA PIANIFICAZIONE -->
       <section class="view active" id="view-pianificazione">
         <div class="card">
-          <h2>Esegui pianificazione intelligente</h2>
-          <p class="sub">Assegna automaticamente gli interventi "Da pianificare" alle squadre disponibili, rispettando zona/competenza, priorità e finestre orarie, e minimizzando gli spostamenti tramite clustering geografico.</p>
+          <h2>Crea il percorso di una squadra</h2>
+          <p class="sub">Scegli squadra e giorno, seleziona gli interventi da includere dall'elenco e genera il percorso ottimizzato: ordine di visita e orari calcolati rispettando l'orario di lavoro, la pausa pranzo e la finestra oraria di ciascun cliente. Il viaggio dalla partenza alla prima tappa e dall'ultima tappa al rientro non viene conteggiato nell'orario di lavoro.</p>
           <div class="row">
             <div class="field">
-              <label>Dal</label>
-              <input type="date" id="pian-data-inizio">
+              <label>Squadra</label>
+              <select id="pian-squadra"></select>
             </div>
             <div class="field">
-              <label>Al</label>
-              <input type="date" id="pian-data-fine">
+              <label>Giorno</label>
+              <input type="date" id="pian-giorno">
             </div>
             <div class="field">
-              <button class="btn" id="btn-esegui-pianificazione">▶ Esegui pianificazione</button>
-            </div>
-            <div class="field">
-              <button class="btn secondary" id="btn-aggiorna-piano">Aggiorna vista</button>
+              <button class="btn secondary" id="btn-carica-contesto">Carica interventi</button>
             </div>
           </div>
         </div>
 
-        <div class="summary-cards" id="pian-summary" style="display:none;"></div>
+        <div class="card" id="pian-selezione-card" style="display:none;">
+          <h2>Interventi disponibili</h2>
+          <div class="table-wrap">
+            <table id="tabella-selezione-interventi">
+              <thead><tr>
+                <th></th><th>Cliente</th><th>Indirizzo</th><th>Competenza</th><th>Priorità</th><th>Durata</th><th>Finestra</th><th></th>
+              </tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="row" style="margin-top:14px;">
+            <button class="btn" id="btn-ottimizza-percorso">🧭 Ottimizza percorso</button>
+            <span id="pian-selezione-count" class="sub" style="margin:0;"></span>
+          </div>
+        </div>
 
-        <div class="card" id="pian-non-pianificabili-card" style="display:none;">
-          <h2>Interventi non pianificabili</h2>
-          <div class="non-pianificabili-list" id="pian-non-pianificabili"></div>
+        <div class="card" id="pian-anteprima-card" style="display:none;">
+          <h2>Percorso proposto</h2>
+          <div class="summary-cards" id="pian-anteprima-summary"></div>
+          <div class="non-pianificabili-list" id="pian-anteprima-nonincluse" style="margin-bottom:14px;"></div>
+          <div id="pian-anteprima-tappe"></div>
+          <div class="row" style="margin-top:6px;">
+            <button class="btn" id="btn-conferma-percorso">✔ Conferma e salva percorso</button>
+          </div>
         </div>
 
         <div class="card">
-          <h2>Piano squadre per giorno</h2>
-          <div class="board" id="pian-board"><div class="empty-hint">Nessun intervento pianificato nell'intervallo selezionato.</div></div>
+          <h2>Percorsi confermati per il giorno selezionato</h2>
+          <div class="board" id="pian-board"><div class="empty-hint">Nessun percorso confermato per il giorno selezionato.</div></div>
         </div>
       </section>
 
@@ -63,10 +78,6 @@
             <div class="field">
               <label>Stato</label>
               <select id="filtro-stato"><option value="">Tutti</option></select>
-            </div>
-            <div class="field">
-              <label>Zona</label>
-              <select id="filtro-zona"><option value="">Tutte</option></select>
             </div>
             <div class="field">
               <label>Squadra</label>
@@ -82,7 +93,7 @@
           <div class="table-wrap">
             <table id="tabella-interventi">
               <thead><tr>
-                <th>Cliente</th><th>Zona</th><th>Competenza</th><th>Priorità</th><th>Durata</th>
+                <th>Cliente</th><th>Competenza</th><th>Priorità</th><th>Durata</th>
                 <th>Finestra</th><th>Stato</th><th>Squadra</th><th>Data/Ora</th><th>Azioni</th>
               </tr></thead>
               <tbody></tbody>
@@ -101,25 +112,9 @@
           <div class="table-wrap">
             <table id="tabella-squadre">
               <thead><tr>
-                <th></th><th>Nome</th><th>Competenze</th><th>Zone Coperte</th><th>Capacità (min)</th>
-                <th>Orario</th><th>Attiva</th><th>Azioni</th>
+                <th></th><th>Nome</th><th>Partenza</th><th>Rientro</th>
+                <th>Orario</th><th>Pausa pranzo</th><th>Attiva</th><th>Azioni</th>
               </tr></thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- VISTA ZONE -->
-      <section class="view" id="view-zone">
-        <div class="card">
-          <div class="row" style="justify-content: space-between;">
-            <h2 style="margin:0;">Zone del territorio</h2>
-            <button class="btn" id="btn-nuova-zona">+ Nuova Zona</button>
-          </div>
-          <div class="table-wrap">
-            <table id="tabella-zone">
-              <thead><tr><th>Nome</th><th>Lat</th><th>Lng</th><th>Note</th><th>Azioni</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>
@@ -139,10 +134,10 @@
           </div>
         </div>
         <div class="card">
-          <h2>Storico esecuzioni pianificazione</h2>
+          <h2>Storico percorsi confermati</h2>
           <div class="table-wrap">
             <table id="tabella-log">
-              <thead><tr><th>Data/Ora</th><th>Utente</th><th>Pianificati</th><th>Non pianificabili</th></tr></thead>
+              <thead><tr><th>Data/Ora</th><th>Utente</th><th>Squadra</th><th>Giorno</th><th>Tappe</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>

@@ -94,6 +94,20 @@
   .np-item { display: flex; justify-content: space-between; align-items: center; background: #fce8e6; border-radius: 6px; padding: 8px 12px; font-size: 13px; }
   .np-item .motivo { color: #c5221f; font-size: 12px; }
 
+  .route-endpoint { background: #eef3fc; border-radius: 6px; padding: 10px 12px; font-size: 12.5px; margin-bottom: 8px; color: #1a56c4; }
+  .route-stop { display: flex; gap: 12px; align-items: center; background: #fff; border: 1px solid var(--grigio-200); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+  .route-stop-order { width: 26px; height: 26px; border-radius: 50%; background: var(--blu); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0; }
+  .route-stop-body { flex: 1; min-width: 0; }
+  .route-stop-time { font-weight: 700; font-size: 13px; }
+  .route-stop-client { font-weight: 600; }
+  .route-stop-meta { font-size: 11.5px; color: var(--grigio-600); }
+  .route-stop-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .route-stop-actions button { border: 1px solid var(--grigio-400); background: #fff; border-radius: 5px; width: 26px; height: 26px; cursor: pointer; font-size: 12px; }
+  .route-stop-actions button:hover { background: var(--grigio-100); }
+  .route-stop-actions button:disabled { opacity: .35; cursor: default; }
+  .checklist-row { display: flex; align-items: center; gap: 4px; }
+  .warn-icon { color: #b06000; font-size: 12px; cursor: help; }
+
   #modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
   #modal-overlay.hidden { display: none; }
   #modal-box { background: #fff; border-radius: var(--radius); width: min(560px, 92vw); max-height: 88vh; overflow-y: auto; padding: 22px; }
@@ -123,5 +137,8 @@
     input, select, textarea { background: #1b1c1e; color: #e8eaed; border-color: #46474b; }
     .stop { background: #1b1c1e; }
     .board-team { border-color: #35363a; }
+    .route-stop { background: #232427; border-color: #35363a; }
+    .route-endpoint { background: #1b2a44; color: #8ab4f8; }
+    .route-stop-actions button { background: #1b1c1e; border-color: #46474b; color: #e8eaed; }
   }
 </style>

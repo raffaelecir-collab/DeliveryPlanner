@@ -1,43 +1,53 @@
-# Delivery Planner — Pianificazione Territoriale Intelligente
+# Delivery Planner — Ottimizzazione Percorsi per Squadre sul Territorio
 
-Web app per pianificare in modo automatico gli interventi sul territorio tra più
-squadre di lavoro, applicando regole configurabili (priorità/urgenza, finestre
-orarie, copertura zona/competenza, clustering geografico per minimizzare gli
-spostamenti). Costruita su **Google Apps Script + Google Sheets**: nessun
-hosting da gestire, dati in un unico Google Sheet, accesso già protetto dal
-login Google.
+Web app per creare, per ogni squadra e ogni giorno, il percorso ottimizzato tra
+gli interventi selezionati: ordine di visita e orari calcolati automaticamente
+rispettando l'orario di lavoro, la pausa pranzo e la finestra oraria di ogni
+cliente, minimizzando gli spostamenti con tempi di viaggio reali (Google
+Maps). Costruita su **Google Apps Script + Google Sheets**: nessun hosting da
+gestire, dati in un unico Google Sheet, accesso già protetto dal login Google.
 
 Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 
 ## Come funziona
 
 - **Google Sheets come database**: un unico foglio di calcolo contiene i fogli
-  `Squadre`, `Zone`, `Interventi`, `Regole` e `LogPianificazione`. Li crea in
+  `Squadre`, `Interventi`, `Regole` e `LogPianificazione`. Li crea in
   automatico lo script (non serve prepararli a mano).
 - **Web App (HtmlService)**: un'unica pagina con tab per Pianificazione,
-  Interventi, Squadre, Zone e Regole, che comunica col backend tramite
+  Interventi, Squadre e Regole, che comunica col backend tramite
   `google.script.run`.
-- **Motore di pianificazione** (`PlanningEngine.gs`): per ogni giorno
-  dell'orizzonte selezionato e per ogni squadra attiva, assegna in ordine gli
-  interventi "Da pianificare" rispettando:
-  1. **Copertura territoriale e competenza** — una squadra prende solo
-     interventi nelle zone che copre e con la competenza richiesta (se
-     specificata).
-  2. **Priorità/urgenza e finestra oraria del cliente** — un intervento
-     Urgente/con scadenza vicina viene sempre preferito a uno a bassa
-     priorità; un intervento non può essere assegnato fuori dalla propria
-     finestra oraria.
-  3. **Clustering geografico** — a parità di priorità viene scelto
-     l'intervento più vicino all'ultima tappa della squadra (calcolo
-     distanza haversine su lat/lng, oppure centroide della zona), per
-     ridurre gli spostamenti e creare giri di lavoro compatti.
-  4. **Capacità giornaliera** — minuti di lavoro disponibili e orario della
-     squadra.
-  
-  Gli interventi che non trovano posto nell'orizzonte selezionato vengono
-  marcati "Non pianificabile" con il motivo, in modo da restare visibili e
-  gestibili manualmente (es. aggiungere una squadra, allargare l'orizzonte,
-  rivedere la finestra oraria).
+- **Geocodifica automatica** (`Geocoding.gs`): quando salvi una squadra o un
+  intervento, il rispettivo indirizzo viene convertito in coordinate tramite
+  il servizio Maps integrato di Apps Script (nessuna chiave API da
+  configurare).
+- **Motore di ottimizzazione percorso** (`RouteEngine.gs`): il flusso è
+  manuale-assistito, non un'assegnazione automatica cieca:
+  1. Scegli **squadra** e **giorno**.
+  2. Seleziona dall'elenco gli interventi "Da pianificare" da includere in
+     quel giro (con avviso se la competenza richiesta non è tra quelle della
+     squadra).
+  3. Premi **"Ottimizza percorso"**: il motore calcola l'ordine di visita che
+     minimizza il tempo di spostamento totale (nearest-neighbour + 2-opt
+     sulla matrice dei tempi di viaggio reali via Google Maps Directions, con
+     ripiego sulla stima in linea d'aria se il servizio non è disponibile),
+     poi assegna gli orari rispettando:
+     - **l'orario di lavoro della squadra** — il viaggio dall'indirizzo di
+       partenza alla prima tappa e dall'ultima tappa all'indirizzo di rientro
+       **non** viene conteggiato in questo orario (è trasferimento fuori
+       turno); vengono comunque mostrati come informazione l'orario stimato
+       di uscita e di rientro;
+     - **l'eventuale pausa pranzo** — nessuna tappa viene collocata in quella
+       fascia, lo scheduling la salta automaticamente;
+     - **la finestra oraria richiesta da ciascun cliente**.
+  4. Puoi affinare manualmente il percorso proposto (sposta su/giù una tappa,
+     rimuovine una) prima di confermarlo: ogni modifica ricalcola subito gli
+     orari.
+  5. **"Conferma e salva percorso"**: scrive stato/squadra/orario sugli
+     interventi coinvolti. Gli interventi che non entrano nel giro restano
+     "Da pianificare" con una nota sul motivo, così restano visibili e
+     gestibili (es. spostarli a un altro giorno, altra squadra, o rivedere la
+     finestra oraria).
 
 ## Struttura dei file (`gas/`)
 
@@ -46,9 +56,10 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 | `appsscript.json` | Manifest del progetto Apps Script (fuso orario, accesso Web App) |
 | `Config.gs` | Schema dati (colonne dei fogli) e valori di default delle regole |
 | `SheetService.gs` | Lettura/scrittura generica dei fogli basata sullo schema |
+| `Geocoding.gs` | Conversione indirizzo → coordinate (con cache) |
 | `Setup.gs` | Inizializzazione struttura fogli, menu, dati di esempio |
-| `Teams.gs` / `Zones.gs` / `Interventions.gs` / `Rules.gs` | CRUD |
-| `PlanningEngine.gs` | Motore di pianificazione intelligente |
+| `Teams.gs` / `Interventions.gs` / `Rules.gs` | CRUD (con geocodifica automatica su Squadre/Interventi) |
+| `RouteEngine.gs` | Motore di ottimizzazione percorso (nearest-neighbour + 2-opt, scheduling con pausa pranzo) |
 | `Code.gs` | `doGet()` e funzioni esposte al client |
 | `Index.html` / `CSS.html` / `JS.html` | Interfaccia utente (SPA) |
 
@@ -72,9 +83,10 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 4. Nell'editor Apps Script, apri `Setup.gs` e lancia una volta la funzione
    `inizializzaApp` (menu "Esegui" ▶ seleziona `inizializzaApp` ▶ Esegui).
    Alla prima esecuzione Google chiederà di autorizzare lo script ad
-   accedere al foglio: è normale, accetta.
+   accedere al foglio e al servizio Maps: è normale, accetta.
 5. (Facoltativo ma consigliato per provarla subito) Esegui `caricaDatiDiEsempio`
-   per popolare 3 squadre, 3 zone e 5 interventi di esempio.
+   per popolare 3 squadre e 5 interventi di esempio con indirizzi reali (zona
+   Milano), già geocodificati.
 6. Distribuisci la Web App: **Distribuisci → Nuova distribuzione → tipo
    "Applicazione web"**.
    - *Esegui come*: **Utente che accede all'applicazione**.
@@ -91,34 +103,48 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 
 ## Uso quotidiano
 
-1. Tab **Squadre**: censisci le squadre con competenze, zone coperte, orario
-   di lavoro, capacità giornaliera (minuti) e, se vuoi sfruttare il
-   clustering geografico, le coordinate della base di partenza.
-2. Tab **Zone**: censisci le zone del territorio (nome e, per il clustering,
-   le coordinate del centroide).
-3. Tab **Interventi**: inserisci gli interventi da pianificare (cliente,
-   indirizzo, zona, competenza richiesta, priorità, durata stimata, finestra
-   oraria, eventuale scadenza).
-4. Tab **Pianificazione**: scegli l'intervallo di date e premi "Esegui
-   pianificazione". Il piano squadra-per-giorno appare subito sotto, con il
-   riepilogo di quanti interventi sono stati assegnati e quali non lo sono
-   stati (con motivo).
-5. Tab **Regole**: puoi modificare a caldo i parametri del motore (pesi delle
-   priorità, buffer di viaggio, velocità media per il calcolo degli
-   spostamenti, giorni lavorativi, orizzonte di pianificazione di default)
-   senza toccare il codice.
+1. Tab **Squadre**: censisci le squadre con competenze (promemoria),
+   indirizzo di partenza a inizio turno, indirizzo di rientro a fine turno
+   (lascia vuoto se coincide con la partenza), orario di lavoro e, se
+   presente, la fascia della pausa pranzo. Indirizzo di partenza e rientro
+   vengono geocodificati automaticamente al salvataggio.
+2. Tab **Interventi**: inserisci gli interventi da pianificare (cliente,
+   indirizzo — geocodificato automaticamente —, competenza richiesta,
+   priorità, durata stimata, finestra oraria, eventuale non-prima-del/scadenza
+   informativi).
+3. Tab **Pianificazione**: scegli squadra e giorno, carica gli interventi
+   disponibili, seleziona quelli da includere, premi "Ottimizza percorso",
+   eventualmente affina l'ordine e premi "Conferma e salva percorso". In
+   fondo alla pagina trovi il riepilogo dei percorsi già confermati per il
+   giorno selezionato, per tutte le squadre.
+4. Tab **Regole**: puoi modificare a caldo i parametri del motore (pesi delle
+   priorità usati come criterio secondario nell'ordinamento, buffer di
+   setup/parcheggio tra due tappe, velocità media di fallback) senza toccare
+   il codice.
 
-Ogni esecuzione della pianificazione viene anche registrata nel foglio
-`LogPianificazione` (visibile in fondo al tab Regole), utile per tracciare chi
-ha pianificato cosa e quando.
+Ogni percorso confermato viene registrato nel foglio `LogPianificazione`
+(visibile in fondo al tab Regole), utile per tracciare chi ha pianificato
+cosa e quando.
+
+## Nota sul servizio Google Maps
+
+Geocodifica e calcolo dei tempi di viaggio reali usano il servizio `Maps`
+integrato di Apps Script (classi `Maps.newGeocoder()` e
+`Maps.newDirectionFinder()`): non serve creare una chiave API né abilitare
+servizi avanzati. È soggetto alle quote giornaliere di Google per l'account
+che esegue lo script; se una chiamata fallisce (quota esaurita o servizio
+non disponibile), il motore ricade automaticamente su una stima in linea
+d'aria (velocità media configurabile in Regole) e la tappa viene comunque
+pianificata, segnalata come "stimata" invece che "reale" nell'anteprima del
+percorso. I risultati di geocodifica e tempi di viaggio restano in cache 6
+ore per ridurre il numero di chiamate quando ricorrono gli stessi indirizzi
+(base delle squadre, clienti abituali).
 
 ## Personalizzazioni comuni
 
-- **Nuove competenze/zone**: bastano nuove righe nei rispettivi fogli, non
-  serve modificare codice.
-- **Nuovi campi sugli interventi**: aggiungi una voce all'array `fields` di
-  `INTERVENTI` in `Config.gs` — form e tabella si aggiornano da soli perché
+- **Nuovi campi su Squadre/Interventi**: aggiungi una voce all'array `fields`
+  corrispondente in `Config.gs` — form e tabella si aggiornano da soli perché
   generati dinamicamente dallo schema.
-- **Regole aggiuntive** (es. bilanciamento del carico tra squadre): il punto
-  di innesto è `pianificaGiornoPerSquadra_` in `PlanningEngine.gs`, dove
-  vengono filtrati/ordinati i candidati per ogni squadra/giorno.
+- **Bilanciamento del carico tra squadre o altre regole aggiuntive**: il
+  punto di innesto è `ordinaNearestNeighbor_` (ordine di visita) e
+  `pianificaOrarioPercorso_` (assegnazione orari) in `RouteEngine.gs`.

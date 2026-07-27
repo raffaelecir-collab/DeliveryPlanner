@@ -30,7 +30,7 @@ function inizializzaApp() {
 /** Wrapper per il menu del foglio: esegue l'inizializzazione e mostra un alert. */
 function inizializzaAppDaMenu() {
   inizializzaApp();
-  SpreadsheetApp.getUi().alert('Struttura fogli pronta. Puoi ora usare "Carica dati di esempio" oppure iniziare a inserire Squadre, Zone e Interventi.');
+  SpreadsheetApp.getUi().alert('Struttura fogli pronta. Puoi ora usare "Carica dati di esempio" oppure iniziare a inserire Squadre e Interventi.');
 }
 
 function inizializzaRegoleDefault_() {
@@ -57,32 +57,33 @@ function caricaDatiDiEsempioDaMenu() {
   SpreadsheetApp.getUi().alert('Dati di esempio caricati. Vai sulla Web App e premi "Esegui pianificazione".');
 }
 
+/**
+ * Popola squadre e interventi di esempio con indirizzi reali (zona Milano), usando
+ * salvaSquadra/salvaIntervento in modo che vengano geocodificati automaticamente
+ * come avverrebbe nell'uso normale dell'app.
+ */
 function caricaDatiDiEsempio() {
   inizializzaApp();
 
-  var zoneEsistenti = readAll_('ZONE');
-  if (zoneEsistenti.length === 0) {
-    upsertRow_('ZONE', { nome: 'Nord', lat: 45.4642, lng: 9.1900, note: 'Quadrante nord città' });
-    upsertRow_('ZONE', { nome: 'Centro', lat: 45.4641, lng: 9.1919, note: 'Centro storico' });
-    upsertRow_('ZONE', { nome: 'Sud', lat: 45.4408, lng: 9.1996, note: 'Quadrante sud città' });
-  }
-
   var squadreEsistenti = readAll_('SQUADRE');
   if (squadreEsistenti.length === 0) {
-    upsertRow_('SQUADRE', {
-      nome: 'Squadra Alfa', competenze: 'elettrico,idraulico', zoneCoperte: 'Nord,Centro',
-      capacitaMinuti: 480, oraInizio: '08:00', oraFine: '17:00',
-      latBase: 45.4830, lngBase: 9.2000, colore: '#4285F4', attiva: true
+    salvaSquadra({
+      nome: 'Squadra Alfa', competenze: 'elettrico,idraulico',
+      indirizzoPartenza: 'Piazzale Loreto, Milano', indirizzoRientro: '',
+      oraInizio: '08:00', oraFine: '17:00', pausaPranzoInizio: '13:00', pausaPranzoFine: '14:00',
+      colore: '#4285F4', attiva: true
     });
-    upsertRow_('SQUADRE', {
-      nome: 'Squadra Beta', competenze: 'idraulico,climatizzazione', zoneCoperte: 'Centro,Sud',
-      capacitaMinuti: 480, oraInizio: '08:00', oraFine: '17:00',
-      latBase: 45.4600, lngBase: 9.1950, colore: '#EA4335', attiva: true
+    salvaSquadra({
+      nome: 'Squadra Beta', competenze: 'idraulico,climatizzazione',
+      indirizzoPartenza: 'Piazza Duomo, Milano', indirizzoRientro: '',
+      oraInizio: '08:00', oraFine: '17:00', pausaPranzoInizio: '13:00', pausaPranzoFine: '13:30',
+      colore: '#EA4335', attiva: true
     });
-    upsertRow_('SQUADRE', {
-      nome: 'Squadra Gamma', competenze: 'elettrico,climatizzazione', zoneCoperte: 'Sud',
-      capacitaMinuti: 420, oraInizio: '09:00', oraFine: '16:00',
-      latBase: 45.4300, lngBase: 9.2050, colore: '#34A853', attiva: true
+    salvaSquadra({
+      nome: 'Squadra Gamma', competenze: 'elettrico,climatizzazione',
+      indirizzoPartenza: 'Piazza Ovidio, Milano', indirizzoRientro: '',
+      oraInizio: '09:00', oraFine: '16:00', pausaPranzoInizio: '', pausaPranzoFine: '',
+      colore: '#34A853', attiva: true
     });
   }
 
@@ -93,10 +94,10 @@ function caricaDatiDiEsempio() {
     var dopodomani = new Date(oggi.getTime() + 48 * 3600 * 1000);
     var fmt = function (d) { return Utilities.formatDate(d, Session.getScriptTimeZone(), 'dd/MM/yyyy'); };
 
-    upsertRow_('INTERVENTI', { cliente: 'Rossi SpA', indirizzo: 'Via Roma 1', zona: 'Nord', lat: 45.4850, lng: 9.2010, competenza: 'elettrico', priorita: 'Urgente', durataMinuti: 90, finestraInizio: '08:00', finestraFine: '12:00', dataRichiesta: fmt(oggi), scadenza: fmt(domani), stato: 'Da pianificare' });
-    upsertRow_('INTERVENTI', { cliente: 'Bianchi Srl', indirizzo: 'Via Milano 10', zona: 'Nord', lat: 45.4700, lng: 9.1850, competenza: 'idraulico', priorita: 'Normale', durataMinuti: 60, finestraInizio: '08:00', finestraFine: '17:00', dataRichiesta: fmt(oggi), scadenza: fmt(dopodomani), stato: 'Da pianificare' });
-    upsertRow_('INTERVENTI', { cliente: 'Verdi & Co', indirizzo: 'Corso Centro 5', zona: 'Centro', lat: 45.4635, lng: 9.1900, competenza: 'idraulico', priorita: 'Alta', durataMinuti: 45, finestraInizio: '09:00', finestraFine: '13:00', dataRichiesta: fmt(oggi), scadenza: fmt(domani), stato: 'Da pianificare' });
-    upsertRow_('INTERVENTI', { cliente: 'Neri Impianti', indirizzo: 'Via Sud 22', zona: 'Sud', lat: 45.4350, lng: 9.2000, competenza: 'climatizzazione', priorita: 'Normale', durataMinuti: 120, finestraInizio: '08:00', finestraFine: '17:00', dataRichiesta: fmt(oggi), scadenza: fmt(dopodomani), stato: 'Da pianificare' });
-    upsertRow_('INTERVENTI', { cliente: 'Gialli Retail', indirizzo: 'Via Sud 40', zona: 'Sud', lat: 45.4280, lng: 9.2100, competenza: 'elettrico', priorita: 'Bassa', durataMinuti: 60, finestraInizio: '10:00', finestraFine: '16:00', dataRichiesta: fmt(oggi), stato: 'Da pianificare' });
+    salvaIntervento({ cliente: 'Rossi SpA', indirizzo: 'Via Padova 100, Milano', competenza: 'elettrico', priorita: 'Urgente', durataMinuti: 90, finestraInizio: '08:00', finestraFine: '12:00', dataRichiesta: fmt(oggi), scadenza: fmt(domani), stato: 'Da pianificare' });
+    salvaIntervento({ cliente: 'Bianchi Srl', indirizzo: 'Corso Buenos Aires 50, Milano', competenza: 'idraulico', priorita: 'Normale', durataMinuti: 60, finestraInizio: '08:00', finestraFine: '17:00', dataRichiesta: fmt(oggi), scadenza: fmt(dopodomani), stato: 'Da pianificare' });
+    salvaIntervento({ cliente: 'Verdi & Co', indirizzo: 'Via Torino 20, Milano', competenza: 'idraulico', priorita: 'Alta', durataMinuti: 45, finestraInizio: '09:00', finestraFine: '13:00', dataRichiesta: fmt(oggi), scadenza: fmt(domani), stato: 'Da pianificare' });
+    salvaIntervento({ cliente: 'Neri Impianti', indirizzo: 'Viale Papiniano 30, Milano', competenza: 'climatizzazione', priorita: 'Normale', durataMinuti: 120, finestraInizio: '08:00', finestraFine: '17:00', dataRichiesta: fmt(oggi), scadenza: fmt(dopodomani), stato: 'Da pianificare' });
+    salvaIntervento({ cliente: 'Gialli Retail', indirizzo: 'Via Ripamonti 80, Milano', competenza: 'elettrico', priorita: 'Bassa', durataMinuti: 60, finestraInizio: '10:00', finestraFine: '16:00', dataRichiesta: fmt(oggi), stato: 'Da pianificare' });
   }
 }

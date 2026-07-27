@@ -31,7 +31,6 @@ function getBootstrapData() {
   return {
     schema: schemaClient,
     squadre: readAll_('SQUADRE'),
-    zone: readAll_('ZONE'),
     utente: Session.getActiveUser().getEmail() || ''
   };
 }
