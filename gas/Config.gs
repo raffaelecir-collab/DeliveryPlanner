@@ -112,5 +112,8 @@ var REGOLE_DEFAULT = [
   { chiave: 'pesoPrioritaUrgente', valore: '1000', descrizione: 'Peso della priorità Urgente, usato come criterio secondario nella costruzione iniziale del percorso.' },
   { chiave: 'pesoPrioritaAlta', valore: '100', descrizione: 'Peso della priorità Alta.' },
   { chiave: 'pesoPrioritaNormale', valore: '10', descrizione: 'Peso della priorità Normale.' },
-  { chiave: 'pesoPrioritaBassa', valore: '1', descrizione: 'Peso della priorità Bassa.' }
+  { chiave: 'pesoPrioritaBassa', valore: '1', descrizione: 'Peso della priorità Bassa.' },
+  { chiave: 'densitaRaggioMinuti', valore: '8', descrizione: 'Entro quanti minuti di viaggio due interventi sono considerati "nella stessa area" ai fini del punteggio di densità.' },
+  { chiave: 'pesoDensita', valore: '50', descrizione: 'Peso dato alla densità di un\'area (numero di altri interventi vicini) nello scegliere da quale zona iniziare il percorso: aree con più interventi vicini vengono preferite per massimizzare quanti interventi si riescono a completare.' },
+  { chiave: 'pesoProssimitaBase', valore: '5', descrizione: 'Preferenza (minuti di viaggio dalla partenza della squadra, come penalità) per iniziare il percorso da un\'area vicina alla base, a parità di priorità/densità.' }
 ];

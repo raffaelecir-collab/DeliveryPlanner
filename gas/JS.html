@@ -455,6 +455,26 @@
       var opt = document.createElement('option'); opt.value = s.id; opt.textContent = s.nome; sel.appendChild(opt);
     });
     if (valorePrecedente && state.squadre.some(function (s) { return s.id === valorePrecedente; })) sel.value = valorePrecedente;
+
+    var checklist = document.getElementById('pian-intervallo-squadre');
+    if (checklist) {
+      var checkedPrima = idsSquadreIntervalloSelezionate();
+      checklist.innerHTML = '';
+      state.squadre.filter(function (s) { return s.attiva; }).forEach(function (s) {
+        var label = document.createElement('label');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = s.id;
+        cb.checked = checkedPrima.length ? checkedPrima.indexOf(s.id) !== -1 : true;
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(s.nome));
+        checklist.appendChild(label);
+      });
+    }
+  }
+
+  function idsSquadreIntervalloSelezionate() {
+    return Array.prototype.slice.call(document.querySelectorAll('#pian-intervallo-squadre input:checked')).map(function (cb) { return cb.value; });
   }
 
   function idsSelezionatiCorrenti() {
@@ -495,13 +515,19 @@
     aggiornaContatoreSelezione();
   }
 
+  function totaleTappeIntervallo(risultato) {
+    return risultato.giorni.reduce(function (sum, g) {
+      return sum + g.squadre.reduce(function (s2, sq) { return s2 + sq.tappe.length; }, 0);
+    }, 0);
+  }
+
   function renderIntervalloResult(risultato) {
-    var totaleTappe = risultato.giorni.reduce(function (sum, g) { return sum + g.tappe.length; }, 0);
+    var totaleTappe = totaleTappeIntervallo(risultato);
     var summary = document.getElementById('pian-intervallo-summary');
     summary.style.display = 'flex';
     summary.innerHTML =
       '<div class="summary-card ok"><div class="num">' + totaleTappe + '</div><div class="lbl">Tappe pianificate</div></div>' +
-      '<div class="summary-card"><div class="num">' + risultato.giorni.length + '</div><div class="lbl">Giorni con percorso</div></div>' +
+      '<div class="summary-card"><div class="num">' + risultato.giorni.length + '</div><div class="lbl">Giorni con almeno un percorso</div></div>' +
       '<div class="summary-card warn"><div class="num">' + risultato.nonIncluse.length + '</div><div class="lbl">Non incluse</div></div>';
 
     var nonInclEl = document.getElementById('pian-intervallo-nonincluse');
@@ -515,30 +541,34 @@
       return;
     }
     boardEl.innerHTML = risultato.giorni.map(function (g) {
-      var stopsHtml = g.tappe.map(function (t) {
-        return '<div class="stop"><span class="ora">' + t.oraInizio + '-' + t.oraFine + '</span> <span class="cliente">' + escapeHtml(t.cliente) + '</span>' +
-          '<div class="meta">' + escapeHtml(t.indirizzo || '') + ' · ' + t.durataMinuti + ' min</div></div>';
+      var teamsHtml = g.squadre.map(function (sq) {
+        var stopsHtml = sq.tappe.map(function (t) {
+          return '<div class="stop"><span class="ora">' + t.oraInizio + '-' + t.oraFine + '</span> <span class="cliente">' + escapeHtml(t.cliente) + '</span>' +
+            '<div class="meta">' + escapeHtml(t.indirizzo || '') + ' · ' + t.durataMinuti + ' min</div></div>';
+        }).join('');
+        return '<div class="board-team"><div class="team-head"><span class="team-dot" style="background:' + (sq.colore || '#999') + '"></span>' + escapeHtml(sq.squadraNome) + '</div>' + stopsHtml + '</div>';
       }).join('');
-      return '<div class="board-day"><div class="day-title">' + g.giorno + '</div><div class="board-teams">' +
-        '<div class="board-team"><div class="team-head">' + escapeHtml(risultato.squadraNome) + '</div>' + stopsHtml + '</div>' +
-        '</div></div>';
+      return '<div class="board-day"><div class="day-title">' + g.giorno + '</div><div class="board-teams">' + teamsHtml + '</div></div>';
     }).join('');
   }
 
   function pianificaIntervalloClick() {
-    var squadraId = document.getElementById('pian-squadra').value;
-    if (!squadraId) { toast('Seleziona una squadra.', 'error'); return; }
+    var squadraIds = idsSquadreIntervalloSelezionate();
+    if (!squadraIds.length) { toast('Seleziona almeno una squadra.', 'error'); return; }
     var dal = document.getElementById('pian-intervallo-dal').value;
     var al = document.getElementById('pian-intervallo-al').value;
     if (!dal || !al) { toast('Seleziona l\'intervallo di date.', 'error'); return; }
-    var squadra = state.squadre.filter(function (s) { return s.id === squadraId; })[0];
-    if (!window.confirm('Pianificare automaticamente tutti gli interventi disponibili per "' + (squadra ? squadra.nome : squadraId) +
-      '" tra il ' + fromInputDate(dal) + ' e il ' + fromInputDate(al) + '? Verranno scritti subito sul foglio.')) return;
+    var nomiSquadre = squadraIds.map(function (id) {
+      var s = state.squadre.filter(function (x) { return x.id === id; })[0];
+      return s ? s.nome : id;
+    }).join(', ');
+    if (!window.confirm('Pianificare automaticamente tutti gli interventi disponibili per: ' + nomiSquadre +
+      ', tra il ' + fromInputDate(dal) + ' e il ' + fromInputDate(al) + '? Verranno scritti subito sul foglio.')) return;
     var btn = document.getElementById('btn-pianifica-intervallo');
     btn.disabled = true; btn.textContent = 'Calcolo in corso…';
-    callServer('pianificaIntervallo', squadraId, fromInputDate(dal), fromInputDate(al)).then(function (risultato) {
+    callServer('pianificaIntervallo', squadraIds, fromInputDate(dal), fromInputDate(al)).then(function (risultato) {
       renderIntervalloResult(risultato);
-      var totaleTappe = risultato.giorni.reduce(function (sum, g) { return sum + g.tappe.length; }, 0);
+      var totaleTappe = totaleTappeIntervallo(risultato);
       toast('Intervallo pianificato: ' + totaleTappe + ' tappe su ' + risultato.giorni.length + ' giorni.', 'success');
       aggiornaBoardGiorno();
       if (pianState.giorno) caricaContesto();

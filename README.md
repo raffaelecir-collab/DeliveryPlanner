@@ -28,10 +28,15 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      quel giro (con avviso se la competenza richiesta non è tra quelle della
      squadra).
   3. Premi **"Ottimizza percorso"**: il motore calcola l'ordine di visita che
-     minimizza il tempo di spostamento totale (nearest-neighbour + 2-opt
-     sulla matrice dei tempi di viaggio reali via Google Maps Directions, con
-     ripiego sulla stima in linea d'aria se il servizio non è disponibile),
-     poi assegna gli orari rispettando:
+     minimizza il tempo di spostamento totale, per massimizzare quanti
+     interventi entrano nel tempo disponibile (costruzione a "inserimento più
+     economico" con seme scelto per priorità e densità dell'area — le zone con
+     più interventi vicini vengono privilegiate e completate per intero, e gli
+     interventi geograficamente "di passaggio" tra due tappe già pianificate
+     vengono raccolti automaticamente — più raffinamento 2-opt sulla matrice
+     dei tempi di viaggio reali via Google Maps Directions, con ripiego sulla
+     stima in linea d'aria se il servizio non è disponibile), poi assegna gli
+     orari rispettando:
      - **l'orario di lavoro della squadra** — il viaggio dall'indirizzo di
        partenza alla prima tappa e dall'ultima tappa all'indirizzo di rientro
        **non** viene conteggiato in questo orario (è trasferimento fuori
@@ -126,22 +131,24 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      interventi disponibili, seleziona quelli da includere, premi "Ottimizza
      percorso", eventualmente affina l'ordine (frecce su/giù, rimuovi tappa)
      e premi "Conferma e salva percorso".
-   - **Pianificazione automatica su intervallo**: scegli un intervallo
-     Dal/Al e premi "Pianifica intervallo": il sistema genera e **scrive
-     subito** (senza passaggio di conferma) un percorso ottimizzato per
-     ciascun giorno dell'intervallo, usando via via gli interventi "Da
-     pianificare" ancora disponibili e compatibili (qui la competenza
-     richiesta è un filtro rigido, non solo un avviso). Utile per riempire
-     più giorni in un colpo solo; gli interventi che non trovano posto in
-     nessun giorno dell'intervallo restano "Da pianificare" con una nota sul
-     motivo.
+   - **Pianificazione automatica su intervallo**: seleziona una o più
+     squadre (checklist sopra le date — la prima selezionata ha la precedenza
+     nella scelta degli interventi in ciascun giorno) e un intervallo Dal/Al,
+     poi premi "Pianifica intervallo": il sistema genera e **scrive subito**
+     (senza passaggio di conferma) un percorso ottimizzato per ciascuna
+     squadra in ciascun giorno dell'intervallo, usando via via gli interventi
+     "Da pianificare" ancora disponibili e compatibili (qui la competenza
+     richiesta è un filtro rigido, non solo un avviso). Utile per riempire più
+     giorni — e più squadre — in un colpo solo; gli interventi che non
+     trovano posto in nessun giorno/squadra dell'intervallo restano "Da
+     pianificare" con una nota sul motivo.
 
    In fondo alla pagina trovi il riepilogo dei percorsi già confermati per il
-   giorno selezionato, per tutte le squadre.
+   giorno selezionato, con tutte le squadre affiancate.
 4. Tab **Regole**: puoi modificare a caldo i parametri del motore (pesi delle
-   priorità usati come criterio secondario nell'ordinamento, buffer di
-   setup/parcheggio tra due tappe, velocità media di fallback) senza toccare
-   il codice.
+   priorità, peso e raggio della densità di un'area, preferenza per la
+   vicinanza alla base, buffer di setup/parcheggio tra due tappe, velocità
+   media di fallback) senza toccare il codice.
 
 Ogni percorso confermato (in entrambe le modalità) viene registrato nel
 foglio `LogPianificazione` (visibile in fondo al tab Regole), utile per

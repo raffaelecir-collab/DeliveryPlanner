@@ -121,36 +121,79 @@ function costruisciMatrice_(nodi, regole) {
 
 // ---------- costruzione e ottimizzazione del percorso ----------
 
-/** Nearest-neighbour: ad ogni passo sceglie la tappa più vicina; a parità (entro 2 min) preferisce la priorità più alta. */
-function ordinaNearestNeighbor_(stopIndices, matrice, partenzaIdx, nodi, regole) {
-  var remaining = stopIndices.slice();
-  var current = partenzaIdx;
-  var ordine = [];
-  while (remaining.length > 0) {
-    var costi = remaining.map(function (idx) { return { idx: idx, costo: matrice[current][idx].minuti }; });
-    var minCosto = Math.min.apply(null, costi.map(function (c) { return c.costo; }));
-    var candidati = costi.filter(function (c) { return c.costo <= minCosto + 2; });
-    candidati.sort(function (a, b) {
-      var pa = pesoPriorita_(nodi[a.idx].intervento.priorita, regole);
-      var pb = pesoPriorita_(nodi[b.idx].intervento.priorita, regole);
-      if (pb !== pa) return pb - pa;
-      return a.costo - b.costo;
-    });
-    var scelto = candidati[0].idx;
-    ordine.push(scelto);
-    remaining.splice(remaining.indexOf(scelto), 1);
-    current = scelto;
+/** Numero di altri interventi del pool raggiungibili entro densitaRaggioMinuti da idx: più alto = area con più interventi vicini. */
+function densitaPunto_(idx, stopIndices, matrice, raggioMinuti) {
+  var count = 0;
+  for (var i = 0; i < stopIndices.length; i++) {
+    var other = stopIndices[i];
+    if (other !== idx && matrice[idx][other].minuti <= raggioMinuti) count++;
   }
-  return ordine;
+  return count;
 }
 
-/** Migliora l'ordine con lo scambio 2-opt (estremi partenza/rientro fissi), minimizzando il tempo totale di viaggio. */
-function dueOptMigliora_(ordine, matrice, partenzaIdx, rientroIdx) {
+/**
+ * Costruzione "cheapest insertion" con seme scelto per priorità+densità dell'area
+ * (con una lieve preferenza per le aree vicine alla partenza della squadra, a
+ * parità del resto, così un'area ugualmente valida ma più vicina viene preferita
+ * a una lontana). Ad ogni passo si inserisce, nel punto della rotta che costa
+ * meno in termini di deviazione, l'intervento rimanente più economico da
+ * aggiungere: questo fa sì che gli interventi "sulla strada" tra due tappe già
+ * pianificate vengano naturalmente raccolti, e che le aree con più interventi
+ * vicini tendano ad essere completate per intero, massimizzando quanti
+ * interventi entrano nel tempo disponibile.
+ *
+ * Il costo di inserimento è quello di un "percorso aperto": il primo e l'ultimo
+ * intervento del percorso non hanno un costo di aggancio a partenza/rientro
+ * (coerentemente con lo scheduling, dove quei due spostamenti non sono
+ * conteggiati nell'orario di lavoro) — un punto viene quindi agganciato in testa
+ * o in coda al costo di un solo arco, non di un arco fittizio verso la base.
+ */
+function costruisciPercorsoInserzione_(stopIndices, matrice, partenzaIdx, nodi, regole) {
+  if (stopIndices.length === 0) return [];
+  var raggioMinuti = regole.densitaRaggioMinuti || 8;
+  var pesoDensita = regole.pesoDensita || 50;
+  var pesoProssimita = regole.pesoProssimitaBase || 5;
+
+  function scorePunto(idx) {
+    var densita = densitaPunto_(idx, stopIndices, matrice, raggioMinuti);
+    var distanzaBase = matrice[partenzaIdx][idx].minuti;
+    return pesoPriorita_(nodi[idx].intervento.priorita, regole) + pesoDensita * densita - pesoProssimita * distanzaBase;
+  }
+
+  var remaining = stopIndices.slice();
+  remaining.sort(function (a, b) { return scorePunto(b) - scorePunto(a); });
+  var route = [remaining.shift()];
+
+  function costoInserzione(idx, pos) {
+    if (pos === -1) return matrice[idx][route[0]].minuti;
+    if (pos === route.length - 1) return matrice[route[pos]][idx].minuti;
+    var prima = route[pos], dopo = route[pos + 1];
+    return matrice[prima][idx].minuti + matrice[idx][dopo].minuti - matrice[prima][dopo].minuti;
+  }
+
+  while (remaining.length > 0) {
+    var migliore = null;
+    remaining.forEach(function (idx) {
+      for (var pos = -1; pos < route.length; pos++) {
+        var costo = costoInserzione(idx, pos);
+        if (!migliore || costo < migliore.costo) migliore = { idx: idx, pos: pos, costo: costo };
+      }
+    });
+    route.splice(migliore.pos + 1, 0, migliore.idx);
+    remaining.splice(remaining.indexOf(migliore.idx), 1);
+  }
+  return route;
+}
+
+/**
+ * Migliora l'ordine con lo scambio 2-opt, minimizzando il tempo di viaggio totale
+ * lungo il percorso "aperto" (senza contare gli archi verso partenza/rientro, per
+ * coerenza con il modello di costo usato in costruzione e con lo scheduling).
+ */
+function dueOptMigliora_(ordine, matrice) {
   function costoTotale(ord) {
-    if (ord.length === 0) return 0;
-    var costo = matrice[partenzaIdx][ord[0]].minuti;
+    var costo = 0;
     for (var k = 0; k < ord.length - 1; k++) costo += matrice[ord[k]][ord[k + 1]].minuti;
-    costo += matrice[ord[ord.length - 1]][rientroIdx].minuti;
     return costo;
   }
   var best = ordine.slice();
@@ -280,6 +323,33 @@ function pianificaOrarioPercorso_(squadra, nodi, ordine, matrice, partenzaIdx, r
   };
 }
 
+/**
+ * Costruisce l'ordine di visita (inserimento più economico, seme per priorità/densità
+ * dell'area) e pianifica gli orari, poi tenta un raffinamento 2-opt sul solo
+ * sottoinsieme di tappe risultate effettivamente incluse: le tappe scartate per
+ * orario/finestra non vengono riconsiderate in questo passaggio. Il raffinamento
+ * viene adottato solo se non fa perdere nessuna tappa già inclusa (altrimenti si
+ * tiene il risultato originale), per non sacrificare mai il numero di interventi
+ * eseguibili in cambio di un percorso marginalmente più corto.
+ */
+function costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matrice, partenzaIdx, rientroIdx, regole) {
+  var ordineIniziale = costruisciPercorsoInserzione_(stopIndices, matrice, partenzaIdx, nodi, regole);
+  var risultato = pianificaOrarioPercorso_(squadra, nodi, ordineIniziale, matrice, partenzaIdx, rientroIdx, regole);
+
+  if (risultato.tappe.length > 2) {
+    var idxPerInterventoId = {};
+    stopIndices.forEach(function (idx) { idxPerInterventoId[nodi[idx].intervento.id] = idx; });
+    var inclusiOrdine = risultato.tappe.map(function (t) { return idxPerInterventoId[t.intervento.id]; });
+    var raffinato = dueOptMigliora_(inclusiOrdine, matrice);
+    var risultatoRaffinato = pianificaOrarioPercorso_(squadra, nodi, raffinato, matrice, partenzaIdx, rientroIdx, regole);
+    if (risultatoRaffinato.tappe.length >= risultato.tappe.length) {
+      risultatoRaffinato.nonIncluse = risultato.nonIncluse;
+      return risultatoRaffinato;
+    }
+  }
+  return risultato;
+}
+
 // ---------- API esposte al client ----------
 
 /** Interventi disponibili per la selezione + eventuale percorso già confermato per squadra+giorno. */
@@ -388,21 +458,19 @@ function anteprimaPercorso(squadraId, giornoStr, interventoIds, ordineManuale) {
   for (var i = 1; i < nodi.length - 1; i++) stopIndices.push(i);
 
   var matrice = costruisciMatrice_(nodi, regole);
+  var giorno = parseDateStr_(giornoStr);
 
-  var ordine;
   if (ordineManuale && ordineManuale.length === stopIndices.length) {
-    ordine = ordineManuale.map(function (id) {
+    var ordine = ordineManuale.map(function (id) {
       var pos = selezionati.map(function (it) { return it.id; }).indexOf(id);
       if (pos === -1) throw new Error('Ordine manuale incoerente con la selezione.');
       return pos + 1;
     });
-  } else {
-    ordine = ordinaNearestNeighbor_(stopIndices, matrice, partenzaIdx, nodi, regole);
-    ordine = dueOptMigliora_(ordine, matrice, partenzaIdx, rientroIdx);
+    var risultatoManuale = pianificaOrarioPercorso_(squadra, nodi, ordine, matrice, partenzaIdx, rientroIdx, regole);
+    return formattaAnteprima_(squadra, giorno, risultatoManuale);
   }
 
-  var giorno = parseDateStr_(giornoStr);
-  var risultato = pianificaOrarioPercorso_(squadra, nodi, ordine, matrice, partenzaIdx, rientroIdx, regole);
+  var risultato = costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matrice, partenzaIdx, rientroIdx, regole);
   return formattaAnteprima_(squadra, giorno, risultato);
 }
 
@@ -476,19 +544,25 @@ function squadraCoprCompetenza_(squadra, intervento) {
 
 /**
  * Pianifica automaticamente, senza selezione manuale, tutti gli interventi "Da pianificare"
- * compatibili con la squadra su un intervallo di giorni: per ciascun giorno (in ordine) genera
- * il percorso ottimizzato con gli interventi ancora disponibili e la cui finestra
- * (Non prima del / Scadenza) include quel giorno, poi lo scrive subito sul foglio.
- * A differenza della modalità a singolo giorno, qui la competenza richiesta è un filtro
- * rigido (nessuna selezione manuale a fare da controllo umano).
+ * compatibili con una o più squadre su un intervallo di giorni: per ciascun giorno (in ordine),
+ * ciascuna squadra (nell'ordine indicato in squadraIds) pesca dal pool condiviso di interventi
+ * ancora disponibili la cui finestra (Non prima del / Scadenza) include quel giorno, genera il
+ * percorso ottimizzato e lo scrive subito sul foglio. La competenza richiesta è un filtro
+ * rigido (nessuna selezione manuale a fare da controllo umano). Con più squadre selezionate,
+ * la prima della lista ha la precedenza nella scelta degli interventi in ciascun giorno.
  */
-function pianificaIntervallo(squadraId, dataInizioStr, dataFineStr) {
+function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
+  if (!squadraIds || squadraIds.length === 0) throw new Error('Seleziona almeno una squadra.');
   var regole = getRegoleMappa_();
-  var squadra = readAll_('SQUADRE').filter(function (s) { return s.id === squadraId; })[0];
-  if (!squadra) throw new Error('Squadra non trovata.');
-  if (!isNum_(squadra.latPartenza) || !isNum_(squadra.lngPartenza)) {
-    throw new Error('L\'indirizzo di partenza della squadra "' + squadra.nome + '" non è geocodificato. Ri-salva la squadra con un indirizzo valido.');
-  }
+  var tutteLeSquadre = readAll_('SQUADRE');
+  var squadre = squadraIds.map(function (id) {
+    var s = tutteLeSquadre.filter(function (x) { return x.id === id; })[0];
+    if (!s) throw new Error('Squadra non trovata: ' + id);
+    if (!isNum_(s.latPartenza) || !isNum_(s.lngPartenza)) {
+      throw new Error('L\'indirizzo di partenza della squadra "' + s.nome + '" non è geocodificato. Ri-salva la squadra con un indirizzo valido.');
+    }
+    return s;
+  });
 
   var dataInizio = parseDateStr_(dataInizioStr);
   var dataFine = parseDateStr_(dataFineStr);
@@ -499,7 +573,8 @@ function pianificaIntervallo(squadraId, dataInizioStr, dataFineStr) {
   var pool = tuttiInterventi.filter(function (i) {
     if (i.stato !== STATO_INTERVENTO.DA_PIANIFICARE) return false;
     if (!isNum_(i.lat) || !isNum_(i.lng)) return false;
-    if (!squadraCoprCompetenza_(squadra, i)) return false;
+    var copertoDaAlmenoUna = squadre.some(function (s) { return squadraCoprCompetenza_(s, i); });
+    if (!copertoDaAlmenoUna) return false;
     var dr = parseDateStr_(i.dataRichiesta);
     if (dr && dr > dataFine) return false;
     var sc = parseDateStr_(i.scadenza);
@@ -507,35 +582,36 @@ function pianificaIntervallo(squadraId, dataInizioStr, dataFineStr) {
     return true;
   });
 
-  var giorniPianificati = [];
+  var giorniMap = {}; // 'dd/MM/yyyy' -> array di { squadraId, squadraNome, colore, tappe }
   var giorno = dataInizio;
   while (giorno <= dataFine) {
-    var candidatiOggi = pool.filter(function (i) {
-      if (i._assegnato) return false;
-      var dr = parseDateStr_(i.dataRichiesta);
-      if (dr && giorno < dr) return false;
-      var sc = parseDateStr_(i.scadenza);
-      if (sc && giorno > sc) return false;
-      return true;
-    });
+    var giornoFmt = formatDateStr_(giorno);
+    squadre.forEach(function (squadra) {
+      var candidatiOggi = pool.filter(function (i) {
+        if (i._assegnato) return false;
+        if (!squadraCoprCompetenza_(squadra, i)) return false;
+        var dr = parseDateStr_(i.dataRichiesta);
+        if (dr && giorno < dr) return false;
+        var sc = parseDateStr_(i.scadenza);
+        if (sc && giorno > sc) return false;
+        return true;
+      });
+      if (candidatiOggi.length === 0) return;
 
-    if (candidatiOggi.length > 0) {
       var nodi = costruisciNodi_(squadra, candidatiOggi);
       var partenzaIdx = 0, rientroIdx = nodi.length - 1;
       var stopIndices = [];
       for (var k = 1; k < nodi.length - 1; k++) stopIndices.push(k);
       var matrice = costruisciMatrice_(nodi, regole);
-      var ordine = ordinaNearestNeighbor_(stopIndices, matrice, partenzaIdx, nodi, regole);
-      ordine = dueOptMigliora_(ordine, matrice, partenzaIdx, rientroIdx);
-      var risultato = pianificaOrarioPercorso_(squadra, nodi, ordine, matrice, partenzaIdx, rientroIdx, regole);
+      var risultato = costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matrice, partenzaIdx, rientroIdx, regole);
 
       risultato.tappe.forEach(function (t, idx) {
         var originale = pool.filter(function (i) { return i.id === t.intervento.id; })[0];
         originale._assegnato = true;
         updateRowFields_('INTERVENTI', t.intervento._row, {
           stato: STATO_INTERVENTO.PIANIFICATO,
-          squadraId: squadraId,
-          dataPianificata: formatDateStr_(giorno),
+          squadraId: squadra.id,
+          dataPianificata: giornoFmt,
           oraPianificata: t.oraInizio,
           ordineTappa: idx + 1,
           motivoNonPianificato: ''
@@ -543,35 +619,49 @@ function pianificaIntervallo(squadraId, dataInizioStr, dataFineStr) {
       });
 
       if (risultato.tappe.length > 0) {
-        giorniPianificati.push(formattaAnteprima_(squadra, giorno, risultato));
+        if (!giorniMap[giornoFmt]) giorniMap[giornoFmt] = [];
+        var anteprimaGiorno = formattaAnteprima_(squadra, giorno, risultato);
+        giorniMap[giornoFmt].push({
+          squadraId: squadra.id,
+          squadraNome: squadra.nome,
+          colore: squadra.colore,
+          tappe: anteprimaGiorno.tappe,
+          partenzaStimata: anteprimaGiorno.partenzaStimata,
+          rientroStimato: anteprimaGiorno.rientroStimato
+        });
       }
-    }
+    });
     giorno = addDays_(giorno, 1);
   }
 
+  var giorniArray = Object.keys(giorniMap)
+    .map(function (g) { return { giorno: g, squadre: giorniMap[g] }; })
+    .sort(function (a, b) { return parseDateStr_(a.giorno) - parseDateStr_(b.giorno); });
+
   var nonIncluse = pool.filter(function (i) { return !i._assegnato; }).map(function (i) {
     var motivo = 'Non è stato possibile inserirlo nel percorso di nessuna squadra tra il ' +
-      formatDateStr_(dataInizio) + ' e il ' + formatDateStr_(dataFine) + ' (orario/pausa pranzo/finestra oraria insufficienti).';
+      formatDateStr_(dataInizio) + ' e il ' + formatDateStr_(dataFine) + ' (competenza, orario/pausa pranzo o finestra oraria non compatibili).';
     updateRowFields_('INTERVENTI', i._row, { motivoNonPianificato: motivo });
     return { interventoId: i.id, cliente: i.cliente, motivo: motivo };
   });
 
-  var totaleTappe = giorniPianificati.reduce(function (sum, g) { return sum + g.tappe.length; }, 0);
+  var totaleTappe = giorniArray.reduce(function (sum, g) {
+    return sum + g.squadre.reduce(function (s2, sq) { return s2 + sq.tappe.length; }, 0);
+  }, 0);
   upsertRow_('LOG', {
     timestamp: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss'),
     utente: Session.getActiveUser().getEmail() || 'sconosciuto',
-    squadra: squadra.nome,
+    squadra: squadre.map(function (s) { return s.nome; }).join(', '),
     giorno: formatDateStr_(dataInizio) + ' - ' + formatDateStr_(dataFine),
     tappe: totaleTappe,
     dettagli: JSON.stringify({ nonIncluse: nonIncluse })
   });
 
   return {
-    squadraId: squadra.id,
-    squadraNome: squadra.nome,
+    squadre: squadre.map(function (s) { return { squadraId: s.id, squadraNome: s.nome }; }),
     dataInizio: formatDateStr_(dataInizio),
     dataFine: formatDateStr_(dataFine),
-    giorni: giorniPianificati,
+    giorni: giorniArray,
     nonIncluse: nonIncluse
   };
 }

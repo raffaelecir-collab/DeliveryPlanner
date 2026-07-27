@@ -41,7 +41,11 @@
 
         <div class="card">
           <h2>Pianifica automaticamente un intervallo di giorni</h2>
-          <p class="sub">In alternativa alla selezione manuale: scegli un intervallo di date e il sistema genera automaticamente, giorno per giorno, il percorso ottimizzato per la squadra selezionata sopra, usando gli interventi "Da pianificare" compatibili (qui la competenza richiesta è un filtro rigido). Scrive subito i percorsi sul foglio, senza passaggio di conferma.</p>
+          <p class="sub">In alternativa alla selezione manuale: scegli una o più squadre e un intervallo di date; il sistema genera automaticamente, giorno per giorno, il percorso ottimizzato per ciascuna squadra selezionata (la prima della lista ha la precedenza nella scelta degli interventi), privilegiando le aree con più interventi vicini e gli interventi "di passaggio" per massimizzare quanti ne entrano nel tempo disponibile. Usa gli interventi "Da pianificare" compatibili (qui la competenza richiesta è un filtro rigido) e scrive subito i percorsi sul foglio, senza passaggio di conferma.</p>
+          <div class="field" style="margin-bottom:12px;">
+            <label>Squadre coinvolte (in ordine di precedenza)</label>
+            <div id="pian-intervallo-squadre" class="checklist-squadre"></div>
+          </div>
           <div class="row">
             <div class="field">
               <label>Dal</label>
