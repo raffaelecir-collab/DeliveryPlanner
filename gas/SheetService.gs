@@ -59,6 +59,13 @@ function parseCellValue_(field, raw) {
     return isNaN(n) ? null : n;
   }
   if (field.type === 'checkbox') {
+    // Una cella vuota (es. riga inserita a mano senza spuntare la casella) ricade
+    // sul default dello schema invece di essere trattata come "falso": altrimenti
+    // una squadra creata direttamente sul foglio, senza "Attiva" = VERO, sparirebbe
+    // silenziosamente da tutti i selettori.
+    if (raw === '' || raw === null || raw === undefined) {
+      return field.default !== undefined ? field.default : false;
+    }
     return raw === true || raw === 'TRUE' || raw === 'true';
   }
   if (field.type === 'date') {
@@ -107,7 +114,9 @@ function generateId_(prefix) {
 
 /**
  * Crea o aggiorna una riga. Se obj.id è presente e già esistente aggiorna la riga,
- * altrimenti genera un nuovo id e accoda una nuova riga.
+ * altrimenti genera un nuovo id e accoda una nuova riga. Se obj.id è assente ma
+ * obj._row è noto (riga inserita/modificata a mano sul foglio, senza ID) aggiorna
+ * comunque quella riga per numero e le assegna un ID, invece di duplicarla.
  */
 function upsertRow_(schemaKey, obj) {
   var schemaDef = SCHEMA[schemaKey];
@@ -115,11 +124,14 @@ function upsertRow_(schemaKey, obj) {
   var existing = null;
   if (obj.id) {
     existing = readAll_(schemaKey).filter(function (r) { return r.id === obj.id; })[0];
+  } else if (obj._row) {
+    existing = readAll_(schemaKey).filter(function (r) { return r._row === obj._row; })[0];
   }
   var idColIndex = schemaDef.fields.findIndex(function (f) { return f.key === 'id'; });
 
   if (existing) {
     var merged = Object.assign({}, existing, obj, { _existing: true });
+    if (idColIndex >= 0 && !merged.id) merged.id = generateId_(schemaDef.idPrefix || 'ID');
     var rowArray = objectToRowArray_(schemaDef, merged);
     sheet.getRange(existing._row, 1, 1, rowArray.length).setValues([rowArray]);
     return merged;
@@ -146,11 +158,18 @@ function updateRowFields_(schemaKey, rowNumber, fieldsObj) {
   });
 }
 
-function deleteRow_(schemaKey, id) {
+/**
+ * Elimina una riga per id. Se l'id è assente (riga inserita a mano sul foglio,
+ * senza ID) ricade su rowFallback (numero di riga fisica), sempre univoco.
+ */
+function deleteRow_(schemaKey, id, rowFallback) {
   var schemaDef = SCHEMA[schemaKey];
   var sheet = getOrCreateSheet_(schemaDef.sheetName);
   var all = readAll_(schemaKey);
-  var target = all.filter(function (r) { return r.id === id; })[0];
+  var target = id ? all.filter(function (r) { return r.id === id; })[0] : null;
+  if (!target && rowFallback) {
+    target = all.filter(function (r) { return r._row === rowFallback; })[0];
+  }
   if (target) {
     sheet.deleteRow(target._row);
     return true;

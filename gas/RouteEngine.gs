@@ -458,3 +458,120 @@ function confermaPercorso(squadraId, giornoStr, interventoIdsOrdinati) {
 
   return anteprima;
 }
+
+// ---------- pianificazione automatica su un intervallo di giorni (una squadra) ----------
+
+function addDays_(date, n) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + n);
+}
+
+function splitList_(str) {
+  return String(str || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+}
+
+function squadraCoprCompetenza_(squadra, intervento) {
+  var competenze = splitList_(squadra.competenze).map(function (c) { return c.toLowerCase(); });
+  return !intervento.competenza || competenze.length === 0 || competenze.indexOf(String(intervento.competenza).toLowerCase()) !== -1;
+}
+
+/**
+ * Pianifica automaticamente, senza selezione manuale, tutti gli interventi "Da pianificare"
+ * compatibili con la squadra su un intervallo di giorni: per ciascun giorno (in ordine) genera
+ * il percorso ottimizzato con gli interventi ancora disponibili e la cui finestra
+ * (Non prima del / Scadenza) include quel giorno, poi lo scrive subito sul foglio.
+ * A differenza della modalità a singolo giorno, qui la competenza richiesta è un filtro
+ * rigido (nessuna selezione manuale a fare da controllo umano).
+ */
+function pianificaIntervallo(squadraId, dataInizioStr, dataFineStr) {
+  var regole = getRegoleMappa_();
+  var squadra = readAll_('SQUADRE').filter(function (s) { return s.id === squadraId; })[0];
+  if (!squadra) throw new Error('Squadra non trovata.');
+  if (!isNum_(squadra.latPartenza) || !isNum_(squadra.lngPartenza)) {
+    throw new Error('L\'indirizzo di partenza della squadra "' + squadra.nome + '" non è geocodificato. Ri-salva la squadra con un indirizzo valido.');
+  }
+
+  var dataInizio = parseDateStr_(dataInizioStr);
+  var dataFine = parseDateStr_(dataFineStr);
+  if (!dataInizio || !dataFine) throw new Error('Intervallo di date non valido.');
+  if (dataFine < dataInizio) throw new Error('La data di fine non può precedere la data di inizio.');
+
+  var tuttiInterventi = readAll_('INTERVENTI');
+  var pool = tuttiInterventi.filter(function (i) {
+    if (i.stato !== STATO_INTERVENTO.DA_PIANIFICARE) return false;
+    if (!isNum_(i.lat) || !isNum_(i.lng)) return false;
+    if (!squadraCoprCompetenza_(squadra, i)) return false;
+    var dr = parseDateStr_(i.dataRichiesta);
+    if (dr && dr > dataFine) return false;
+    var sc = parseDateStr_(i.scadenza);
+    if (sc && sc < dataInizio) return false;
+    return true;
+  });
+
+  var giorniPianificati = [];
+  var giorno = dataInizio;
+  while (giorno <= dataFine) {
+    var candidatiOggi = pool.filter(function (i) {
+      if (i._assegnato) return false;
+      var dr = parseDateStr_(i.dataRichiesta);
+      if (dr && giorno < dr) return false;
+      var sc = parseDateStr_(i.scadenza);
+      if (sc && giorno > sc) return false;
+      return true;
+    });
+
+    if (candidatiOggi.length > 0) {
+      var nodi = costruisciNodi_(squadra, candidatiOggi);
+      var partenzaIdx = 0, rientroIdx = nodi.length - 1;
+      var stopIndices = [];
+      for (var k = 1; k < nodi.length - 1; k++) stopIndices.push(k);
+      var matrice = costruisciMatrice_(nodi, regole);
+      var ordine = ordinaNearestNeighbor_(stopIndices, matrice, partenzaIdx, nodi, regole);
+      ordine = dueOptMigliora_(ordine, matrice, partenzaIdx, rientroIdx);
+      var risultato = pianificaOrarioPercorso_(squadra, nodi, ordine, matrice, partenzaIdx, rientroIdx, regole);
+
+      risultato.tappe.forEach(function (t, idx) {
+        var originale = pool.filter(function (i) { return i.id === t.intervento.id; })[0];
+        originale._assegnato = true;
+        updateRowFields_('INTERVENTI', t.intervento._row, {
+          stato: STATO_INTERVENTO.PIANIFICATO,
+          squadraId: squadraId,
+          dataPianificata: formatDateStr_(giorno),
+          oraPianificata: t.oraInizio,
+          ordineTappa: idx + 1,
+          motivoNonPianificato: ''
+        });
+      });
+
+      if (risultato.tappe.length > 0) {
+        giorniPianificati.push(formattaAnteprima_(squadra, giorno, risultato));
+      }
+    }
+    giorno = addDays_(giorno, 1);
+  }
+
+  var nonIncluse = pool.filter(function (i) { return !i._assegnato; }).map(function (i) {
+    var motivo = 'Non è stato possibile inserirlo nel percorso di nessuna squadra tra il ' +
+      formatDateStr_(dataInizio) + ' e il ' + formatDateStr_(dataFine) + ' (orario/pausa pranzo/finestra oraria insufficienti).';
+    updateRowFields_('INTERVENTI', i._row, { motivoNonPianificato: motivo });
+    return { interventoId: i.id, cliente: i.cliente, motivo: motivo };
+  });
+
+  var totaleTappe = giorniPianificati.reduce(function (sum, g) { return sum + g.tappe.length; }, 0);
+  upsertRow_('LOG', {
+    timestamp: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss'),
+    utente: Session.getActiveUser().getEmail() || 'sconosciuto',
+    squadra: squadra.nome,
+    giorno: formatDateStr_(dataInizio) + ' - ' + formatDateStr_(dataFine),
+    tappe: totaleTappe,
+    dettagli: JSON.stringify({ nonIncluse: nonIncluse })
+  });
+
+  return {
+    squadraId: squadra.id,
+    squadraNome: squadra.nome,
+    dataInizio: formatDateStr_(dataInizio),
+    dataFine: formatDateStr_(dataFine),
+    giorni: giorniPianificati,
+    nonIncluse: nonIncluse
+  };
+}

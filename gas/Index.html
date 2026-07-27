@@ -39,6 +39,27 @@
           </div>
         </div>
 
+        <div class="card">
+          <h2>Pianifica automaticamente un intervallo di giorni</h2>
+          <p class="sub">In alternativa alla selezione manuale: scegli un intervallo di date e il sistema genera automaticamente, giorno per giorno, il percorso ottimizzato per la squadra selezionata sopra, usando gli interventi "Da pianificare" compatibili (qui la competenza richiesta è un filtro rigido). Scrive subito i percorsi sul foglio, senza passaggio di conferma.</p>
+          <div class="row">
+            <div class="field">
+              <label>Dal</label>
+              <input type="date" id="pian-intervallo-dal">
+            </div>
+            <div class="field">
+              <label>Al</label>
+              <input type="date" id="pian-intervallo-al">
+            </div>
+            <div class="field">
+              <button class="btn" id="btn-pianifica-intervallo">📅 Pianifica intervallo</button>
+            </div>
+          </div>
+          <div class="summary-cards" id="pian-intervallo-summary" style="display:none;"></div>
+          <div class="non-pianificabili-list" id="pian-intervallo-nonincluse" style="margin-top:10px;"></div>
+          <div class="board" id="pian-intervallo-board" style="margin-top:10px;"></div>
+        </div>
+
         <div class="card" id="pian-selezione-card" style="display:none;">
           <h2>Interventi disponibili</h2>
           <div class="table-wrap">

@@ -12,7 +12,9 @@ function salvaSquadra(squadra) {
   if (!squadra.nome) throw new Error('Il nome della squadra è obbligatorio.');
   if (!squadra.indirizzoPartenza) throw new Error('L\'indirizzo di partenza è obbligatorio.');
 
-  var esistente = squadra.id ? readAll_('SQUADRE').filter(function (s) { return s.id === squadra.id; })[0] : null;
+  var esistente = squadra.id
+    ? readAll_('SQUADRE').filter(function (s) { return s.id === squadra.id; })[0]
+    : (squadra._row ? readAll_('SQUADRE').filter(function (s) { return s._row === squadra._row; })[0] : null);
 
   if (!esistente || esistente.indirizzoPartenza !== squadra.indirizzoPartenza) {
     var coordPartenza = geocodifica_(squadra.indirizzoPartenza);
@@ -32,6 +34,6 @@ function salvaSquadra(squadra) {
   return upsertRow_('SQUADRE', squadra);
 }
 
-function eliminaSquadra(id) {
-  return deleteRow_('SQUADRE', id);
+function eliminaSquadra(id, row) {
+  return deleteRow_('SQUADRE', id, row);
 }

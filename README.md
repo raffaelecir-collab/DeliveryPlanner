@@ -112,19 +112,47 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    indirizzo — geocodificato automaticamente —, competenza richiesta,
    priorità, durata stimata, finestra oraria, eventuale non-prima-del/scadenza
    informativi).
-3. Tab **Pianificazione**: scegli squadra e giorno, carica gli interventi
-   disponibili, seleziona quelli da includere, premi "Ottimizza percorso",
-   eventualmente affina l'ordine e premi "Conferma e salva percorso". In
-   fondo alla pagina trovi il riepilogo dei percorsi già confermati per il
+3. Tab **Pianificazione** — due modalità, per la squadra scelta in alto:
+   - **Selezione manuale (singolo giorno)**: scegli il giorno, carica gli
+     interventi disponibili, seleziona quelli da includere, premi "Ottimizza
+     percorso", eventualmente affina l'ordine (frecce su/giù, rimuovi tappa)
+     e premi "Conferma e salva percorso".
+   - **Pianificazione automatica su intervallo**: scegli un intervallo
+     Dal/Al e premi "Pianifica intervallo": il sistema genera e **scrive
+     subito** (senza passaggio di conferma) un percorso ottimizzato per
+     ciascun giorno dell'intervallo, usando via via gli interventi "Da
+     pianificare" ancora disponibili e compatibili (qui la competenza
+     richiesta è un filtro rigido, non solo un avviso). Utile per riempire
+     più giorni in un colpo solo; gli interventi che non trovano posto in
+     nessun giorno dell'intervallo restano "Da pianificare" con una nota sul
+     motivo.
+
+   In fondo alla pagina trovi il riepilogo dei percorsi già confermati per il
    giorno selezionato, per tutte le squadre.
 4. Tab **Regole**: puoi modificare a caldo i parametri del motore (pesi delle
    priorità usati come criterio secondario nell'ordinamento, buffer di
    setup/parcheggio tra due tappe, velocità media di fallback) senza toccare
    il codice.
 
-Ogni percorso confermato viene registrato nel foglio `LogPianificazione`
-(visibile in fondo al tab Regole), utile per tracciare chi ha pianificato
-cosa e quando.
+Ogni percorso confermato (in entrambe le modalità) viene registrato nel
+foglio `LogPianificazione` (visibile in fondo al tab Regole), utile per
+tracciare chi ha pianificato cosa e quando.
+
+### Inserire righe direttamente sul Google Sheet
+
+Puoi anche aggiungere Squadre o Interventi scrivendo direttamente le righe sul
+foglio invece di usare i form della Web App. In quel caso:
+
+- l'ID e la geocodifica degli indirizzi (lat/lng) non vengono generati in
+  automatico, e la casella "Attiva" delle Squadre — se lasciata vuota —
+  viene comunque considerata attiva per non far sparire la squadra dai
+  selettori;
+- apri comunque una volta la riga dal tab **Squadre**/**Interventi** →
+  "Modifica" → "Salva" (anche senza cambiare nulla): l'app le assegna un ID
+  e geocodifica gli indirizzi, dopodiché la riga si comporta come se fosse
+  stata creata dai form. Finché non fai questo passaggio, la pianificazione
+  di un intervento/squadra inserito a mano darà errore "indirizzo non
+  geocodificato".
 
 ## Nota sul servizio Google Maps
 
