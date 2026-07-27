@@ -19,7 +19,9 @@ function salvaIntervento(intervento) {
   var esistente = intervento.id
     ? readAll_('INTERVENTI').filter(function (i) { return i.id === intervento.id; })[0]
     : (intervento._row ? readAll_('INTERVENTI').filter(function (i) { return i._row === intervento._row; })[0] : null);
-  if (!esistente || esistente.indirizzo !== intervento.indirizzo) {
+  // Ri-geocodifica non solo se l'indirizzo è cambiato, ma anche se le coordinate sono
+  // ancora mancanti (riga creata a mano, o salvata prima che esistesse la geocodifica).
+  if (!esistente || esistente.indirizzo !== intervento.indirizzo || !isNum_(esistente.lat) || !isNum_(esistente.lng)) {
     var coord = geocodifica_(intervento.indirizzo);
     if (!coord) throw new Error('Indirizzo non trovato: "' + intervento.indirizzo + '". Verifica che sia corretto e completo (via, città).');
     intervento.lat = coord.lat;

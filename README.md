@@ -112,6 +112,15 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    indirizzo — geocodificato automaticamente —, competenza richiesta,
    priorità, durata stimata, finestra oraria, eventuale non-prima-del/scadenza
    informativi).
+
+   Sotto ogni campo indirizzo (Squadre e Interventi) c'è un link **"🗺️
+   Mostra mappa"**: apre un'anteprima piccola e ridimensionabile (trascina
+   l'angolo in basso a destra per ingrandirla) che mostra la posizione
+   geocodificata già salvata, oppure — se manca — un avviso più un'anteprima
+   di ricerca basata sul testo digitato, utile per individuare un indirizzo
+   scritto male prima ancora di salvare. Nota: la prima volta che apri una
+   mappa, Google può mostrare un banner di consenso cookie dentro il
+   riquadro stesso — è normale, basta accettarlo una volta.
 3. Tab **Pianificazione** — due modalità, per la squadra scelta in alto:
    - **Selezione manuale (singolo giorno)**: scegli il giorno, carica gli
      interventi disponibili, seleziona quelli da includere, premi "Ottimizza

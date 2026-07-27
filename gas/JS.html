@@ -36,6 +36,85 @@
     return String(str || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
   }
 
+  function isNumClient(v) {
+    return typeof v === 'number' && !isNaN(v);
+  }
+
+  // ---------- anteprima mappa (verifica visiva della geocodifica di un indirizzo) ----------
+  function mapEmbedUrlPerQuery(query) {
+    return 'https://www.google.com/maps?q=' + encodeURIComponent(query) + '&output=embed';
+  }
+  function mapEmbedUrlPerCoord(lat, lng) {
+    return 'https://www.google.com/maps?q=' + lat + ',' + lng + '&output=embed';
+  }
+
+  /** Aggiunge, sotto un campo indirizzo del form, un toggle "Mostra mappa" con anteprima espandibile
+   *  (ridimensionabile trascinando l'angolo in basso a destra). Se il record ha già coordinate salvate
+   *  le mostra come posizione precisa; altrimenti avvisa che l'indirizzo non è ancora geocodificato e
+   *  mostra comunque un'anteprima di ricerca basata sul testo digitato, utile per individuare refusi. */
+  function aggiungiAnteprimaMappa(wrap, field, input, existingObj) {
+    var toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'map-preview-toggle';
+    toggle.textContent = '🗺️ Mostra mappa';
+
+    var status = document.createElement('div');
+    status.className = 'map-preview-status hidden';
+
+    var mapWrap = document.createElement('div');
+    mapWrap.className = 'map-preview-wrap hidden';
+    var iframe = document.createElement('iframe');
+    iframe.setAttribute('loading', 'lazy');
+    iframe.setAttribute('referrerpolicy', 'no-referrer-when-downgrade');
+    mapWrap.appendChild(iframe);
+
+    var coordFields = field.mapCoordFields || [];
+    var latSalvata = existingObj && coordFields[0] ? existingObj[coordFields[0]] : null;
+    var lngSalvata = existingObj && coordFields[1] ? existingObj[coordFields[1]] : null;
+    var haCoordSalvate = isNumClient(latSalvata) && isNumClient(lngSalvata);
+
+    function aggiorna(usaCoordSalvate) {
+      if (usaCoordSalvate) {
+        status.className = 'map-preview-status ok';
+        status.textContent = '📍 Posizione salvata: ' + latSalvata.toFixed(5) + ', ' + lngSalvata.toFixed(5) + ' — verrà ricalcolata se modifichi l\'indirizzo e salvi di nuovo.';
+        iframe.src = mapEmbedUrlPerCoord(latSalvata, lngSalvata);
+      } else if (input.value) {
+        status.className = 'map-preview-status warn';
+        status.textContent = '⚠ Nessuna coordinata salvata per questo indirizzo: questa è solo un\'anteprima di ricerca. Salva per geocodificarlo davvero.';
+        iframe.src = mapEmbedUrlPerQuery(input.value);
+      } else {
+        status.className = 'map-preview-status warn';
+        status.textContent = '⚠ Inserisci un indirizzo per vedere l\'anteprima.';
+        iframe.removeAttribute('src');
+      }
+    }
+
+    toggle.addEventListener('click', function () {
+      var isHidden = mapWrap.classList.contains('hidden');
+      if (isHidden) {
+        mapWrap.classList.remove('hidden');
+        status.classList.remove('hidden');
+        toggle.textContent = '🗺️ Nascondi mappa';
+        aggiorna(haCoordSalvate);
+      } else {
+        mapWrap.classList.add('hidden');
+        status.classList.add('hidden');
+        toggle.textContent = '🗺️ Mostra mappa';
+      }
+    });
+
+    var mapDebounce;
+    input.addEventListener('input', function () {
+      if (mapWrap.classList.contains('hidden')) return;
+      clearTimeout(mapDebounce);
+      mapDebounce = setTimeout(function () { aggiorna(false); }, 700);
+    });
+
+    wrap.appendChild(toggle);
+    wrap.appendChild(status);
+    wrap.appendChild(mapWrap);
+  }
+
   function callServer(fnName) {
     var args = Array.prototype.slice.call(arguments, 1);
     return new Promise(function (resolve, reject) {
@@ -144,6 +223,9 @@
         help.className = 'field-help';
         help.textContent = field.help;
         wrap.appendChild(help);
+      }
+      if (field.mapPreview) {
+        aggiungiAnteprimaMappa(wrap, field, input, existingObj);
       }
       form.appendChild(wrap);
     });

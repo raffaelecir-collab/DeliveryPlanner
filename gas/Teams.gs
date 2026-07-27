@@ -16,7 +16,12 @@ function salvaSquadra(squadra) {
     ? readAll_('SQUADRE').filter(function (s) { return s.id === squadra.id; })[0]
     : (squadra._row ? readAll_('SQUADRE').filter(function (s) { return s._row === squadra._row; })[0] : null);
 
-  if (!esistente || esistente.indirizzoPartenza !== squadra.indirizzoPartenza) {
+  // Ri-geocodifica non solo se l'indirizzo è cambiato, ma anche se le coordinate sono
+  // ancora mancanti (riga creata a mano, o salvata prima che esistesse la geocodifica):
+  // altrimenti risalvare senza toccare il testo dell'indirizzo non risolverebbe nulla.
+  var partenzaDaGeocodificare = !esistente || esistente.indirizzoPartenza !== squadra.indirizzoPartenza ||
+    !isNum_(esistente.latPartenza) || !isNum_(esistente.lngPartenza);
+  if (partenzaDaGeocodificare) {
     var coordPartenza = geocodifica_(squadra.indirizzoPartenza);
     if (!coordPartenza) throw new Error('Indirizzo di partenza non trovato: "' + squadra.indirizzoPartenza + '". Verifica che sia corretto e completo (via, città).');
     squadra.latPartenza = coordPartenza.lat;
@@ -24,7 +29,9 @@ function salvaSquadra(squadra) {
   }
 
   var indirizzoRientro = squadra.indirizzoRientro || squadra.indirizzoPartenza;
-  if (!esistente || esistente.indirizzoRientro !== squadra.indirizzoRientro || esistente.indirizzoPartenza !== squadra.indirizzoPartenza) {
+  var rientroDaGeocodificare = !esistente || esistente.indirizzoRientro !== squadra.indirizzoRientro ||
+    esistente.indirizzoPartenza !== squadra.indirizzoPartenza || !isNum_(esistente.latRientro) || !isNum_(esistente.lngRientro);
+  if (rientroDaGeocodificare) {
     var coordRientro = geocodifica_(indirizzoRientro);
     if (!coordRientro) throw new Error('Indirizzo di rientro non trovato: "' + indirizzoRientro + '". Verifica che sia corretto e completo (via, città).');
     squadra.latRientro = coordRientro.lat;
