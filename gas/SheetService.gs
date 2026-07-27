@@ -9,6 +9,23 @@ function getSpreadsheet_() {
   return SpreadsheetApp.getActiveSpreadsheet();
 }
 
+/**
+ * Risolve una chiave di SCHEMA con un errore chiaro se manca, invece di lasciar
+ * fallire più avanti con un criptico "Cannot read properties of undefined" —
+ * il sintomo tipico quando i file .gs del progetto non sono tutti allineati
+ * alla stessa versione (es. Config.gs aggiornato ma un altro file rimasto
+ * vecchio e ancora riferito a una chiave che non esiste più).
+ */
+function getSchemaDef_(schemaKey) {
+  var schemaDef = SCHEMA[schemaKey];
+  if (!schemaDef) {
+    throw new Error('Chiave schema sconosciuta: "' + schemaKey + '". I file .gs del progetto non sono allineati alla stessa versione ' +
+      '(probabilmente Config.gs è più recente/vecchio rispetto a un altro file che fa ancora riferimento a "' + schemaKey + '"). ' +
+      'Ricopia tutti i file di gas/ dal repository, o usa "clasp push" per aggiornarli in blocco.');
+  }
+  return schemaDef;
+}
+
 function getOrCreateSheet_(sheetName) {
   var ss = getSpreadsheet_();
   var sheet = ss.getSheetByName(sheetName);
@@ -77,7 +94,7 @@ function parseCellValue_(field, raw) {
 
 /** Legge tutte le righe di un foglio come array di oggetti { ...campi, _row }. */
 function readAll_(schemaKey) {
-  var schemaDef = SCHEMA[schemaKey];
+  var schemaDef = getSchemaDef_(schemaKey);
   var sheet = ensureHeader_(schemaDef);
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
@@ -119,7 +136,7 @@ function generateId_(prefix) {
  * comunque quella riga per numero e le assegna un ID, invece di duplicarla.
  */
 function upsertRow_(schemaKey, obj) {
-  var schemaDef = SCHEMA[schemaKey];
+  var schemaDef = getSchemaDef_(schemaKey);
   var sheet = ensureHeader_(schemaDef);
   var existing = null;
   if (obj.id) {
@@ -149,7 +166,7 @@ function upsertRow_(schemaKey, obj) {
 
 /** Aggiorna solo alcuni campi di una riga già nota (per _row), usato dal motore di pianificazione. */
 function updateRowFields_(schemaKey, rowNumber, fieldsObj) {
-  var schemaDef = SCHEMA[schemaKey];
+  var schemaDef = getSchemaDef_(schemaKey);
   var sheet = getOrCreateSheet_(schemaDef.sheetName);
   schemaDef.fields.forEach(function (field, idx) {
     if (Object.prototype.hasOwnProperty.call(fieldsObj, field.key)) {
@@ -163,7 +180,7 @@ function updateRowFields_(schemaKey, rowNumber, fieldsObj) {
  * senza ID) ricade su rowFallback (numero di riga fisica), sempre univoco.
  */
 function deleteRow_(schemaKey, id, rowFallback) {
-  var schemaDef = SCHEMA[schemaKey];
+  var schemaDef = getSchemaDef_(schemaKey);
   var sheet = getOrCreateSheet_(schemaDef.sheetName);
   var all = readAll_(schemaKey);
   var target = id ? all.filter(function (r) { return r.id === id; })[0] : null;
