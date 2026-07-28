@@ -138,6 +138,16 @@
   .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
   .field-help { font-size: 11px; color: var(--grigio-600); }
 
+  #mappa-percorso-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 110; }
+  #mappa-percorso-overlay.hidden { display: none; }
+  #mappa-percorso-box { background: #fff; border-radius: var(--radius); width: min(900px, 94vw); max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
+  .mappa-percorso-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--grigio-200); }
+  .mappa-percorso-header h3 { margin: 0; font-size: 15px; }
+  #mappa-percorso-close { border: none; background: none; font-size: 16px; cursor: pointer; color: var(--grigio-600); padding: 4px 8px; }
+  #mappa-percorso-close:hover { color: var(--grigio-900); }
+  #mappa-percorso-map { width: 100%; height: 70vh; }
+  .marker-tappa { background: var(--blu); color: #fff; border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+
   .map-preview-toggle { align-self: flex-start; border: none; background: none; color: var(--blu-scuro); font-size: 12px; font-weight: 600; cursor: pointer; padding: 2px 0; }
   .map-preview-toggle:hover { text-decoration: underline; }
   .map-preview-status { font-size: 11.5px; margin-bottom: 4px; }
@@ -158,7 +168,8 @@
 
   @media (prefers-color-scheme: dark) {
     html, body { background: #17181a; color: #e8eaed; }
-    header.topbar, nav.tabs, .card, .summary-card, .board-day, #modal-box { background: #232427; }
+    header.topbar, nav.tabs, .card, .summary-card, .board-day, #modal-box, #mappa-percorso-box { background: #232427; }
+    .mappa-percorso-header { border-color: #35363a; }
     header.topbar, nav.tabs { border-color: #35363a; }
     table th { border-color: #35363a; color: #9aa0a6; }
     table td { border-color: #2c2d30; }

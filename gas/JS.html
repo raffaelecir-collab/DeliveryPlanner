@@ -931,6 +931,7 @@
         }).join('');
         return '<div class="prog-team">' +
           '<div class="team-head"><span class="team-dot" style="background:' + (sq.colore || '#999') + '"></span>' + escapeHtml(sq.squadraNome) +
+          '<button type="button" class="btn secondary" data-action="vedi-mappa" data-squadra="' + sq.squadraId + '" data-giorno="' + g.giorno + '" style="margin-left:auto;">🗺️ Vedi mappa</button>' +
           '<button type="button" class="btn secondary btn-riempi-buco" data-action="riempi-buco" data-squadra="' + sq.squadraId + '" data-giorno="' + g.giorno + '">Riempi buco</button></div>' +
           '<table class="prog-table"><thead><tr><th>Ora</th><th>Cliente</th><th>Indirizzo</th><th>Telefono</th><th></th></tr></thead><tbody>' + righeHtml + '</tbody></table>' +
         '</div>';
@@ -967,6 +968,51 @@
     }).catch(function (err) { toast('Errore nella rimozione: ' + (err.message || err), 'error'); });
   }
 
+  // ---------- mappa del percorso (Leaflet/OpenStreetMap, nessuna chiave API) ----------
+  var mappaPercorsoInstance = null;
+
+  function apriMappaPercorso(squadraId, giornoStr) {
+    var righeSquadra = progState.righe.filter(function (r) { return r.squadraId === squadraId && r.dataPianificata === giornoStr; });
+    righeSquadra.sort(function (a, b) { return (a.ordineTappa || 0) - (b.ordineTappa || 0); });
+    var punti = righeSquadra.filter(function (r) { return isNumClient(r.lat) && isNumClient(r.lng); });
+    if (!punti.length) { toast('Nessuna coordinata disponibile per disegnare la mappa di questo percorso.', 'error'); return; }
+    if (typeof L === 'undefined') { toast('Libreria mappa non disponibile (verifica la connessione a internet).', 'error'); return; }
+
+    var squadraNome = righeSquadra[0].squadraNome || squadraId;
+    document.getElementById('mappa-percorso-titolo').textContent = 'Percorso — ' + squadraNome + ' — ' + giornoStr;
+    document.getElementById('mappa-percorso-overlay').classList.remove('hidden');
+
+    if (mappaPercorsoInstance) { mappaPercorsoInstance.remove(); mappaPercorsoInstance = null; }
+    mappaPercorsoInstance = L.map('mappa-percorso-map');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(mappaPercorsoInstance);
+
+    var latlngs = punti.map(function (p) { return [p.lat, p.lng]; });
+    // Collega le tappe nell'ordine di visita con segmenti diritti (non un percorso stradale
+    // reale): è pensata come indicazione visiva rapida della sequenza/geografia del giro, non
+    // come navigazione turn-by-turn.
+    L.polyline(latlngs, { color: '#4285F4', weight: 3, opacity: .8 }).addTo(mappaPercorsoInstance);
+    punti.forEach(function (p, idx) {
+      var icon = L.divIcon({ className: '', html: '<div class="marker-tappa">' + (idx + 1) + '</div>', iconSize: [26, 26], iconAnchor: [13, 13] });
+      L.marker([p.lat, p.lng], { icon: icon }).addTo(mappaPercorsoInstance)
+        .bindPopup('<strong>' + (idx + 1) + '. ' + escapeHtml(p.cliente) + '</strong><br>' + escapeHtml(p.indirizzo || '') +
+          (p.oraPianificata ? '<br>Ore ' + escapeHtml(p.oraPianificata) : ''));
+    });
+    mappaPercorsoInstance.fitBounds(latlngs, { padding: [30, 30] });
+
+    // Il contenitore passa da hidden a visibile proprio ora: Leaflet calcola le dimensioni al
+    // momento della creazione, quando potrebbero non essere ancora quelle reali, quindi si forza
+    // un ricalcolo subito dopo che il browser ha applicato il nuovo layout.
+    setTimeout(function () { if (mappaPercorsoInstance) mappaPercorsoInstance.invalidateSize(); }, 60);
+  }
+
+  function chiudiMappaPercorso() {
+    document.getElementById('mappa-percorso-overlay').classList.add('hidden');
+    if (mappaPercorsoInstance) { mappaPercorsoInstance.remove(); mappaPercorsoInstance = null; }
+  }
+
   function setupProgrammazioneTab() {
     var oggi = new Date();
     var fra6 = new Date(oggi.getTime() + 6 * 24 * 3600 * 1000);
@@ -984,7 +1030,13 @@
       } else if (btn.dataset.action === 'riempi-buco') {
         if (!window.confirm('Ripianificare "' + squadraId + '" per il ' + giornoStr + ' includendo eventuali interventi disponibili per riempire le ore libere?')) return;
         riempiBucoGiornoClick(squadraId, giornoStr);
+      } else if (btn.dataset.action === 'vedi-mappa') {
+        apriMappaPercorso(squadraId, giornoStr);
       }
+    });
+    on('mappa-percorso-close', 'click', chiudiMappaPercorso);
+    on('mappa-percorso-overlay', 'click', function (e) {
+      if (e.target.id === 'mappa-percorso-overlay') chiudiMappaPercorso();
     });
   }
 

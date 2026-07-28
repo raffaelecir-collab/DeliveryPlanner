@@ -213,6 +213,11 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      automatico** subito dopo la deselezione, così il buco lasciato aperto in
      un giorno già programmato viene ricoperto, se possibile, senza un passo
      manuale in più.
+   - **"🗺️ Vedi mappa"** per una squadra/giorno: apre una mappa (OpenStreetMap
+     via Leaflet, nessuna chiave API da configurare) con le tappe numerate
+     nell'ordine di visita e collegate da segmenti diritti — non un percorso
+     stradale reale, solo un'indicazione visiva rapida della sequenza e della
+     geografia del giro. Clicca su una tappa per vederne cliente/indirizzo/ora.
 5. Tab **Regole**: ogni regola ha il controllo adatto al suo tipo — un
    selettore con i giorni della settimana per "Giorni Lavorativi" (rispettato
    dalla pianificazione automatica su intervallo, che salta i giorni non

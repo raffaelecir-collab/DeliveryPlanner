@@ -2,6 +2,8 @@
 <html>
 <head>
   <base target="_top">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <?!= include('CSS'); ?>
 </head>
 <body>
@@ -201,6 +203,16 @@
           <button type="button" class="btn secondary" id="modal-cancel">Annulla</button>
           <button type="button" class="btn" id="modal-save">Salva</button>
         </div>
+      </div>
+    </div>
+
+    <div id="mappa-percorso-overlay" class="hidden">
+      <div id="mappa-percorso-box">
+        <div class="mappa-percorso-header">
+          <h3 id="mappa-percorso-titolo">Percorso</h3>
+          <button type="button" id="mappa-percorso-close">✕</button>
+        </div>
+        <div id="mappa-percorso-map"></div>
       </div>
     </div>
 
