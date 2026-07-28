@@ -130,12 +130,14 @@ function generateId_(prefix) {
 }
 
 /**
- * Legge tutte le righe di uno schema e assegna subito un ID a quelle che ne sono prive
- * (tipicamente righe inserite/modificate a mano sul foglio, mai passate dai form della Web
- * App). Senza questo, più righe con id vuoto verrebbero confuse tra loro da qualunque
- * lookup per id (es. nel motore di pianificazione), causando errori difficili da
+ * Legge tutte le righe di uno schema e assegna subito un ID a quelle che ne sono prive o che
+ * ne duplicano uno già usato da un'altra riga (tipicamente righe inserite/modificate a mano
+ * sul foglio — id vuoto — oppure una riga copia-incollata da un'altra, che copia anche la
+ * cella ID). Senza questo, più righe con lo stesso id (vuoto o no) verrebbero confuse tra loro
+ * da qualunque lookup per id (es. nel motore di pianificazione), causando errori difficili da
  * diagnosticare invece di un semplice "riga non ancora identificata". Va chiamata prima di
- * qualunque elaborazione che usi l'id come chiave (pianificazione, conferma percorso).
+ * qualunque elaborazione che usi l'id come chiave (pianificazione, conferma percorso). A
+ * parità di id duplicato, la riga che lo mantiene è quella fisicamente più in alto sul foglio.
  */
 function assicuraIdTutti_(schemaKey) {
   var schemaDef = getSchemaDef_(schemaKey);
@@ -143,12 +145,15 @@ function assicuraIdTutti_(schemaKey) {
   if (idColIndex < 0) return readAll_(schemaKey);
   var sheet = getOrCreateSheet_(schemaDef.sheetName);
   var righe = readAll_(schemaKey);
+  var idVisti = {};
   righe.forEach(function (r) {
-    if (!r.id) {
+    var daRigenerare = !r.id || idVisti[r.id];
+    if (daRigenerare) {
       var nuovoId = generateId_(schemaDef.idPrefix || 'ID');
       sheet.getRange(r._row, idColIndex + 1).setValue(nuovoId);
       r.id = nuovoId;
     }
+    idVisti[r.id] = true;
   });
   return righe;
 }

@@ -353,7 +353,10 @@ function pianificaConUpgradeReale_(squadra, nodi, ordine, matriceStima, partenza
 
   var idxPerInterventoId = {};
   ordine.forEach(function (idx) { idxPerInterventoId[nodi[idx].intervento.id] = idx; });
-  var inclusi = risultatoStima.tappe.map(function (t) { return idxPerInterventoId[t.intervento.id]; });
+  var inclusi = risultatoStima.tappe
+    .map(function (t) { return idxPerInterventoId[t.intervento.id]; })
+    .filter(function (idx) { return idx !== undefined; });
+  if (inclusi.length === 0) return risultatoStima;
 
   for (var k = 0; k < inclusi.length - 1; k++) {
     matriceStima[inclusi[k]][inclusi[k + 1]] = ottieniViaggio_(nodi[inclusi[k]], nodi[inclusi[k + 1]], regole);
@@ -383,10 +386,12 @@ function costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima,
   if (risultato.tappe.length > 2) {
     var idxPerInterventoId = {};
     stopIndices.forEach(function (idx) { idxPerInterventoId[nodi[idx].intervento.id] = idx; });
-    var inclusiOrdine = risultato.tappe.map(function (t) { return idxPerInterventoId[t.intervento.id]; });
-    var raffinato = dueOptMigliora_(inclusiOrdine, matriceStima);
+    var inclusiOrdine = risultato.tappe
+      .map(function (t) { return idxPerInterventoId[t.intervento.id]; })
+      .filter(function (idx) { return idx !== undefined; });
+    var raffinato = inclusiOrdine.length === risultato.tappe.length ? dueOptMigliora_(inclusiOrdine, matriceStima) : ordineFinale;
     var risultatoRaffinato = pianificaOrarioPercorso_(squadra, nodi, raffinato, matriceStima, partenzaIdx, rientroIdx, regole);
-    if (risultatoRaffinato.tappe.length >= risultato.tappe.length) {
+    if (raffinato !== ordineFinale && risultatoRaffinato.tappe.length >= risultato.tappe.length) {
       risultatoRaffinato.nonIncluse = risultato.nonIncluse;
       risultato = risultatoRaffinato;
       ordineFinale = raffinato;
@@ -418,9 +423,11 @@ function riempiGiornata_(squadra, nodi, risultato, matriceStima, partenzaIdx, ri
     if (corrente.nonIncluse.length === 0 || corrente.tappe.length === 0) break;
 
     var ordineAttuale = corrente.tappe.map(function (t) { return idxPerId[t.intervento.id]; });
+    if (ordineAttuale.indexOf(undefined) !== -1) break; // id incoerente: non rischiare, esci senza ulteriori aggiunte
     var ultimoIdx = ordineAttuale[ordineAttuale.length - 1];
 
     var candidati = corrente.nonIncluse
+      .filter(function (n) { return idxPerId[n.interventoId] !== undefined; })
       .map(function (n) {
         var idx = idxPerId[n.interventoId];
         var viaggio = matriceStima[ultimoIdx][idx].minuti;
