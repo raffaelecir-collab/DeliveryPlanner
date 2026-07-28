@@ -550,7 +550,21 @@ function getContestoPianificazione(squadraId, giornoStr) {
     return i.squadraId === squadraId && i.dataPianificata === giornoFmt && i.stato === STATO_INTERVENTO.PIANIFICATO;
   });
   pianificati.sort(function (a, b) { return (a.ordineTappa || 0) - (b.ordineTappa || 0); });
-  return { disponibili: disponibili, pianificati: pianificati };
+
+  // Interventi già pianificati ma per un'altra squadra e/o un altro giorno: inclusi (con
+  // l'indicazione di dove si trovano attualmente) così, dalla mappa di selezione, è possibile
+  // "spostarli" manualmente su questa squadra/giorno semplicemente selezionandoli e
+  // confermando — la conferma sovrascrive la loro assegnazione precedente.
+  var squadreMap = {};
+  readAll_('SQUADRE').forEach(function (s) { squadreMap[s.id] = s; });
+  var pianificatiAltrove = tutti.filter(function (i) {
+    return i.stato === STATO_INTERVENTO.PIANIFICATO && !(i.squadraId === squadraId && i.dataPianificata === giornoFmt);
+  }).map(function (i) {
+    var s = squadreMap[i.squadraId];
+    return Object.assign({}, i, { squadraNomeAttuale: s ? s.nome : i.squadraId });
+  });
+
+  return { disponibili: disponibili, pianificati: pianificati, pianificatiAltrove: pianificatiAltrove };
 }
 
 /** Tutti i percorsi già confermati per un giorno, raggruppati per squadra (vista d'insieme). */

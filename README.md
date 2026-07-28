@@ -173,14 +173,23 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      percorso", eventualmente affina l'ordine (frecce su/giù, rimuovi tappa)
      e premi "Conferma e salva percorso". Oltre alla tabella, il link "🗺️
      Mostra mappa" apre una mappa (Leaflet/OpenStreetMap) con tutti gli
-     interventi geocodificati: **arancio** = da pianificare, **verde** =
-     selezionato, **grigio** = competenza non compatibile con la squadra.
-     Cliccando un punto si apre una scheda con i dati essenziali e un
-     bottone "Inserisci in planner" (o "Rimuovi dalla selezione" se già
-     scelto): aggiunge/toglie l'intervento dalla selezione esattamente come
-     la checkbox corrispondente nella tabella, restando sempre sincronizzata
-     con essa — serve comunque "Ottimizza percorso" e "Conferma e salva
-     percorso" per scrivere davvero sul foglio.
+     interventi geocodificati, **inclusi quelli già pianificati per
+     un'altra squadra o un altro giorno** (per poterli spostare a mano):
+     **arancio** = da pianificare, **verde** = selezionato, **blu scuro** =
+     già pianificato altrove, **grigio** = competenza non compatibile con
+     la squadra. Cliccando un punto si apre una scheda con i dati essenziali
+     (e, se già pianificato altrove, l'indicazione di dove) e un bottone
+     "Inserisci in planner"/"Sposta qui" (o "Rimuovi dalla
+     selezione"/"Annulla spostamento" se già scelto): aggiunge/toglie
+     l'intervento dalla selezione esattamente come la checkbox corrispondente
+     nella tabella, restando sempre sincronizzata con essa. Selezionare un
+     intervento già pianificato altrove e confermare **lo sposta**,
+     sovrascrivendone squadra/giorno/orario precedenti — serve comunque
+     "Ottimizza percorso" e "Conferma e salva percorso" per scrivere davvero
+     sul foglio. Nota: lo spostamento non ricalcola automaticamente il
+     percorso lasciato "scoperto" nella squadra/giorno di provenienza; se
+     serve, usa "Riempi buco" (tab Programmazione) su quella combinazione
+     dopo lo spostamento.
    - **Pianificazione automatica su intervallo**: seleziona una o più
      squadre e un intervallo Dal/Al, poi premi "Pianifica intervallo": il
      sistema genera e **scrive subito** (senza passaggio di conferma) un

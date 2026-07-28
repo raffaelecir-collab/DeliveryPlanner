@@ -4,7 +4,7 @@
 
   var state = { schema: {}, squadre: [], utente: '' };
   var modalState = { schemaKey: null, editObj: null };
-  var pianState = { squadraId: null, giorno: null, disponibili: [], pianificati: [], ordineCorrente: [], anteprima: null };
+  var pianState = { squadraId: null, giorno: null, disponibili: [], pianificati: [], pianificatiAltrove: [], ordineCorrente: [], anteprima: null };
 
   var SAVE_FN = { SQUADRE: 'salvaSquadra', INTERVENTI: 'salvaIntervento' };
   var DELETE_FN = { SQUADRE: 'eliminaSquadra', INTERVENTI: 'eliminaIntervento' };
@@ -623,7 +623,7 @@
 
   function renderSelezioneInterventi() {
     var tbody = document.querySelector('#tabella-selezione-interventi tbody');
-    var tutti = pianState.disponibili.concat(pianState.pianificati);
+    var tutti = pianState.disponibili.concat(pianState.pianificati).concat(pianState.pianificatiAltrove || []);
     if (!tutti.length) {
       tbody.innerHTML = '<tr><td colspan="8"><div class="empty-hint">Nessun intervento "Da pianificare" disponibile.</div></td></tr>';
       document.getElementById('pian-selezione-count').textContent = '';
@@ -643,6 +643,11 @@
       var disabled = (incompatibile && !giaPianificato) ? 'disabled' : '';
       var warn = incompatibile
         ? ' <span class="warn-icon" title="Competenza non tra quelle della squadra">⚠</span>' : '';
+      // Selezionare un intervento già pianificato per un'altra squadra/giorno equivale a
+      // spostarlo qui: la conferma successiva sovrascrive la sua assegnazione precedente.
+      var altrove = i.squadraNomeAttuale
+        ? '<span class="badge-altrove" title="Attualmente pianificato altrove">' + escapeHtml(i.squadraNomeAttuale) + ' · ' + escapeHtml(i.dataPianificata) + '</span>'
+        : '';
       return '<tr' + (disabled ? ' class="row-disabled"' : '') + '>' +
         '<td><input type="checkbox" data-id="' + i.id + '" ' + checked + ' ' + disabled + '></td>' +
         '<td>' + escapeHtml(i.cliente) + '</td>' +
@@ -651,7 +656,7 @@
         '<td><span class="badge ' + i.priorita + '">' + i.priorita + '</span></td>' +
         '<td>' + (i.durataMinuti || '') + ' min</td>' +
         '<td>' + (i.finestraInizio || '') + ' - ' + (i.finestraFine || '') + '</td>' +
-        '<td></td>' +
+        '<td>' + altrove + '</td>' +
       '</tr>';
     }).join('');
     aggiornaContatoreSelezione();
@@ -704,13 +709,16 @@
     });
   }
 
-  /** Ridisegna i marker della mappa di selezione in base allo stato corrente (selezionato/disponibile/incompatibile): chiamata ogni volta che la selezione o l'elenco cambiano, così mappa e tabella restano sempre sincronizzate. Non fa nulla se la mappa non è ancora stata aperta. */
+  /** Ridisegna i marker della mappa di selezione in base allo stato corrente (selezionato/disponibile/incompatibile/pianificato altrove): chiamata ogni volta che la selezione o l'elenco cambiano, così mappa e tabella restano sempre sincronizzate. Non fa nulla se la mappa non è ancora stata aperta. */
   function aggiornaMarkerMappaSelezione_() {
     if (!mappaSelezioneInstance) return;
     mappaSelezioneMarkers.forEach(function (m) { mappaSelezioneInstance.removeLayer(m); });
     mappaSelezioneMarkers = [];
 
-    var tutti = pianState.disponibili.concat(pianState.pianificati);
+    // Include anche gli interventi già pianificati per un'altra squadra/giorno: selezionarli
+    // dalla mappa equivale a spostarli qui (la conferma successiva sovrascrive l'assegnazione
+    // precedente), utile per rimediare a testa a testa/errori di pianificazione manualmente.
+    var tutti = pianState.disponibili.concat(pianState.pianificati).concat(pianState.pianificatiAltrove || []);
     var puntiValidi = tutti.filter(function (i) { return isNumClient(i.lat) && isNumClient(i.lng); });
     if (!puntiValidi.length) return;
 
@@ -722,17 +730,22 @@
       var competenzaIntervento = String(i.competenza || '').trim().toLowerCase();
       var incompatibile = !!(competenzaIntervento && competenzeSquadra.length && competenzeSquadra.indexOf(competenzaIntervento) === -1);
       var selezionato = selezionatiIds.indexOf(i.id) !== -1;
-      var classe = incompatibile ? 'incompatibile' : (selezionato ? 'selezionato' : 'disponibile');
+      var altrove = !!i.squadraNomeAttuale;
+      var classe = incompatibile ? 'incompatibile' : (selezionato ? 'selezionato' : (altrove ? 'altrove' : 'disponibile'));
       var icon = L.divIcon({ className: '', html: '<div class="marker-selezione ' + classe + '"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
+      var testoBottone = selezionato
+        ? (altrove ? 'Annulla spostamento' : 'Rimuovi dalla selezione')
+        : (altrove ? 'Sposta qui' : 'Inserisci in planner');
       var popupHtml = '<div class="popup-selezione">' +
         '<strong>' + escapeHtml(i.cliente) + '</strong><br>' +
         escapeHtml(i.indirizzo || '') + '<br>' +
         (i.competenza ? 'Competenza: ' + escapeHtml(i.competenza) + '<br>' : '') +
         'Priorità: ' + escapeHtml(i.priorita || '') + ' · ' + (i.durataMinuti || '') + ' min<br>' +
         ((i.finestraInizio || i.finestraFine) ? 'Finestra: ' + (i.finestraInizio || '') + '-' + (i.finestraFine || '') + '<br>' : '') +
+        (altrove ? '<span class="popup-altrove">📍 Attualmente pianificato per ' + escapeHtml(i.squadraNomeAttuale) + ' il ' + escapeHtml(i.dataPianificata) + '</span><br>' : '') +
         (incompatibile
           ? '<span class="popup-warn">⚠ Competenza non compatibile con questa squadra</span>'
-          : '<button type="button" class="btn small' + (selezionato ? ' secondary' : '') + '" data-toggle-id="' + i.id + '">' + (selezionato ? 'Rimuovi dalla selezione' : 'Inserisci in planner') + '</button>') +
+          : '<button type="button" class="btn small' + (selezionato ? ' secondary' : '') + '" data-toggle-id="' + i.id + '">' + testoBottone + '</button>') +
         '</div>';
       var marker = L.marker([i.lat, i.lng], { icon: icon }).addTo(mappaSelezioneInstance).bindPopup(popupHtml);
       mappaSelezioneMarkers.push(marker);
@@ -822,6 +835,7 @@
     callServer('getContestoPianificazione', squadraId, giornoStr).then(function (ctx) {
       pianState.disponibili = ctx.disponibili;
       pianState.pianificati = ctx.pianificati;
+      pianState.pianificatiAltrove = ctx.pianificatiAltrove || [];
       renderSelezioneInterventi();
       document.getElementById('pian-selezione-card').style.display = 'block';
       if (ctx.pianificati.length > 0) {

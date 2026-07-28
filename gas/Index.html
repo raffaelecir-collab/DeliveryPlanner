@@ -71,18 +71,19 @@
             <button type="button" class="btn secondary" id="btn-toggle-mappa-selezione">🗺️ Mostra mappa</button>
           </div>
           <div id="pian-selezione-mappa-wrap" class="hidden">
-            <p class="sub">Clicca un punto sulla mappa per vedere i dettagli dell'intervento e aggiungerlo (o rimuoverlo) dalla selezione — resta sincronizzata con la tabella qui sotto.</p>
+            <p class="sub">Clicca un punto sulla mappa per vedere i dettagli dell'intervento e aggiungerlo (o rimuoverlo) dalla selezione — resta sincronizzata con la tabella qui sotto. Include anche gli interventi già pianificati per un'altra squadra/giorno: selezionarli equivale a spostarli qui.</p>
             <div id="pian-selezione-mappa"></div>
             <div class="mappa-legenda">
               <span><span class="legenda-dot disponibile"></span> Da pianificare</span>
               <span><span class="legenda-dot selezionato"></span> Selezionato</span>
+              <span><span class="legenda-dot altrove"></span> Pianificato altrove (spostabile)</span>
               <span><span class="legenda-dot incompatibile"></span> Competenza non compatibile</span>
             </div>
           </div>
           <div class="table-wrap">
             <table id="tabella-selezione-interventi">
               <thead><tr>
-                <th></th><th>Cliente</th><th>Indirizzo</th><th>Competenza</th><th>Priorità</th><th>Durata</th><th>Finestra</th><th></th>
+                <th></th><th>Cliente</th><th>Indirizzo</th><th>Competenza</th><th>Priorità</th><th>Durata</th><th>Finestra</th><th>Pianificato altrove</th>
               </tr></thead>
               <tbody></tbody>
             </table>
