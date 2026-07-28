@@ -150,6 +150,19 @@
   #mappa-percorso-map { width: 100%; height: 70vh; }
   .marker-tappa { background: var(--blu); color: #fff; border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
 
+  #pian-selezione-mappa-wrap { margin-bottom: 14px; }
+  #pian-selezione-mappa-wrap.hidden { display: none; }
+  #pian-selezione-mappa { width: 100%; height: 420px; border-radius: var(--radius); overflow: hidden; }
+  .mappa-legenda { display: flex; gap: 16px; font-size: 12px; color: var(--grigio-600); margin-top: 8px; flex-wrap: wrap; }
+  .mappa-legenda .legenda-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+  .legenda-dot.disponibile, .marker-selezione.disponibile { background: var(--arancio); }
+  .legenda-dot.selezionato, .marker-selezione.selezionato { background: var(--verde); }
+  .legenda-dot.incompatibile, .marker-selezione.incompatibile { background: var(--grigio-400); }
+  .marker-selezione { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+  .popup-selezione { font-size: 12.5px; line-height: 1.5; max-width: 220px; }
+  .popup-selezione .popup-warn { color: #b06000; font-size: 11.5px; }
+  .popup-selezione button { margin-top: 6px; }
+
   .map-preview-toggle { align-self: flex-start; border: none; background: none; color: var(--blu-scuro); font-size: 12px; font-weight: 600; cursor: pointer; padding: 2px 0; }
   .map-preview-toggle:hover { text-decoration: underline; }
   .map-preview-status { font-size: 11.5px; margin-bottom: 4px; }

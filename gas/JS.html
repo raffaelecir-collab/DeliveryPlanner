@@ -172,15 +172,15 @@
   }
 
   // ---------- tabs ----------
+  function mostraTab(view) {
+    document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.view === view); });
+    document.querySelectorAll('.view').forEach(function (v) { v.classList.toggle('active', v.id === 'view-' + view); });
+    onShowView(view);
+  }
+
   function setupTabs() {
     document.querySelectorAll('.tab-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
-        document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
-        btn.classList.add('active');
-        document.getElementById('view-' + btn.dataset.view).classList.add('active');
-        onShowView(btn.dataset.view);
-      });
+      btn.addEventListener('click', function () { mostraTab(btn.dataset.view); });
     });
   }
 
@@ -655,6 +655,91 @@
       '</tr>';
     }).join('');
     aggiornaContatoreSelezione();
+    aggiornaMarkerMappaSelezione_();
+  }
+
+  // ---------- mappa di selezione interventi (Pianificazione, giorno singolo) ----------
+  var mappaSelezioneInstance = null;
+  var mappaSelezioneMarkers = [];
+
+  function toggleMappaSelezione() {
+    var wrap = document.getElementById('pian-selezione-mappa-wrap');
+    var btn = document.getElementById('btn-toggle-mappa-selezione');
+    var apri = wrap.classList.contains('hidden');
+    if (!apri) {
+      wrap.classList.add('hidden');
+      btn.textContent = '🗺️ Mostra mappa';
+      return;
+    }
+    caricaLeaflet_().then(function () {
+      wrap.classList.remove('hidden');
+      btn.textContent = '🗺️ Nascondi mappa';
+      if (!mappaSelezioneInstance) {
+        mappaSelezioneInstance = L.map('pian-selezione-mappa');
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(mappaSelezioneInstance);
+        // Il contenuto del popup viene rigenerato ad ogni ridisegno dei marker: l'handler del
+        // bottone "Inserisci/Rimuovi" si aggancia una volta sola qui, all'apertura del popup,
+        // invece che sul marker (che viene ricreato ad ogni sincronizzazione).
+        mappaSelezioneInstance.on('popupopen', function (e) {
+          var el = e.popup.getElement();
+          var btnToggle = el && el.querySelector('[data-toggle-id]');
+          if (!btnToggle) return;
+          btnToggle.addEventListener('click', function () {
+            var id = btnToggle.dataset.toggleId;
+            var cb = document.querySelector('#tabella-selezione-interventi input[data-id="' + CSS.escape(id) + '"]');
+            if (!cb || cb.disabled) { toast('Questo intervento non è selezionabile per questa squadra.', 'error'); return; }
+            cb.checked = !cb.checked;
+            cb.dispatchEvent(new Event('change', { bubbles: true }));
+            mappaSelezioneInstance.closePopup();
+          });
+        });
+      }
+      aggiornaMarkerMappaSelezione_();
+      setTimeout(function () { if (mappaSelezioneInstance) mappaSelezioneInstance.invalidateSize(); }, 60);
+    }).catch(function () {
+      toast('Impossibile caricare la mappa (verifica la connessione a internet o la rete/proxy in uso).', 'error');
+    });
+  }
+
+  /** Ridisegna i marker della mappa di selezione in base allo stato corrente (selezionato/disponibile/incompatibile): chiamata ogni volta che la selezione o l'elenco cambiano, così mappa e tabella restano sempre sincronizzate. Non fa nulla se la mappa non è ancora stata aperta. */
+  function aggiornaMarkerMappaSelezione_() {
+    if (!mappaSelezioneInstance) return;
+    mappaSelezioneMarkers.forEach(function (m) { mappaSelezioneInstance.removeLayer(m); });
+    mappaSelezioneMarkers = [];
+
+    var tutti = pianState.disponibili.concat(pianState.pianificati);
+    var puntiValidi = tutti.filter(function (i) { return isNumClient(i.lat) && isNumClient(i.lng); });
+    if (!puntiValidi.length) return;
+
+    var squadra = state.squadre.filter(function (s) { return s.id === pianState.squadraId; })[0];
+    var competenzeSquadra = squadra ? splitListClient(squadra.competenze).map(function (c) { return c.toLowerCase(); }) : [];
+    var selezionatiIds = idsSelezionatiCorrenti();
+
+    puntiValidi.forEach(function (i) {
+      var competenzaIntervento = String(i.competenza || '').trim().toLowerCase();
+      var incompatibile = !!(competenzaIntervento && competenzeSquadra.length && competenzeSquadra.indexOf(competenzaIntervento) === -1);
+      var selezionato = selezionatiIds.indexOf(i.id) !== -1;
+      var classe = incompatibile ? 'incompatibile' : (selezionato ? 'selezionato' : 'disponibile');
+      var icon = L.divIcon({ className: '', html: '<div class="marker-selezione ' + classe + '"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
+      var popupHtml = '<div class="popup-selezione">' +
+        '<strong>' + escapeHtml(i.cliente) + '</strong><br>' +
+        escapeHtml(i.indirizzo || '') + '<br>' +
+        (i.competenza ? 'Competenza: ' + escapeHtml(i.competenza) + '<br>' : '') +
+        'Priorità: ' + escapeHtml(i.priorita || '') + ' · ' + (i.durataMinuti || '') + ' min<br>' +
+        ((i.finestraInizio || i.finestraFine) ? 'Finestra: ' + (i.finestraInizio || '') + '-' + (i.finestraFine || '') + '<br>' : '') +
+        (incompatibile
+          ? '<span class="popup-warn">⚠ Competenza non compatibile con questa squadra</span>'
+          : '<button type="button" class="btn small' + (selezionato ? ' secondary' : '') + '" data-toggle-id="' + i.id + '">' + (selezionato ? 'Rimuovi dalla selezione' : 'Inserisci in planner') + '</button>') +
+        '</div>';
+      var marker = L.marker([i.lat, i.lng], { icon: icon }).addTo(mappaSelezioneInstance).bindPopup(popupHtml);
+      mappaSelezioneMarkers.push(marker);
+    });
+
+    var bounds = puntiValidi.map(function (i) { return [i.lat, i.lng]; });
+    mappaSelezioneInstance.fitBounds(bounds, { padding: [30, 30] });
   }
 
   function totaleTappeIntervallo(risultato) {
@@ -874,9 +959,13 @@
     var tbodySelezione = document.querySelector('#tabella-selezione-interventi tbody');
     if (tbodySelezione) {
       tbodySelezione.addEventListener('change', function (e) {
-        if (e.target.matches('input[type=checkbox]')) aggiornaContatoreSelezione();
+        if (e.target.matches('input[type=checkbox]')) {
+          aggiornaContatoreSelezione();
+          aggiornaMarkerMappaSelezione_();
+        }
       });
     }
+    on('btn-toggle-mappa-selezione', 'click', toggleMappaSelezione);
 
     on('pian-anteprima-tappe', 'click', function (e) {
       var btn = e.target.closest('button[data-action]');
@@ -952,6 +1041,7 @@
         return '<div class="prog-team">' +
           '<div class="team-head"><span class="team-dot" style="background:' + (sq.colore || '#999') + '"></span>' + escapeHtml(sq.squadraNome) +
           '<button type="button" class="btn secondary" data-action="vedi-mappa" data-squadra="' + sq.squadraId + '" data-giorno="' + g.giorno + '" style="margin-left:auto;">🗺️ Vedi mappa</button>' +
+          '<button type="button" class="btn secondary" data-action="pianifica-qui" data-squadra="' + sq.squadraId + '" data-giorno="' + g.giorno + '">Seleziona manualmente</button>' +
           '<button type="button" class="btn secondary btn-riempi-buco" data-action="riempi-buco" data-squadra="' + sq.squadraId + '" data-giorno="' + g.giorno + '">Riempi buco</button></div>' +
           formattaProduzioneClient(sq.produzioneTotale, sq.produzioneTarget) +
           '<table class="prog-table"><thead><tr><th>Ora</th><th>Cliente</th><th>Indirizzo</th><th>Telefono</th><th></th></tr></thead><tbody>' + righeHtml + '</tbody></table>' +
@@ -1070,6 +1160,17 @@
     if (mappaPercorsoInstance) { mappaPercorsoInstance.remove(); mappaPercorsoInstance = null; }
   }
 
+  /** Passa al tab Pianificazione precompilato con squadra/giorno, per selezionare manualmente (anche dalla mappa) come per un giorno singolo qualsiasi. */
+  function pianificaQuiClick(squadraId, giornoStr) {
+    var selSquadra = document.getElementById('pian-squadra');
+    var elGiorno = document.getElementById('pian-giorno');
+    if (selSquadra) selSquadra.value = squadraId;
+    var giornoDate = parseDateStrClient(giornoStr);
+    if (elGiorno && giornoDate) elGiorno.value = toInputDate(giornoDate);
+    mostraTab('pianificazione');
+    caricaContesto();
+  }
+
   function setupProgrammazioneTab() {
     var oggi = new Date();
     var fra6 = new Date(oggi.getTime() + 6 * 24 * 3600 * 1000);
@@ -1089,6 +1190,8 @@
         riempiBucoGiornoClick(squadraId, giornoStr);
       } else if (btn.dataset.action === 'vedi-mappa') {
         apriMappaPercorso(squadraId, giornoStr);
+      } else if (btn.dataset.action === 'pianifica-qui') {
+        pianificaQuiClick(squadraId, giornoStr);
       }
     });
     on('mappa-percorso-close', 'click', chiudiMappaPercorso);

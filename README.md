@@ -171,7 +171,16 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    - **Selezione manuale (singolo giorno)**: scegli il giorno, carica gli
      interventi disponibili, seleziona quelli da includere, premi "Ottimizza
      percorso", eventualmente affina l'ordine (frecce su/giù, rimuovi tappa)
-     e premi "Conferma e salva percorso".
+     e premi "Conferma e salva percorso". Oltre alla tabella, il link "🗺️
+     Mostra mappa" apre una mappa (Leaflet/OpenStreetMap) con tutti gli
+     interventi geocodificati: **arancio** = da pianificare, **verde** =
+     selezionato, **grigio** = competenza non compatibile con la squadra.
+     Cliccando un punto si apre una scheda con i dati essenziali e un
+     bottone "Inserisci in planner" (o "Rimuovi dalla selezione" se già
+     scelto): aggiunge/toglie l'intervento dalla selezione esattamente come
+     la checkbox corrispondente nella tabella, restando sempre sincronizzata
+     con essa — serve comunque "Ottimizza percorso" e "Conferma e salva
+     percorso" per scrivere davvero sul foglio.
    - **Pianificazione automatica su intervallo**: seleziona una o più
      squadre e un intervallo Dal/Al, poi premi "Pianifica intervallo": il
      sistema genera e **scrive subito** (senza passaggio di conferma) un
@@ -248,6 +257,10 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      nell'ordine di visita e collegate da segmenti diritti — non un percorso
      stradale reale, solo un'indicazione visiva rapida della sequenza e della
      geografia del giro. Clicca su una tappa per vederne cliente/indirizzo/ora.
+   - **"Seleziona manualmente"** per una squadra/giorno: passa al tab
+     Pianificazione già precompilato con quella squadra e quel giorno (stesso
+     flusso descritto sopra, mappa inclusa), per scegliere a mano quali
+     interventi aggiungere invece di affidarsi al riempimento automatico.
 5. Tab **Regole**: ogni regola ha il controllo adatto al suo tipo — un
    selettore con i giorni della settimana per "Giorni Lavorativi" (rispettato
    dalla pianificazione automatica su intervallo, che salta i giorni non
