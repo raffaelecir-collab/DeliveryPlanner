@@ -969,15 +969,51 @@
   }
 
   // ---------- mappa del percorso (Leaflet/OpenStreetMap, nessuna chiave API) ----------
+  //
+  // Leaflet viene caricato da CDN in modo pigro (solo al primo utilizzo della mappa, non
+  // all'avvio dell'app): un <script> esterno messo in testa alla pagina bloccherebbe l'intero
+  // rendering finché non risponde, e se quella rete non riesce a raggiungere il CDN (proxy
+  // aziendale, filtro di rete) l'intera web app resterebbe con una schermata bianca. Caricandolo
+  // così, un eventuale problema di rete limita l'errore alla sola funzione mappa.
   var mappaPercorsoInstance = null;
+  var leafletCaricamento = null;
+
+  function caricaLeaflet_() {
+    if (typeof L !== 'undefined') return Promise.resolve();
+    if (leafletCaricamento) return leafletCaricamento;
+    leafletCaricamento = new Promise(function (resolve, reject) {
+      var link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+
+      var script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      var timeout = setTimeout(function () { reject(new Error('timeout')); }, 10000);
+      script.onload = function () { clearTimeout(timeout); resolve(); };
+      script.onerror = function () { clearTimeout(timeout); reject(new Error('load error')); };
+      document.head.appendChild(script);
+    }).catch(function (err) {
+      leafletCaricamento = null; // permette di ritentare a un click successivo
+      throw err;
+    });
+    return leafletCaricamento;
+  }
 
   function apriMappaPercorso(squadraId, giornoStr) {
     var righeSquadra = progState.righe.filter(function (r) { return r.squadraId === squadraId && r.dataPianificata === giornoStr; });
     righeSquadra.sort(function (a, b) { return (a.ordineTappa || 0) - (b.ordineTappa || 0); });
     var punti = righeSquadra.filter(function (r) { return isNumClient(r.lat) && isNumClient(r.lng); });
     if (!punti.length) { toast('Nessuna coordinata disponibile per disegnare la mappa di questo percorso.', 'error'); return; }
-    if (typeof L === 'undefined') { toast('Libreria mappa non disponibile (verifica la connessione a internet).', 'error'); return; }
 
+    caricaLeaflet_().then(function () {
+      disegnaMappaPercorso_(righeSquadra, punti, squadraId, giornoStr);
+    }).catch(function () {
+      toast('Impossibile caricare la mappa (verifica la connessione a internet o la rete/proxy in uso).', 'error');
+    });
+  }
+
+  function disegnaMappaPercorso_(righeSquadra, punti, squadraId, giornoStr) {
     var squadraNome = righeSquadra[0].squadraNome || squadraId;
     document.getElementById('mappa-percorso-titolo').textContent = 'Percorso — ' + squadraNome + ' — ' + giornoStr;
     document.getElementById('mappa-percorso-overlay').classList.remove('hidden');
