@@ -130,6 +130,30 @@ function generateId_(prefix) {
 }
 
 /**
+ * Legge tutte le righe di uno schema e assegna subito un ID a quelle che ne sono prive
+ * (tipicamente righe inserite/modificate a mano sul foglio, mai passate dai form della Web
+ * App). Senza questo, più righe con id vuoto verrebbero confuse tra loro da qualunque
+ * lookup per id (es. nel motore di pianificazione), causando errori difficili da
+ * diagnosticare invece di un semplice "riga non ancora identificata". Va chiamata prima di
+ * qualunque elaborazione che usi l'id come chiave (pianificazione, conferma percorso).
+ */
+function assicuraIdTutti_(schemaKey) {
+  var schemaDef = getSchemaDef_(schemaKey);
+  var idColIndex = schemaDef.fields.findIndex(function (f) { return f.key === 'id'; });
+  if (idColIndex < 0) return readAll_(schemaKey);
+  var sheet = getOrCreateSheet_(schemaDef.sheetName);
+  var righe = readAll_(schemaKey);
+  righe.forEach(function (r) {
+    if (!r.id) {
+      var nuovoId = generateId_(schemaDef.idPrefix || 'ID');
+      sheet.getRange(r._row, idColIndex + 1).setValue(nuovoId);
+      r.id = nuovoId;
+    }
+  });
+  return righe;
+}
+
+/**
  * Crea o aggiorna una riga. Se obj.id è presente e già esistente aggiorna la riga,
  * altrimenti genera un nuovo id e accoda una nuova riga. Se obj.id è assente ma
  * obj._row è noto (riga inserita/modificata a mano sul foglio, senza ID) aggiorna

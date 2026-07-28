@@ -455,7 +455,7 @@ function riempiGiornata_(squadra, nodi, risultato, matriceStima, partenzaIdx, ri
 function getContestoPianificazione(squadraId, giornoStr) {
   var giorno = parseDateStr_(giornoStr);
   var giornoFmt = formatDateStr_(giorno);
-  var tutti = readAll_('INTERVENTI');
+  var tutti = assicuraIdTutti_('INTERVENTI');
   var disponibili = tutti.filter(function (i) { return i.stato === STATO_INTERVENTO.DA_PIANIFICARE; });
   var pianificati = tutti.filter(function (i) {
     return i.squadraId === squadraId && i.dataPianificata === giornoFmt && i.stato === STATO_INTERVENTO.PIANIFICATO;
@@ -537,13 +537,13 @@ function formattaAnteprima_(squadra, giorno, risultato) {
 function anteprimaPercorso(squadraId, giornoStr, interventoIds, ordineManuale) {
   if (!interventoIds || interventoIds.length === 0) throw new Error('Seleziona almeno un intervento.');
   var regole = getRegoleMappa_();
-  var squadra = readAll_('SQUADRE').filter(function (s) { return s.id === squadraId; })[0];
+  var squadra = assicuraIdTutti_('SQUADRE').filter(function (s) { return s.id === squadraId; })[0];
   if (!squadra) throw new Error('Squadra non trovata.');
   if (!isNum_(squadra.latPartenza) || !isNum_(squadra.lngPartenza)) {
     throw new Error('L\'indirizzo di partenza della squadra "' + squadra.nome + '" non è geocodificato. Ri-salva la squadra con un indirizzo valido.');
   }
 
-  var tuttiInterventi = readAll_('INTERVENTI');
+  var tuttiInterventi = assicuraIdTutti_('INTERVENTI');
   var selezionati = interventoIds.map(function (id) {
     var it = tuttiInterventi.filter(function (i) { return i.id === id; })[0];
     if (!it) throw new Error('Intervento non trovato: ' + id);
@@ -653,7 +653,7 @@ function squadraCoprCompetenza_(squadra, intervento) {
 function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
   if (!squadraIds || squadraIds.length === 0) throw new Error('Seleziona almeno una squadra.');
   var regole = getRegoleMappa_();
-  var tutteLeSquadre = readAll_('SQUADRE');
+  var tutteLeSquadre = assicuraIdTutti_('SQUADRE');
   var squadre = squadraIds.map(function (id) {
     var s = tutteLeSquadre.filter(function (x) { return x.id === id; })[0];
     if (!s) throw new Error('Squadra non trovata: ' + id);
@@ -668,7 +668,7 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
   if (!dataInizio || !dataFine) throw new Error('Intervallo di date non valido.');
   if (dataFine < dataInizio) throw new Error('La data di fine non può precedere la data di inizio.');
 
-  var tuttiInterventi = readAll_('INTERVENTI');
+  var tuttiInterventi = assicuraIdTutti_('INTERVENTI');
   var pool = tuttiInterventi.filter(function (i) {
     if (i.stato !== STATO_INTERVENTO.DA_PIANIFICARE) return false;
     if (!isNum_(i.lat) || !isNum_(i.lng)) return false;

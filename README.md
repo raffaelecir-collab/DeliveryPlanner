@@ -174,9 +174,12 @@ foglio invece di usare i form della Web App. In quel caso:
 
 - la casella "Attiva" delle Squadre, se lasciata vuota, viene comunque
   considerata attiva per non far sparire la squadra dai selettori;
-- l'ID viene assegnato automaticamente la prima volta che la riga viene
-  salvata dalla Web App (Modifica → Salva), non quando la scrivi a mano sul
-  foglio — non è comunque necessario per la pianificazione;
+- l'**ID viene assegnato automaticamente alla prima pianificazione** che
+  coinvolge la riga (selezione manuale, ottimizzazione, pianificazione su
+  intervallo), non serve aprirla dalla Web App apposta: senza un ID più righe
+  scritte a mano (tutte con ID vuoto) verrebbero confuse tra loro dal motore,
+  quindi viene assegnato e salvato sul foglio non appena la riga entra per la
+  prima volta in un calcolo;
 - la **geocodifica degli indirizzi (lat/lng) può avvenire in automatico
   anche per le righe scritte a mano**, attivando una volta il trigger
   dedicato: dal menu **Delivery Planner → "Attiva geocodifica automatica su
