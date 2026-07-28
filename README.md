@@ -181,24 +181,25 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      rigido, non solo un avviso), **saltando i giorni non lavorativi**
      impostati in Regole e i giorni in cui una squadra è specificamente non
      disponibile (giorno di riposo o ferie). Con più squadre selezionate,
-     l'assegnazione avviene **in sequenza secondo l'ordine di selezione, una
-     squadra alla volta per l'intero intervallo**: la prima squadra
-     pianifica tutti i giorni dell'intervallo cercando di saturare ogni
-     giornata e di avvicinarsi al proprio target di produzione, e solo dopo
-     che ha esaurito il lavoro compatibile la squadra successiva comincia a
-     pescare da quello che resta (non si alternano giorno per giorno).
-     L'obiettivo è **accorpare gli interventi vicini su meno squadre
-     possibile**, massimizzando ore lavorate e produzione di ciascuna,
-     invece di spalmarli in modo equo su tutte: se il lavoro disponibile non
-     basta per tutte, le squadre più in fondo alla lista restano
-     semplicemente libere per l'intero intervallo, invece di ricevere una
-     manciata di interventi a testa ogni giorno. Gli interventi che non
-     trovano posto in nessun giorno/squadra dell'intervallo restano "Da
-     pianificare" con una nota sul motivo. Una squadra senza interventi
-     compatibili (o non disponibile) per un determinato giorno compare
-     comunque nel riepilogo, marcata come "**Giornata libera**" con il
-     motivo: non è necessario che tutte le squadre risultino impegnate ogni
-     giorno.
+     l'assegnazione di ciascun giorno **non segue l'ordine di selezione**:
+     per ogni intervento ancora da assegnare si confronta il costo tra
+     **tutte** le squadre disponibili quel giorno, e vince chi costa meno in
+     assoluto (vicinanza, priorità, ricavo verso il target, competenza
+     specifica) — non "a turno" nell'ordine in cui sono state selezionate.
+     Così una squadra già vicina a un gruppo di interventi tende a vincerli
+     tutti in sequenza (**concentrando il lavoro su poche squadre** invece di
+     spalmarlo su tutte), mentre un intervento genuinamente più vicino a
+     un'altra squadra va a lei anche se è più in fondo alla lista: nessuna
+     squadra monopolizza lavoro sparso su tutta l'area solo perché elencata
+     per prima, e nessuna resta priva di lavoro per settimane se c'è
+     qualcosa di più adatto a lei. Se il lavoro disponibile non basta per
+     tutte, le squadre senza nulla di adatto restano semplicemente libere.
+     Gli interventi che non trovano posto in nessun giorno/squadra
+     dell'intervallo restano "Da pianificare" con una nota sul motivo. Una
+     squadra senza interventi compatibili (o non disponibile) per un
+     determinato giorno compare comunque nel riepilogo, marcata come
+     "**Giornata libera**" con il motivo: non è necessario che tutte le
+     squadre risultino impegnate ogni giorno.
 
      Se una squadra ha **competenze specifiche** impostate (non generica),
      riceve prima gli interventi che richiedono esplicitamente una di quelle
