@@ -55,7 +55,8 @@ var SCHEMA = {
       { key: 'colore', label: 'Colore', type: 'color', default: '#4285F4' },
       { key: 'attiva', label: 'Attiva', type: 'checkbox', default: true },
       { key: 'giorniIndisponibili', label: 'Giorni Settimanali Non Disponibili', type: 'giorni', help: 'Oltre ai giorni lavorativi generali (impostati in Regole), seleziona eventuali giorni della settimana in cui QUESTA squadra in particolare non è disponibile (es. part-time). Nessuna selezione = segue il calendario standard.' },
-      { key: 'feriePeriodi', label: 'Periodi di Ferie/Assenza', type: 'ferie', help: 'Intervalli di date (Dal/Al) in cui la squadra è completamente non disponibile: durante questi periodi non le viene assegnato alcun intervento, né manualmente né nella pianificazione automatica.' }
+      { key: 'feriePeriodi', label: 'Periodi di Ferie/Assenza', type: 'ferie', help: 'Intervalli di date (Dal/Al) in cui la squadra è completamente non disponibile: durante questi periodi non le viene assegnato alcun intervento, né manualmente né nella pianificazione automatica.' },
+      { key: 'produzioneTarget', label: 'Target Produzione Giornaliera (€)', type: 'number', help: 'Ricavo giornaliero che la squadra dovrebbe idealmente raggiungere. Le assegnazioni tengono conto del ricavo di ogni intervento (tra gli altri fattori) per avvicinarsi a questo valore, ma continuano comunque a riempire tutte le ore disponibili del turno anche oltre il target. Lascia vuoto se non vuoi tracciare un target per questa squadra.' }
     ]
   },
   INTERVENTI: {
@@ -83,7 +84,8 @@ var SCHEMA = {
       { key: 'ordineTappa', label: 'Ordine nel Percorso', type: 'number', readonly: true },
       { key: 'note', label: 'Note', type: 'text' },
       { key: 'motivoNonPianificato', label: 'Nota Pianificazione', type: 'text', readonly: true },
-      { key: 'telefono', label: 'Telefono', type: 'text' }
+      { key: 'telefono', label: 'Telefono', type: 'text' },
+      { key: 'ricavo', label: 'Ricavo (€)', type: 'number', default: 0, help: 'Usato per calcolare la produzione (ricavo totale) di ciascuna squadra rispetto al proprio target di produzione giornaliera.' }
     ]
   },
   REGOLE: {
@@ -128,5 +130,6 @@ var REGOLE_DEFAULT = [
   { chiave: 'pesoPrioritaBassa', valore: '1', tipo: 'numero', descrizione: 'Peso della priorità Bassa.' },
   { chiave: 'densitaRaggioMinuti', valore: '8', tipo: 'numero', descrizione: 'Entro quanti minuti di viaggio due interventi sono considerati "nella stessa area" ai fini del punteggio di densità.' },
   { chiave: 'pesoDensita', valore: '50', tipo: 'numero', descrizione: 'Peso dato alla densità di un\'area (numero di altri interventi vicini) nello scegliere da quale zona iniziare il percorso: aree con più interventi vicini vengono preferite per massimizzare quanti interventi si riescono a completare.' },
-  { chiave: 'pesoProssimitaBase', valore: '5', tipo: 'numero', descrizione: 'Preferenza (minuti di viaggio dalla partenza della squadra, come penalità) per iniziare il percorso da un\'area vicina alla base, a parità di priorità/densità.' }
+  { chiave: 'pesoProssimitaBase', valore: '5', tipo: 'numero', descrizione: 'Preferenza (minuti di viaggio dalla partenza della squadra, come penalità) per iniziare il percorso da un\'area vicina alla base, a parità di priorità/densità.' },
+  { chiave: 'pesoRicavo', valore: '0.2', tipo: 'numero', descrizione: 'Quanto pesa il ricavo (€) di un intervento nella scelta di quali interventi assegnare, a parità di altri fattori (vicinanza, priorità): fa preferire leggermente gli interventi più redditizi, per avvicinarsi al target di produzione della squadra, senza mai bloccare il riempimento delle ore disponibili del turno (il target resta un indicatore, non un limite che ferma le assegnazioni). Aumenta questo valore se vuoi che il ricavo pesi di più nella scelta, azzeralo per ignorarlo del tutto.' }
 ];

@@ -149,11 +149,15 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    lavorativi generali impostati in Regole) e uno o più **periodi di
    ferie/assenza** (Dal/Al, aggiungibili con "+ Aggiungi periodo"): nei
    giorni coperti da questi la squadra non viene mai considerata dalla
-   pianificazione (né manuale né automatica).
+   pianificazione (né manuale né automatica). Puoi anche impostare un
+   **Target Produzione Giornaliera (€)**: un obiettivo di ricavo che la
+   squadra dovrebbe idealmente raggiungere in un giorno (vedi più sotto).
 2. Tab **Interventi**: inserisci gli interventi da pianificare (cliente,
    indirizzo — geocodificato automaticamente —, competenza richiesta,
    priorità, durata stimata, finestra oraria, **telefono** del cliente per
-   contattarlo sul campo, eventuale non-prima-del/scadenza informativi).
+   contattarlo sul campo, **ricavo (€)** dell'intervento (usato per
+   calcolare la produzione della squadra), eventuale non-prima-del/scadenza
+   informativi).
 
    Sotto ogni campo indirizzo (Squadre e Interventi) c'è un link **"🗺️
    Mostra mappa"**: apre un'anteprima piccola e ridimensionabile (trascina
@@ -198,6 +202,22 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 
    In fondo alla pagina trovi il riepilogo dei percorsi già confermati per il
    giorno selezionato, con tutte le squadre affiancate.
+
+   **Produzione (ricavo) e target giornaliero**: se una squadra ha un
+   "Target Produzione Giornaliera" impostato, il ricavo degli interventi
+   pesa (regola **pesoRicavo**) tra i fattori usati per scegliere quali
+   interventi assegnarle — insieme a priorità, densità dell'area e
+   vicinanza alla base — così, a parità di altri fattori, si preferiscono
+   gli interventi più redditizi per avvicinarsi al target. Il target
+   **non blocca né interrompe mai** il riempimento delle ore disponibili:
+   anche superato l'obiettivo la squadra continua a ricevere altri
+   interventi se c'è ancora tempo e lavoro compatibile, esattamente come
+   quando non c'è nessun target impostato — è pensato come un indicatore su
+   cui orientare le scelte, non come un tetto. Dove il target è impostato,
+   compare un riepilogo "**Produzione: X€ / target Y€**" (evidenziato in
+   verde quando raggiunto o superato) nella board della pianificazione
+   automatica su intervallo, nell'anteprima del percorso a singolo giorno e
+   nella tab Programmazione.
 4. Tab **Programmazione**: elenco di tutti gli interventi già pianificati
    (percorsi confermati) in un intervallo di date, raggruppati per
    giorno/squadra, con le indicazioni essenziali (ora, cliente, indirizzo) più
@@ -225,8 +245,9 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    priorità, peso e raggio della densità di un'area, preferenza per la
    vicinanza alla base, buffer di setup/parcheggio tra due tappe, velocità
    media di fallback, **minuti di tolleranza sullo sconfinamento nella pausa
-   pranzo**) — nessun testo libero da digitare a mano, e nessuna modifica al
-   codice richiesta.
+   pranzo**, **peso del ricavo** nella scelta degli interventi da assegnare)
+   — nessun testo libero da digitare a mano, e nessuna modifica al codice
+   richiesta.
 
 Ogni percorso confermato (in entrambe le modalità) viene registrato nel
 foglio `LogPianificazione` (visibile in fondo al tab Regole), utile per

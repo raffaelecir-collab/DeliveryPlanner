@@ -170,11 +170,13 @@ function costruisciPercorsoInserzione_(stopIndices, matrice, partenzaIdx, nodi, 
   var raggioMinuti = regole.densitaRaggioMinuti || 8;
   var pesoDensita = regole.pesoDensita || 50;
   var pesoProssimita = regole.pesoProssimitaBase || 5;
+  var pesoRicavo = regole.pesoRicavo || 0;
 
   function scorePunto(idx) {
     var densita = densitaPunto_(idx, stopIndices, matrice, raggioMinuti);
     var distanzaBase = matrice[partenzaIdx][idx].minuti;
-    return pesoPriorita_(nodi[idx].intervento.priorita, regole) + pesoDensita * densita - pesoProssimita * distanzaBase;
+    var ricavo = nodi[idx].intervento.ricavo || 0;
+    return pesoPriorita_(nodi[idx].intervento.priorita, regole) + pesoDensita * densita - pesoProssimita * distanzaBase + pesoRicavo * ricavo;
   }
 
   var remaining = stopIndices.slice();
@@ -191,7 +193,14 @@ function costruisciPercorsoInserzione_(stopIndices, matrice, partenzaIdx, nodi, 
   while (remaining.length > 0) {
     var migliore = null;
     remaining.forEach(function (idx) {
-      for (var pos = -1; pos < route.length; pos++) {
+      // Le posizioni vengono provate dalla coda verso la testa (non da -1 in su): a parità di
+      // costo (tipico quando due interventi sono vicinissimi tra loro, quindi indifferente
+      // inserirsi prima o dopo) questo fa sì che il pareggio venga risolto in coda, non in testa.
+      // Altrimenti il "seme" scelto per primo in base a punteggio (priorità/densità/ricavo)
+      // finirebbe quasi sempre spostato in seconda posizione da un candidato vicinissimo
+      // inserito davanti a lui a costo pari, vanificando proprio la priorità che lo ha fatto
+      // scegliere come seme quando il tempo disponibile basta per uno solo dei due.
+      for (var pos = route.length - 1; pos >= -1; pos--) {
         var costo = costoInserzione(idx, pos);
         if (!migliore || costo < migliore.costo) migliore = { idx: idx, pos: pos, costo: costo };
       }
@@ -476,7 +485,12 @@ function riempiGiornata_(squadra, nodi, risultato, matriceStima, partenzaIdx, ri
           if (costo < migliorCosto) { migliorCosto = costo; migliorPos = pos; }
         }
         var durata = nodi[idx].intervento.durataMinuti || 60;
-        return { idx: idx, id: n.interventoId, pos: migliorPos, costo: migliorCosto + durata };
+        var ricavo = nodi[idx].intervento.ricavo || 0;
+        // Il ricavo abbassa il costo "percepito" di un candidato (a parità di tutto il resto lo
+        // fa scegliere prima), per avvicinarsi al target di produzione della squadra senza mai
+        // impedire il riempimento della giornata: resta comunque un fattore tra gli altri, non
+        // un vincolo.
+        return { idx: idx, id: n.interventoId, pos: migliorPos, costo: migliorCosto + durata - (regole.pesoRicavo || 0) * ricavo };
       })
       .sort(function (a, b) { return a.costo - b.costo; })
       .slice(0, MAX_CANDIDATI_PER_TENTATIVO);
@@ -564,6 +578,7 @@ function formattaAnteprima_(squadra, giorno, risultato) {
         indirizzo: t.intervento.indirizzo,
         priorita: t.intervento.priorita,
         durataMinuti: t.intervento.durataMinuti,
+        ricavo: t.intervento.ricavo || 0,
         oraInizio: t.oraInizio,
         oraFine: t.oraFine,
         viaggioMinuti: t.viaggioMinutiDallaPrecedente,
@@ -577,7 +592,9 @@ function formattaAnteprima_(squadra, giorno, risultato) {
     partenzaStimata: risultato.partenzaStimata,
     rientroStimato: risultato.rientroStimato,
     distanzaTotaleKm: risultato.distanzaTotaleKm,
-    tempoViaggioTotaleMinuti: risultato.tempoViaggioTotaleMinuti
+    tempoViaggioTotaleMinuti: risultato.tempoViaggioTotaleMinuti,
+    produzioneTotale: risultato.tappe.reduce(function (sum, t) { return sum + (t.intervento.ricavo || 0); }, 0),
+    produzioneTarget: squadra.produzioneTarget || 0
   };
 }
 
@@ -734,12 +751,14 @@ function getProgrammazione(dataInizioStr, dataFineStr) {
       competenza: i.competenza,
       priorita: i.priorita,
       durataMinuti: i.durataMinuti,
+      ricavo: i.ricavo || 0,
       dataPianificata: i.dataPianificata,
       oraPianificata: i.oraPianificata,
       ordineTappa: i.ordineTappa,
       squadraId: i.squadraId,
       squadraNome: s ? s.nome : i.squadraId,
-      colore: s ? s.colore : '#999999'
+      colore: s ? s.colore : '#999999',
+      produzioneTarget: s ? (s.produzioneTarget || 0) : 0
     };
   });
 }
@@ -824,7 +843,12 @@ function splitList_(str) {
 
 function squadraCoprCompetenza_(squadra, intervento) {
   var competenze = splitList_(squadra.competenze).map(function (c) { return c.toLowerCase(); });
-  return !intervento.competenza || competenze.length === 0 || competenze.indexOf(String(intervento.competenza).toLowerCase()) !== -1;
+  // La competenza dell'intervento va normalizzata (trim + minuscolo) esattamente come quelle
+  // della squadra: senza il trim, un valore inserito/incollato con uno spazio iniziale o finale
+  // (es. "Idraulico " da un copia-incolla) non risulterebbe mai compatibile con nessuna squadra,
+  // pur essendo visivamente identico.
+  var competenzaIntervento = String(intervento.competenza || '').trim().toLowerCase();
+  return !competenzaIntervento || competenze.length === 0 || competenze.indexOf(competenzaIntervento) !== -1;
 }
 
 /** true se `giorno` (Date) cade in uno dei periodi di ferie/assenza della squadra. */
@@ -905,9 +929,10 @@ function costruisciOrdiniGiornoCongiunti_(squadre, candidatiPerSquadra, regole) 
         var slot = trovaSlotValido_(candidateStart, durata, oraInizioMin[s.id], oraFineMin[s.id], pausaInizioMin[s.id], pausaFineMin[s.id], tolleranzaPausaMinuti);
         if (!slot || slot.fine > finestraFineInt) return; // non entra nel turno di questa squadra
         // Il costo di questo giro è dominato dalla vicinanza (l'obiettivo è consolidare le
-        // squadre già in zona), con una lieve preferenza per la priorità più alta a parità di
-        // distanza.
-        var costo = viaggio - pesoPriorita_(cand.priorita, regole) * 0.05;
+        // squadre già in zona), con una lieve preferenza per la priorità e il ricavo più alti a
+        // parità di distanza (per avvicinarsi al target di produzione senza comprometterla).
+        var ricavo = cand.ricavo || 0;
+        var costo = viaggio - pesoPriorita_(cand.priorita, regole) * 0.05 - (regole.pesoRicavo || 0) * ricavo;
         if (!migliore || costo < migliore.costo) migliore = { cand: cand, costo: costo, fine: slot.fine };
       });
 
@@ -993,7 +1018,8 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
       if (!squadraDisponibileGiorno_(squadra, giorno)) {
         giorniMap[giornoFmt].push({
           squadraId: squadra.id, squadraNome: squadra.nome, colore: squadra.colore,
-          tappe: [], libera: true, motivoLibera: motivoIndisponibilita_(squadra, giorno)
+          tappe: [], libera: true, motivoLibera: motivoIndisponibilita_(squadra, giorno),
+          produzioneTotale: 0, produzioneTarget: squadra.produzioneTarget || 0
         });
         return;
       }
@@ -1028,7 +1054,10 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
       // squadra silenziosamente assente dal riepilogo, specie con più squadre che condividono
       // lo stesso pool di interventi disponibili.
       if (candidatiOggi.length === 0) {
-        giorniMap[giornoFmt].push({ squadraId: squadra.id, squadraNome: squadra.nome, colore: squadra.colore, tappe: [], libera: true });
+        giorniMap[giornoFmt].push({
+          squadraId: squadra.id, squadraNome: squadra.nome, colore: squadra.colore, tappe: [], libera: true,
+          produzioneTotale: 0, produzioneTarget: squadra.produzioneTarget || 0
+        });
         return;
       }
 
@@ -1068,7 +1097,9 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
         tappe: anteprimaGiorno.tappe,
         partenzaStimata: anteprimaGiorno.partenzaStimata,
         rientroStimato: anteprimaGiorno.rientroStimato,
-        libera: risultato.tappe.length === 0
+        libera: risultato.tappe.length === 0,
+        produzioneTotale: anteprimaGiorno.produzioneTotale,
+        produzioneTarget: anteprimaGiorno.produzioneTarget
       });
     });
     giorno = addDays_(giorno, 1);

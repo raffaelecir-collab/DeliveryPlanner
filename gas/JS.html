@@ -40,6 +40,18 @@
     return typeof v === 'number' && !isNaN(v);
   }
 
+  function formatEuroClient(v) {
+    return (Math.round((v || 0) * 100) / 100).toLocaleString('it-IT') + '€';
+  }
+
+  /** Riepilogo "Produzione: X€ / target Y€" — omesso del tutto se la squadra non ha un target impostato. */
+  function formattaProduzioneClient(totale, target) {
+    if (!target) return '';
+    var raggiunto = (totale || 0) >= target;
+    return '<div class="produzione-indicatore' + (raggiunto ? ' ok' : '') + '">Produzione: ' +
+      formatEuroClient(totale) + ' / ' + formatEuroClient(target) + '</div>';
+  }
+
   // ---------- anteprima mappa (verifica visiva della geocodifica di un indirizzo) ----------
   function mapEmbedUrlPerQuery(query) {
     return 'https://www.google.com/maps?q=' + encodeURIComponent(query) + '&output=embed';
@@ -623,7 +635,8 @@
     tbody.innerHTML = tutti.map(function (i) {
       var giaPianificato = pianificatiIds.indexOf(i.id) !== -1;
       var checked = giaPianificato ? 'checked' : '';
-      var incompatibile = !!(i.competenza && competenzeSquadra.length && competenzeSquadra.indexOf(i.competenza.toLowerCase()) === -1);
+      var competenzaIntervento = String(i.competenza || '').trim().toLowerCase();
+      var incompatibile = !!(competenzaIntervento && competenzeSquadra.length && competenzeSquadra.indexOf(competenzaIntervento) === -1);
       // Una competenza incompatibile blocca la nuova selezione (rispecchia il vincolo rigido
       // lato server), ma se l'intervento è già pianificato per questa squadra (es. competenze
       // cambiate dopo l'assegnazione) resta comunque deselezionabile.
@@ -681,7 +694,8 @@
             return '<div class="stop"><span class="ora">' + t.oraInizio + '-' + t.oraFine + '</span> <span class="cliente">' + escapeHtml(t.cliente) + '</span>' +
               '<div class="meta">' + escapeHtml(t.indirizzo || '') + ' · ' + t.durataMinuti + ' min</div></div>';
           }).join('');
-        return '<div class="board-team"><div class="team-head"><span class="team-dot" style="background:' + (sq.colore || '#999') + '"></span>' + escapeHtml(sq.squadraNome) + '</div>' + stopsHtml + '</div>';
+        return '<div class="board-team"><div class="team-head"><span class="team-dot" style="background:' + (sq.colore || '#999') + '"></span>' + escapeHtml(sq.squadraNome) + '</div>' +
+          formattaProduzioneClient(sq.produzioneTotale, sq.produzioneTarget) + stopsHtml + '</div>';
       }).join('');
       return '<div class="board-day"><div class="day-title">' + g.giorno + '</div><div class="board-teams">' + teamsHtml + '</div></div>';
     }).join('');
@@ -771,7 +785,9 @@
       '<div class="summary-card ok"><div class="num">' + anteprima.tappe.length + '</div><div class="lbl">Tappe pianificate</div></div>' +
       '<div class="summary-card warn"><div class="num">' + anteprima.nonIncluse.length + '</div><div class="lbl">Non incluse</div></div>' +
       '<div class="summary-card"><div class="num" style="font-size:16px;">' + (anteprima.distanzaTotaleKm || 0) + ' km</div><div class="lbl">Distanza totale</div></div>' +
-      '<div class="summary-card"><div class="num" style="font-size:16px;">' + Math.round(anteprima.tempoViaggioTotaleMinuti || 0) + ' min</div><div class="lbl">Tempo di viaggio</div></div>';
+      '<div class="summary-card"><div class="num" style="font-size:16px;">' + Math.round(anteprima.tempoViaggioTotaleMinuti || 0) + ' min</div><div class="lbl">Tempo di viaggio</div></div>' +
+      (anteprima.produzioneTarget ? '<div class="summary-card' + ((anteprima.produzioneTotale || 0) >= anteprima.produzioneTarget ? ' ok' : '') + '"><div class="num" style="font-size:16px;">' +
+        formatEuroClient(anteprima.produzioneTotale) + ' / ' + formatEuroClient(anteprima.produzioneTarget) + '</div><div class="lbl">Produzione / Target</div></div>' : '');
 
     var nonInclEl = document.getElementById('pian-anteprima-nonincluse');
     nonInclEl.innerHTML = anteprima.nonIncluse.length ? anteprima.nonIncluse.map(function (n) {
@@ -906,6 +922,10 @@
       return new Date(pa[2], pa[1] - 1, pa[0]) - new Date(pb[2], pb[1] - 1, pb[0]);
     }).map(function (giorno) {
       var squadre = Object.keys(giorniMap[giorno]).map(function (k) { return giorniMap[giorno][k]; });
+      squadre.forEach(function (sq) {
+        sq.produzioneTotale = sq.righe.reduce(function (sum, r) { return sum + (r.ricavo || 0); }, 0);
+        sq.produzioneTarget = sq.righe[0].produzioneTarget || 0;
+      });
       squadre.sort(function (a, b) { return a.squadraNome < b.squadraNome ? -1 : 1; });
       return { giorno: giorno, squadre: squadre };
     });
@@ -933,6 +953,7 @@
           '<div class="team-head"><span class="team-dot" style="background:' + (sq.colore || '#999') + '"></span>' + escapeHtml(sq.squadraNome) +
           '<button type="button" class="btn secondary" data-action="vedi-mappa" data-squadra="' + sq.squadraId + '" data-giorno="' + g.giorno + '" style="margin-left:auto;">🗺️ Vedi mappa</button>' +
           '<button type="button" class="btn secondary btn-riempi-buco" data-action="riempi-buco" data-squadra="' + sq.squadraId + '" data-giorno="' + g.giorno + '">Riempi buco</button></div>' +
+          formattaProduzioneClient(sq.produzioneTotale, sq.produzioneTarget) +
           '<table class="prog-table"><thead><tr><th>Ora</th><th>Cliente</th><th>Indirizzo</th><th>Telefono</th><th></th></tr></thead><tbody>' + righeHtml + '</tbody></table>' +
         '</div>';
       }).join('');
