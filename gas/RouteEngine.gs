@@ -400,14 +400,9 @@ function pianificaConUpgradeReale_(squadra, nodi, ordine, matriceStima, partenza
  * tiene il risultato originale), per non sacrificare mai il numero di interventi eseguibili
  * in cambio di un percorso marginalmente più corto. Infine i tempi vengono aggiornati con
  * quelli reali (Google Maps) solo sui tratti del percorso scelto.
- *
- * Se `ordineInizialeForzato` è fornito (es. dalla costruzione congiunta multi-squadra), viene
- * usato al posto della normale costruzione a inserimento più economico: eventuali candidati di
- * stopIndices non compresi in quell'ordine (mai considerati in questo turno di assegnazione)
- * vengono comunque proposti al passaggio di riempimento finale, per non perdere copertura.
  */
-function costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima, partenzaIdx, rientroIdx, regole, ordineInizialeForzato) {
-  var ordineIniziale = ordineInizialeForzato || costruisciPercorsoInserzione_(stopIndices, matriceStima, partenzaIdx, nodi, regole);
+function costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima, partenzaIdx, rientroIdx, regole) {
+  var ordineIniziale = costruisciPercorsoInserzione_(stopIndices, matriceStima, partenzaIdx, nodi, regole);
   var risultato = pianificaOrarioPercorso_(squadra, nodi, ordineIniziale, matriceStima, partenzaIdx, rientroIdx, regole);
   var ordineFinale = ordineIniziale;
 
@@ -427,17 +422,6 @@ function costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima,
   }
 
   var risultatoFinale = pianificaConUpgradeReale_(squadra, nodi, ordineFinale, matriceStima, partenzaIdx, rientroIdx, regole);
-
-  if (ordineInizialeForzato) {
-    var consideratiSet = {};
-    ordineInizialeForzato.forEach(function (idx) { consideratiSet[idx] = true; });
-    stopIndices.forEach(function (idx) {
-      if (!consideratiSet[idx]) {
-        risultatoFinale.nonIncluse.push({ intervento: nodi[idx].intervento, motivo: 'Non ancora considerato in questo turno di assegnazione' });
-      }
-    });
-  }
-
   return riempiGiornata_(squadra, nodi, risultatoFinale, matriceStima, partenzaIdx, rientroIdx, regole);
 }
 
@@ -881,76 +865,6 @@ function motivoIndisponibilita_(squadra, giorno) {
 }
 
 /**
- * Costruisce, per un singolo giorno con più squadre coinvolte, un ordine di visita di partenza
- * per ciascuna squadra assegnando gli interventi "a round": ad ogni giro, ogni squadra ancora
- * attiva prova ad accodare al proprio percorso l'intervento compatibile e ancora libero più
- * economico da raggiungere (viaggio dall'ultimo punto raggiunto), rispettando orario di lavoro,
- * pausa pranzo e finestra oraria. Le squadre vengono quindi servite "in parallelo" invece che una
- * alla volta per intero: un intervento vicino a una squadra già presente in quella zona le viene
- * naturalmente assegnato (costo di avvicinamento quasi nullo), invece di essere dato a un'altra
- * squadra mandata apposta per un solo intervento — che finirebbe poi con gran parte della
- * giornata inutilizzata pur avendoci una squadra già sul posto in grado di completarlo. Questo è
- * solo un ordine di PARTENZA: il raffinamento successivo (2-opt + riempimento in qualsiasi
- * posizione) in costruisciEPianificaPercorso_ lo perfeziona e recupera eventuali interventi
- * rimasti fuori da questo passaggio.
- */
-function costruisciOrdiniGiornoCongiunti_(squadre, candidatiPerSquadra, regole) {
-  var tolleranzaPausaMinuti = regole.pausaTolleranzaMinuti || 0;
-  var bufferSetup = regole.bufferSetupMinuti || 10;
-
-  var oraInizioMin = {}, oraFineMin = {}, pausaInizioMin = {}, pausaFineMin = {};
-  var cursorMin = {}, ultimoPunto = {}, ordine = {};
-  squadre.forEach(function (s) {
-    oraInizioMin[s.id] = timeToMinutes_(s.oraInizio);
-    oraFineMin[s.id] = timeToMinutes_(s.oraFine);
-    pausaInizioMin[s.id] = s.pausaPranzoInizio ? timeToMinutes_(s.pausaPranzoInizio) : null;
-    pausaFineMin[s.id] = s.pausaPranzoFine ? timeToMinutes_(s.pausaPranzoFine) : null;
-    cursorMin[s.id] = oraInizioMin[s.id];
-    ultimoPunto[s.id] = { lat: s.latPartenza, lng: s.lngPartenza };
-    ordine[s.id] = [];
-  });
-
-  var assegnato = {}; // interventoId -> true non appena vinto da una squadra in un round
-  var attive = squadre.slice();
-
-  while (attive.length > 0) {
-    var progresso = false;
-    attive = attive.filter(function (s) {
-      var candidati = (candidatiPerSquadra[s.id] || []).filter(function (i) { return !assegnato[i.id]; });
-      if (!candidati.length) return false; // nessun candidato rimasto per questa squadra: esce definitivamente
-
-      var migliore = null;
-      candidati.forEach(function (cand) {
-        var viaggio = stimaViaggio_(ultimoPunto[s.id], cand, regole).minuti;
-        var durata = cand.durataMinuti || 60;
-        var finestraInizioInt = timeToMinutes_(cand.finestraInizio || '00:00');
-        var finestraFineInt = timeToMinutes_(cand.finestraFine || '23:59');
-        var candidateStart = Math.max(cursorMin[s.id] + viaggio + bufferSetup, finestraInizioInt);
-        var slot = trovaSlotValido_(candidateStart, durata, oraInizioMin[s.id], oraFineMin[s.id], pausaInizioMin[s.id], pausaFineMin[s.id], tolleranzaPausaMinuti);
-        if (!slot || slot.fine > finestraFineInt) return; // non entra nel turno di questa squadra
-        // Il costo di questo giro è dominato dalla vicinanza (l'obiettivo è consolidare le
-        // squadre già in zona), con una lieve preferenza per la priorità e il ricavo più alti a
-        // parità di distanza (per avvicinarsi al target di produzione senza comprometterla).
-        var ricavo = cand.ricavo || 0;
-        var costo = viaggio - pesoPriorita_(cand.priorita, regole) * 0.05 - (regole.pesoRicavo || 0) * ricavo;
-        if (!migliore || costo < migliore.costo) migliore = { cand: cand, costo: costo, fine: slot.fine };
-      });
-
-      if (!migliore) return false; // nessun candidato rimasto entra nel tempo residuo: squadra esaurita per oggi
-      ordine[s.id].push(migliore.cand.id);
-      assegnato[migliore.cand.id] = true;
-      cursorMin[s.id] = migliore.fine;
-      ultimoPunto[s.id] = { lat: migliore.cand.lat, lng: migliore.cand.lng };
-      progresso = true;
-      return true;
-    });
-    if (!progresso) break;
-  }
-
-  return ordine; // { squadraId: [interventoId, ...] }
-}
-
-/**
  * Pianifica automaticamente, senza selezione manuale, tutti gli interventi "Da pianificare"
  * compatibili con una o più squadre su un intervallo di giorni: per ciascun giorno (in ordine),
  * ciascuna squadra (nell'ordine indicato in squadraIds) pesca dal pool condiviso di interventi
@@ -1010,11 +924,17 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
     var giornoFmt = formatDateStr_(giorno);
     if (!giorniMap[giornoFmt]) giorniMap[giornoFmt] = [];
 
-    // Le squadre in ferie o nel loro giorno di riposo settimanale specifico vengono escluse
-    // subito da questo giorno, ma comunque riportate come "libere" con il motivo, invece di
-    // sparire silenziosamente dal riepilogo.
-    var squadreDisponibiliOggi = [];
+    // Le squadre vengono servite IN SEQUENZA, non in parallelo: la squadra corrente satura la
+    // propria giornata (tutti gli interventi compatibili/vicini che riesce a includere, fino a
+    // riempire il turno) prima che la successiva riceva anche solo un intervento. L'obiettivo è
+    // concentrare gli interventi vicini su meno squadre possibile — massimizzando ore lavorate e
+    // produzione di ciascuna — piuttosto che spalmarli equamente su tutte: una squadra può
+    // restare "libera" per l'intera giornata se non resta lavoro compatibile dopo che le squadre
+    // precedenti (nell'ordine di selezione) hanno saturato la propria.
     squadre.forEach(function (squadra) {
+      if (tempoScaduto) return;
+      if (new Date().getTime() - inizioEsecuzione > TEMPO_MASSIMO_MS) { tempoScaduto = true; return; }
+
       if (!squadraDisponibileGiorno_(squadra, giorno)) {
         giorniMap[giornoFmt].push({
           squadraId: squadra.id, squadraNome: squadra.nome, colore: squadra.colore,
@@ -1023,12 +943,8 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
         });
         return;
       }
-      squadreDisponibiliOggi.push(squadra);
-    });
 
-    var candidatiPerSquadra = {};
-    squadreDisponibiliOggi.forEach(function (squadra) {
-      candidatiPerSquadra[squadra.id] = pool.filter(function (i) {
+      var candidatiOggi = pool.filter(function (i) {
         if (i._assegnato) return false;
         if (!squadraCoprCompetenza_(squadra, i)) return false;
         var dr = parseDateStr_(i.dataRichiesta);
@@ -1037,17 +953,6 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
         if (sc && giorno > sc) return false;
         return true;
       });
-    });
-
-    // Costruzione congiunta: le squadre disponibili oggi vengono servite "in parallelo" (a
-    // round) invece che una alla volta per intero, così un intervento vicino a una squadra già
-    // in zona le viene naturalmente assegnato invece che a un'altra squadra mandata apposta.
-    var ordiniCongiunti = costruisciOrdiniGiornoCongiunti_(squadreDisponibiliOggi, candidatiPerSquadra, regole);
-
-    squadreDisponibiliOggi.forEach(function (squadra) {
-      if (tempoScaduto) return;
-      if (new Date().getTime() - inizioEsecuzione > TEMPO_MASSIMO_MS) { tempoScaduto = true; return; }
-      var candidatiOggi = candidatiPerSquadra[squadra.id];
 
       // Anche senza nessun candidato (o nessuno pianificabile), la squadra viene comunque
       // riportata per questo giorno, marcata come libera: meglio un vuoto esplicito che una
@@ -1066,15 +971,7 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
       var stopIndices = [];
       for (var k = 1; k < nodi.length - 1; k++) stopIndices.push(k);
       var matriceStima = costruisciMatriceStimata_(nodi, regole);
-
-      var idxPerId = {};
-      nodi.forEach(function (n, idx) { if (n.intervento) idxPerId[n.intervento.id] = idx; });
-      var ordineForzato = (ordiniCongiunti[squadra.id] || [])
-        .map(function (id) { return idxPerId[id]; })
-        .filter(function (idx) { return idx !== undefined; });
-      if (ordineForzato.length === 0) ordineForzato = null;
-
-      var risultato = costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima, partenzaIdx, rientroIdx, regole, ordineForzato);
+      var risultato = costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima, partenzaIdx, rientroIdx, regole);
 
       risultato.tappe.forEach(function (t, idx) {
         var originale = pool.filter(function (i) { return i.id === t.intervento.id; })[0];
