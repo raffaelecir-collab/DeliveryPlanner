@@ -63,12 +63,36 @@ function isNum_(v) {
   return typeof v === 'number' && !isNaN(v);
 }
 
+/**
+ * Valore interno ("intensità piena", equivalente al vecchio peso numerico) corrispondente al
+ * 100% di ciascuna regola-peso: le regole stesse sono impostate ed espresse in percentuale
+ * (0-100) nel foglio Regole per essere comprensibili senza dover capire scale numeriche
+ * arbitrarie, ma internamente le formule di punteggio continuano a usare questi valori assoluti.
+ */
+var RIFERIMENTO_PESI_ = {
+  pesoPrioritaUrgente: 1000,
+  pesoPrioritaAlta: 100,
+  pesoPrioritaNormale: 10,
+  pesoPrioritaBassa: 1,
+  pesoDensita: 50,
+  pesoProssimitaBase: 5,
+  pesoRicavo: 0.2,
+  pesoCompetenzaSpecifica: 150
+};
+
+/** Converte una regola-peso in percentuale (0-100, 100 = intensità di default se non impostata) nel valore interno usato dalle formule di punteggio. */
+function pesoRegola_(regole, chiave) {
+  var percentuale = regole[chiave];
+  if (percentuale === undefined || percentuale === null || percentuale === '') percentuale = 100;
+  return (percentuale / 100) * RIFERIMENTO_PESI_[chiave];
+}
+
 function pesoPriorita_(priorita, regole) {
   switch (priorita) {
-    case PRIORITA.URGENTE: return regole.pesoPrioritaUrgente || 1000;
-    case PRIORITA.ALTA: return regole.pesoPrioritaAlta || 100;
-    case PRIORITA.BASSA: return regole.pesoPrioritaBassa || 1;
-    default: return regole.pesoPrioritaNormale || 10;
+    case PRIORITA.URGENTE: return pesoRegola_(regole, 'pesoPrioritaUrgente');
+    case PRIORITA.ALTA: return pesoRegola_(regole, 'pesoPrioritaAlta');
+    case PRIORITA.BASSA: return pesoRegola_(regole, 'pesoPrioritaBassa');
+    default: return pesoRegola_(regole, 'pesoPrioritaNormale');
   }
 }
 
@@ -168,19 +192,20 @@ function densitaPunto_(idx, stopIndices, matrice, raggioMinuti) {
 function costruisciPercorsoInserzione_(squadra, stopIndices, matrice, partenzaIdx, nodi, regole) {
   if (stopIndices.length === 0) return [];
   var raggioMinuti = regole.densitaRaggioMinuti || 8;
-  var pesoDensita = regole.pesoDensita || 50;
-  var pesoProssimita = regole.pesoProssimitaBase || 5;
+  var pesoDensita = pesoRegola_(regole, 'pesoDensita');
+  var pesoProssimita = pesoRegola_(regole, 'pesoProssimitaBase');
   // All'inizio della costruzione la produzione della squadra per questa giornata è ancora zero,
   // quindi si è sempre alla massima distanza dal target: il ricavo pesa già alla sua spinta
   // massima nella scelta del seme (stessa logica di riempiGiornata_, dove invece si attenua man
   // mano che la produzione accumulata si avvicina al target).
-  var pesoRicavo = (regole.pesoRicavo || 0) * (squadra.produzioneTarget ? 5 : 1);
+  var pesoRicavo = pesoRegola_(regole, 'pesoRicavo') * (squadra.produzioneTarget ? 5 : 1);
+  var pesoCompetenzaSpecifica = pesoRegola_(regole, 'pesoCompetenzaSpecifica');
 
   function scorePunto(idx) {
     var densita = densitaPunto_(idx, stopIndices, matrice, raggioMinuti);
     var distanzaBase = matrice[partenzaIdx][idx].minuti;
     var ricavo = nodi[idx].intervento.ricavo || 0;
-    var bonusCompetenza = squadraHaCompetenzaSpecificaPer_(squadra, nodi[idx].intervento) ? (regole.pesoCompetenzaSpecifica || 0) : 0;
+    var bonusCompetenza = squadraHaCompetenzaSpecificaPer_(squadra, nodi[idx].intervento) ? pesoCompetenzaSpecifica : 0;
     return pesoPriorita_(nodi[idx].intervento.priorita, regole) + pesoDensita * densita - pesoProssimita * distanzaBase + pesoRicavo * ricavo + bonusCompetenza;
   }
 
@@ -294,6 +319,7 @@ function pianificaOrarioPercorso_(squadra, nodi, ordine, matrice, partenzaIdx, r
   var pausaFineMin = squadra.pausaPranzoFine ? timeToMinutes_(squadra.pausaPranzoFine) : null;
   var bufferSetup = regole.bufferSetupMinuti || 10;
   var tolleranzaPausaMinuti = regole.pausaTolleranzaMinuti || 0;
+  var tempoViaggioMassimo = regole.tempoViaggioMassimoMinuti || 0;
 
   var cursor = null;
   var prevIdx = partenzaIdx;
@@ -309,6 +335,13 @@ function pianificaOrarioPercorso_(squadra, nodi, ordine, matrice, partenzaIdx, r
     var finestraFineInt = timeToMinutes_(intervento.finestraFine || '23:59');
     var durata = intervento.durataMinuti || 60;
     var viaggio = isFirst ? { minuti: 0, km: 0, stimato: false } : matrice[prevIdx][idx];
+    if (!isFirst && tempoViaggioMassimo > 0 && (tempoViaggioTotale + viaggio.minuti) > tempoViaggioMassimo) {
+      nonIncluse.push({
+        intervento: intervento,
+        motivo: 'Supererebbe il tempo massimo di viaggio tra le tappe impostato per la giornata (' + Math.round(tempoViaggioMassimo) + ' min)'
+      });
+      return;
+    }
     var candidateStart = isFirst
       ? Math.max(oraInizioMin, finestraInizioInt)
       : Math.max(cursor + viaggio.minuti + bufferSetup, finestraInizioInt);
@@ -484,7 +517,7 @@ function riempiGiornata_(squadra, nodi, risultato, matriceStima, partenzaIdx, ri
     // quello base impostato in Regole. Superato il target, nessuna spinta aggiuntiva — resta
     // comunque un fattore tra gli altri, non un vincolo, e il riempimento della giornata non si
     // ferma mai per questo.
-    var pesoRicavoBase = regole.pesoRicavo || 0;
+    var pesoRicavoBase = pesoRegola_(regole, 'pesoRicavo');
     var pesoRicavoEffettivo = pesoRicavoBase;
     if (target > 0) {
       var produzioneAttuale = corrente.tappe.reduce(function (sum, t) { return sum + (t.intervento.ricavo || 0); }, 0);
@@ -493,6 +526,7 @@ function riempiGiornata_(squadra, nodi, risultato, matriceStima, partenzaIdx, ri
         pesoRicavoEffettivo = pesoRicavoBase * (1 + distanzaDalTarget * 4); // fino a 5x quando molto lontani
       }
     }
+    var pesoCompetenzaSpecifica = pesoRegola_(regole, 'pesoCompetenzaSpecifica');
 
     // Per ciascun candidato scartato, cerca il punto di inserimento più economico su TUTTO il
     // percorso (non solo in coda): un intervento può stare bene "in mezzo" a due tappe già
@@ -509,7 +543,7 @@ function riempiGiornata_(squadra, nodi, risultato, matriceStima, partenzaIdx, ri
         }
         var durata = nodi[idx].intervento.durataMinuti || 60;
         var ricavo = nodi[idx].intervento.ricavo || 0;
-        var bonusCompetenza = squadraHaCompetenzaSpecificaPer_(squadra, nodi[idx].intervento) ? (regole.pesoCompetenzaSpecifica || 0) : 0;
+        var bonusCompetenza = squadraHaCompetenzaSpecificaPer_(squadra, nodi[idx].intervento) ? pesoCompetenzaSpecifica : 0;
         // Il ricavo e la competenza specifica abbassano il costo "percepito" di un candidato (a
         // parità di tutto il resto lo fanno scegliere prima), senza mai impedire il riempimento
         // della giornata: restano fattori tra gli altri, non vincoli.
@@ -949,10 +983,12 @@ function motivoIndisponibilita_(squadra, giorno) {
 function costruisciOrdiniGiornoCongiunti_(squadre, candidatiPerSquadra, regole) {
   var tolleranzaPausaMinuti = regole.pausaTolleranzaMinuti || 0;
   var bufferSetup = regole.bufferSetupMinuti || 10;
-  var pesoRicavoBase = regole.pesoRicavo || 0;
+  var pesoRicavoBase = pesoRegola_(regole, 'pesoRicavo');
+  var pesoCompetenzaSpecifica = pesoRegola_(regole, 'pesoCompetenzaSpecifica');
+  var tempoViaggioMassimo = regole.tempoViaggioMassimoMinuti || 0;
 
   var oraInizioMin = {}, oraFineMin = {}, pausaInizioMin = {}, pausaFineMin = {};
-  var cursorMin = {}, ultimoPunto = {}, ordine = {}, produzioneAccumulata = {};
+  var cursorMin = {}, ultimoPunto = {}, ordine = {}, produzioneAccumulata = {}, viaggioAccumulato = {};
   squadre.forEach(function (s) {
     oraInizioMin[s.id] = timeToMinutes_(s.oraInizio);
     oraFineMin[s.id] = timeToMinutes_(s.oraFine);
@@ -962,6 +998,7 @@ function costruisciOrdiniGiornoCongiunti_(squadre, candidatiPerSquadra, regole) 
     ultimoPunto[s.id] = { lat: s.latPartenza, lng: s.lngPartenza };
     ordine[s.id] = [];
     produzioneAccumulata[s.id] = 0;
+    viaggioAccumulato[s.id] = 0;
   });
 
   var assegnato = {}; // interventoId -> true non appena vinto da una squadra
@@ -980,6 +1017,10 @@ function costruisciOrdiniGiornoCongiunti_(squadre, candidatiPerSquadra, regole) 
     var migliore = null;
     candidati.forEach(function (cand) {
       var viaggio = stimaViaggio_(ultimoPunto[s.id], cand, regole).minuti;
+      // Il tempo di viaggio TRA le tappe non può superare il limite giornaliero: anche se il
+      // candidato entrerebbe nel turno per tempo disponibile, va scartato se mescolerebbe zone
+      // troppo lontane tra loro (es. un'area già visitata lontana da un'altra nello stesso giro).
+      if (tempoViaggioMassimo > 0 && (viaggioAccumulato[s.id] + viaggio) > tempoViaggioMassimo) return;
       var durata = cand.durataMinuti || 60;
       var finestraInizioInt = timeToMinutes_(cand.finestraInizio || '00:00');
       var finestraFineInt = timeToMinutes_(cand.finestraFine || '23:59');
@@ -987,9 +1028,9 @@ function costruisciOrdiniGiornoCongiunti_(squadre, candidatiPerSquadra, regole) 
       var slot = trovaSlotValido_(candidateStart, durata, oraInizioMin[s.id], oraFineMin[s.id], pausaInizioMin[s.id], pausaFineMin[s.id], tolleranzaPausaMinuti);
       if (!slot || slot.fine > finestraFineInt) return; // non entra nel turno di questa squadra
       var ricavo = cand.ricavo || 0;
-      var bonusCompetenza = squadraHaCompetenzaSpecificaPer_(s, cand) ? (regole.pesoCompetenzaSpecifica || 0) : 0;
+      var bonusCompetenza = squadraHaCompetenzaSpecificaPer_(s, cand) ? pesoCompetenzaSpecifica : 0;
       var costo = viaggio - pesoPriorita_(cand.priorita, regole) * 0.05 - pesoRicavoEffettivo * ricavo - bonusCompetenza;
-      if (!migliore || costo < migliore.costo) migliore = { cand: cand, costo: costo, fine: slot.fine };
+      if (!migliore || costo < migliore.costo) migliore = { cand: cand, costo: costo, fine: slot.fine, viaggio: viaggio };
     });
     return migliore;
   }
@@ -1013,6 +1054,7 @@ function costruisciOrdiniGiornoCongiunti_(squadre, candidatiPerSquadra, regole) 
     cursorMin[s.id] = mossa.fine;
     ultimoPunto[s.id] = { lat: mossa.cand.lat, lng: mossa.cand.lng };
     produzioneAccumulata[s.id] += (mossa.cand.ricavo || 0);
+    viaggioAccumulato[s.id] += mossa.viaggio;
 
     attive = attive.filter(function (sq) {
       return (candidatiPerSquadra[sq.id] || []).some(function (i) { return !assegnato[i.id]; });

@@ -273,14 +273,39 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 5. Tab **Regole**: ogni regola ha il controllo adatto al suo tipo — un
    selettore con i giorni della settimana per "Giorni Lavorativi" (rispettato
    dalla pianificazione automatica su intervallo, che salta i giorni non
-   spuntati), campi numerici per tutti gli altri parametri (pesi delle
-   priorità, peso e raggio della densità di un'area, preferenza per la
-   vicinanza alla base, buffer di setup/parcheggio tra due tappe, velocità
-   media di fallback, **minuti di tolleranza sullo sconfinamento nella pausa
-   pranzo**, **peso base del ricavo** nella scelta degli interventi da
-   assegnare, **priorità della competenza specifica** rispetto agli
-   interventi generici) — nessun testo libero da digitare a mano, e nessuna
-   modifica al codice richiesta.
+   spuntati), campi numerici per i parametri "assoluti" (buffer di
+   setup/parcheggio tra due tappe, velocità media di fallback, minuti di
+   tolleranza sullo sconfinamento nella pausa pranzo, **minuti massimi di
+   viaggio tra le tappe**) e un campo **percentuale da 0 a 100** per tutti i
+   pesi che regolano le scelte del motore (priorità Urgente/Alta/Normale/
+   Bassa, densità di un'area, vicinanza alla base, peso base del ricavo,
+   priorità della competenza specifica) — nessun testo libero da digitare a
+   mano, e nessuna modifica al codice richiesta.
+
+   **Tempo massimo di viaggio tra le tappe (regola `tempoViaggioMassimoMinuti`,
+   default 90 minuti)**: impone un tetto al tempo di viaggio complessivo *tra*
+   le tappe di una singola giornata per una squadra (il tragitto dalla
+   partenza alla prima tappa e quello dall'ultima tappa al rientro non
+   contano, in coerenza con la regola per cui quei due tragitti non sono
+   comunque conteggiati come orario di lavoro). Superata questa soglia, un
+   intervento altrimenti raggiungibile per tempo di turno viene comunque
+   escluso da quella giornata — questo evita che il motore componga percorsi
+   che mescolano zone troppo lontane tra loro (es. Cortina d'Ampezzo e
+   Vicenza nello stesso giro) solo per riempire ore o inseguire priorità/
+   ricavo. Il vincolo è rispettato sia nella pianificazione manuale a singola
+   squadra sia in quella automatica multi-squadra su intervallo. Con `0` il
+   vincolo è disattivato (nessun limite).
+
+   **Pesi in percentuale (0-100)**: ogni regola "peso" esprime quanto quel
+   fattore conta nelle scelte del motore, in percentuale rispetto
+   all'intensità raccomandata di default: **100% riproduce il comportamento
+   di default**, valori più bassi attenuano il fattore, **0% lo disattiva
+   completamente**, valori intermedi lo dosano in proporzione. Ad esempio,
+   portare "Peso Ricavo" al 50% dimezza quanto il ricavo di un intervento
+   influenza la scelta rispetto a priorità/densità/vicinanza, mentre portare
+   "Peso Competenza Specifica" a 0% fa sì che una squadra con competenze
+   specifiche non riceva più priorità sul lavoro della propria
+   specializzazione rispetto a quello generico.
 
 Ogni percorso confermato (in entrambe le modalità) viene registrato nel
 foglio `LogPianificazione` (visibile in fondo al tab Regole), utile per

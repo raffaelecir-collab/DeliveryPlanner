@@ -540,6 +540,8 @@
             return '<label><input type="checkbox" value="' + g + '" ' + checked + '>' + g + '</label>';
           }).join('') +
         '</div>';
+      } else if (r.tipo === 'percentuale') {
+        controllo = '<input type="number" step="1" min="0" max="100" data-chiave="' + escapeHtml(r.chiave) + '" value="' + escapeHtml(r.valore) + '" style="width:70px"> <span style="color:#666;">%</span>';
       } else {
         controllo = '<input type="number" step="any" data-chiave="' + escapeHtml(r.chiave) + '" value="' + escapeHtml(r.valore) + '" style="width:100px">';
       }

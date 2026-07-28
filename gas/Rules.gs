@@ -14,6 +14,12 @@ function listaRegole() {
 
 function salvaRegola(regola) {
   if (!regola.chiave) throw new Error('La chiave della regola è obbligatoria.');
+  var defaultRegola = REGOLE_DEFAULT.filter(function (r) { return r.chiave === regola.chiave; })[0];
+  if (defaultRegola && defaultRegola.tipo === 'percentuale') {
+    var percentuale = parseFloat(regola.valore);
+    if (isNaN(percentuale)) throw new Error('Il valore di "' + regola.chiave + '" deve essere un numero (percentuale 0-100).');
+    regola.valore = String(Math.max(0, Math.min(100, percentuale)));
+  }
   var esistenti = readAll_('REGOLE');
   var match = esistenti.filter(function (r) { return r.chiave === regola.chiave; })[0];
   if (match) {
