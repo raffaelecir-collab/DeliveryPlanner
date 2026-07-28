@@ -181,7 +181,7 @@ foglio invece di usare i form della Web App. In quel caso:
   intervento/squadra non è geocodificato/a (né in automatico né a mano), la
   pianificazione darà errore "indirizzo non geocodificato".
 
-## Nota sul servizio Google Maps
+## Nota sul servizio Google Maps e sulle prestazioni
 
 Geocodifica e calcolo dei tempi di viaggio reali usano il servizio `Maps`
 integrato di Apps Script (classi `Maps.newGeocoder()` e
@@ -194,6 +194,24 @@ pianificata, segnalata come "stimata" invece che "reale" nell'anteprima del
 percorso. I risultati di geocodifica e tempi di viaggio restano in cache 6
 ore per ridurre il numero di chiamate quando ricorrono gli stessi indirizzi
 (base delle squadre, clienti abituali).
+
+Per decidere **quale ordine di visita** e **quali interventi entrano** in un
+percorso, il motore usa sempre una stima istantanea in linea d'aria (nessuna
+chiamata esterna): confrontare decine di interventi con tempi di viaggio
+reali per ogni possibile coppia richiederebbe centinaia o migliaia di
+chiamate a Google Maps, con tempi di attesa di minuti. I tempi **reali**
+vengono richiesti solo alla fine, sui pochi tratti che compongono il
+percorso effettivamente scelto (uno per ogni coppia di tappe consecutive) —
+così l'ordine tiene comunque conto della distanza reale su strada dove
+serve, ma il calcolo resta rapido anche pianificando più squadre su più
+giorni con decine di interventi in un'unica operazione. Se, nonostante
+questo, l'elaborazione di un intervallo molto grande si avvicina al limite
+di esecuzione di Apps Script (6 minuti per gli account consumer), il motore
+si interrompe in modo pulito restituendo quanto già pianificato fino a quel
+punto, invece di restare bloccato senza risposta: gli interventi non ancora
+considerati restano "Da pianificare" con una nota che invita a ripetere la
+pianificazione (eventualmente su un intervallo più corto o con meno squadre
+alla volta) per completare il resto.
 
 ## Personalizzazioni comuni
 

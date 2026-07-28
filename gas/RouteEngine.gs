@@ -72,13 +72,31 @@ function pesoPriorita_(priorita, regole) {
   }
 }
 
-// ---------- calcolo tempi di viaggio (Google Maps Directions con fallback) ----------
+// ---------- calcolo tempi di viaggio (stima in linea d'aria + Google Maps Directions reale) ----------
+//
+// Con decine di interventi, calcolare la matrice COMPLETA (tutte le coppie) con tempi reali
+// significa migliaia di chiamate esterne sincrone al servizio Maps: anche a poche centinaia di
+// millisecondi l'una, il totale può richiedere minuti o superare il limite di esecuzione di Apps
+// Script. Per questo la costruzione del percorso (quale ordine, quali interventi entrano) usa
+// SEMPRE la stima in linea d'aria (istantanea, nessuna chiamata esterna); solo alla fine, sui
+// pochi tratti che compongono il percorso realmente scelto (non le O(n²) coppie possibili), si
+// interroga Google Maps per il tempo di viaggio reale.
 
 function arrotondaCoord_(v) {
   return Math.round(v * 100000) / 100000;
 }
 
-/** Tempo/distanza di viaggio reali tra due punti (cache 6h), con fallback in linea d'aria. */
+/** Stima istantanea (nessuna chiamata esterna) basata sulla distanza in linea d'aria. */
+function stimaViaggio_(origine, destinazione, regole) {
+  if (Math.abs(origine.lat - destinazione.lat) < 1e-9 && Math.abs(origine.lng - destinazione.lng) < 1e-9) {
+    return { minuti: 0, km: 0, stimato: false };
+  }
+  var km = haversineKm_(origine.lat, origine.lng, destinazione.lat, destinazione.lng);
+  var velocita = regole.velocitaMediaKmH || 30;
+  return { minuti: (km / velocita) * 60, km: km, stimato: true };
+}
+
+/** Tempo/distanza di viaggio reali tra due punti (cache 6h), con fallback in linea d'aria. Chiamare solo per singole coppie mirate, non in un ciclo O(n²). */
 function ottieniViaggio_(origine, destinazione, regole) {
   if (Math.abs(origine.lat - destinazione.lat) < 1e-9 && Math.abs(origine.lng - destinazione.lng) < 1e-9) {
     return { minuti: 0, km: 0, stimato: false };
@@ -99,21 +117,20 @@ function ottieniViaggio_(origine, destinazione, regole) {
     var leg = direzioni.routes[0].legs[0];
     risultato = { minuti: leg.duration.value / 60, km: leg.distance.value / 1000, stimato: false };
   } catch (e) {
-    var km = haversineKm_(origine.lat, origine.lng, destinazione.lat, destinazione.lng);
-    var velocita = regole.velocitaMediaKmH || 30;
-    risultato = { minuti: (km / velocita) * 60, km: km, stimato: true };
+    risultato = stimaViaggio_(origine, destinazione, regole);
   }
   cache.put(key, JSON.stringify(risultato), 21600);
   return risultato;
 }
 
-function costruisciMatrice_(nodi, regole) {
+/** Matrice completa (tutte le coppie) basata SOLO sulla stima in linea d'aria: istantanea, nessuna chiamata esterna. */
+function costruisciMatriceStimata_(nodi, regole) {
   var n = nodi.length;
   var matrice = [];
   for (var i = 0; i < n; i++) {
     matrice[i] = [];
     for (var j = 0; j < n; j++) {
-      matrice[i][j] = (i === j) ? { minuti: 0, km: 0, stimato: false } : ottieniViaggio_(nodi[i], nodi[j], regole);
+      matrice[i][j] = (i === j) ? { minuti: 0, km: 0, stimato: false } : stimaViaggio_(nodi[i], nodi[j], regole);
     }
   }
   return matrice;
@@ -324,30 +341,59 @@ function pianificaOrarioPercorso_(squadra, nodi, ordine, matrice, partenzaIdx, r
 }
 
 /**
- * Costruisce l'ordine di visita (inserimento più economico, seme per priorità/densità
- * dell'area) e pianifica gli orari, poi tenta un raffinamento 2-opt sul solo
- * sottoinsieme di tappe risultate effettivamente incluse: le tappe scartate per
- * orario/finestra non vengono riconsiderate in questo passaggio. Il raffinamento
- * viene adottato solo se non fa perdere nessuna tappa già inclusa (altrimenti si
- * tiene il risultato originale), per non sacrificare mai il numero di interventi
- * eseguibili in cambio di un percorso marginalmente più corto.
+ * Rischedula con i tempi di viaggio REALI (Google Maps), ma li richiede solo per i pochi
+ * tratti (n-1, non n²) che compongono il percorso effettivamente incluso dopo lo scheduling
+ * a stima: molto più veloce che costruire l'intera matrice con tempi reali. Se i tempi reali
+ * risultano più lunghi della stima al punto da far perdere una tappa, questa viene comunque
+ * spostata in nonIncluse dalla ri-pianificazione (comportamento corretto: riflette la realtà).
  */
-function costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matrice, partenzaIdx, rientroIdx, regole) {
-  var ordineIniziale = costruisciPercorsoInserzione_(stopIndices, matrice, partenzaIdx, nodi, regole);
-  var risultato = pianificaOrarioPercorso_(squadra, nodi, ordineIniziale, matrice, partenzaIdx, rientroIdx, regole);
+function pianificaConUpgradeReale_(squadra, nodi, ordine, matriceStima, partenzaIdx, rientroIdx, regole) {
+  var risultatoStima = pianificaOrarioPercorso_(squadra, nodi, ordine, matriceStima, partenzaIdx, rientroIdx, regole);
+  if (risultatoStima.tappe.length === 0) return risultatoStima;
+
+  var idxPerInterventoId = {};
+  ordine.forEach(function (idx) { idxPerInterventoId[nodi[idx].intervento.id] = idx; });
+  var inclusi = risultatoStima.tappe.map(function (t) { return idxPerInterventoId[t.intervento.id]; });
+
+  for (var k = 0; k < inclusi.length - 1; k++) {
+    matriceStima[inclusi[k]][inclusi[k + 1]] = ottieniViaggio_(nodi[inclusi[k]], nodi[inclusi[k + 1]], regole);
+  }
+  matriceStima[partenzaIdx][inclusi[0]] = ottieniViaggio_(nodi[partenzaIdx], nodi[inclusi[0]], regole);
+  var ultimo = inclusi[inclusi.length - 1];
+  matriceStima[ultimo][rientroIdx] = ottieniViaggio_(nodi[ultimo], nodi[rientroIdx], regole);
+
+  return pianificaOrarioPercorso_(squadra, nodi, ordine, matriceStima, partenzaIdx, rientroIdx, regole);
+}
+
+/**
+ * Costruisce l'ordine di visita (inserimento più economico, seme per priorità/densità
+ * dell'area) e pianifica gli orari usando la stima in linea d'aria (istantanea), poi tenta
+ * un raffinamento 2-opt sul solo sottoinsieme di tappe risultate effettivamente incluse: le
+ * tappe scartate per orario/finestra non vengono riconsiderate in questo passaggio. Il
+ * raffinamento viene adottato solo se non fa perdere nessuna tappa già inclusa (altrimenti si
+ * tiene il risultato originale), per non sacrificare mai il numero di interventi eseguibili
+ * in cambio di un percorso marginalmente più corto. Infine i tempi vengono aggiornati con
+ * quelli reali (Google Maps) solo sui tratti del percorso scelto.
+ */
+function costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima, partenzaIdx, rientroIdx, regole) {
+  var ordineIniziale = costruisciPercorsoInserzione_(stopIndices, matriceStima, partenzaIdx, nodi, regole);
+  var risultato = pianificaOrarioPercorso_(squadra, nodi, ordineIniziale, matriceStima, partenzaIdx, rientroIdx, regole);
+  var ordineFinale = ordineIniziale;
 
   if (risultato.tappe.length > 2) {
     var idxPerInterventoId = {};
     stopIndices.forEach(function (idx) { idxPerInterventoId[nodi[idx].intervento.id] = idx; });
     var inclusiOrdine = risultato.tappe.map(function (t) { return idxPerInterventoId[t.intervento.id]; });
-    var raffinato = dueOptMigliora_(inclusiOrdine, matrice);
-    var risultatoRaffinato = pianificaOrarioPercorso_(squadra, nodi, raffinato, matrice, partenzaIdx, rientroIdx, regole);
+    var raffinato = dueOptMigliora_(inclusiOrdine, matriceStima);
+    var risultatoRaffinato = pianificaOrarioPercorso_(squadra, nodi, raffinato, matriceStima, partenzaIdx, rientroIdx, regole);
     if (risultatoRaffinato.tappe.length >= risultato.tappe.length) {
       risultatoRaffinato.nonIncluse = risultato.nonIncluse;
-      return risultatoRaffinato;
+      risultato = risultatoRaffinato;
+      ordineFinale = raffinato;
     }
   }
-  return risultato;
+
+  return pianificaConUpgradeReale_(squadra, nodi, ordineFinale, matriceStima, partenzaIdx, rientroIdx, regole);
 }
 
 // ---------- API esposte al client ----------
@@ -457,7 +503,7 @@ function anteprimaPercorso(squadraId, giornoStr, interventoIds, ordineManuale) {
   var stopIndices = [];
   for (var i = 1; i < nodi.length - 1; i++) stopIndices.push(i);
 
-  var matrice = costruisciMatrice_(nodi, regole);
+  var matriceStima = costruisciMatriceStimata_(nodi, regole);
   var giorno = parseDateStr_(giornoStr);
 
   if (ordineManuale && ordineManuale.length === stopIndices.length) {
@@ -466,11 +512,11 @@ function anteprimaPercorso(squadraId, giornoStr, interventoIds, ordineManuale) {
       if (pos === -1) throw new Error('Ordine manuale incoerente con la selezione.');
       return pos + 1;
     });
-    var risultatoManuale = pianificaOrarioPercorso_(squadra, nodi, ordine, matrice, partenzaIdx, rientroIdx, regole);
+    var risultatoManuale = pianificaConUpgradeReale_(squadra, nodi, ordine, matriceStima, partenzaIdx, rientroIdx, regole);
     return formattaAnteprima_(squadra, giorno, risultatoManuale);
   }
 
-  var risultato = costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matrice, partenzaIdx, rientroIdx, regole);
+  var risultato = costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima, partenzaIdx, rientroIdx, regole);
   return formattaAnteprima_(squadra, giorno, risultato);
 }
 
@@ -582,11 +628,22 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
     return true;
   });
 
+  // Guardrail: con molti interventi/giorni/squadre l'esecuzione potrebbe avvicinarsi al limite
+  // di Apps Script (6 minuti per gli account consumer). Se il tempo sta per scadere, si
+  // interrompe l'elaborazione dei giorni/squadre restanti restituendo comunque quanto già
+  // pianificato, invece di rischiare di superare il limite senza dare alcun riscontro.
+  var TEMPO_MASSIMO_MS = 4.5 * 60 * 1000;
+  var inizioEsecuzione = new Date().getTime();
+  var tempoScaduto = false;
+
   var giorniMap = {}; // 'dd/MM/yyyy' -> array di { squadraId, squadraNome, colore, tappe }
   var giorno = dataInizio;
   while (giorno <= dataFine) {
+    if (new Date().getTime() - inizioEsecuzione > TEMPO_MASSIMO_MS) { tempoScaduto = true; break; }
     var giornoFmt = formatDateStr_(giorno);
     squadre.forEach(function (squadra) {
+      if (tempoScaduto) return;
+      if (new Date().getTime() - inizioEsecuzione > TEMPO_MASSIMO_MS) { tempoScaduto = true; return; }
       var candidatiOggi = pool.filter(function (i) {
         if (i._assegnato) return false;
         if (!squadraCoprCompetenza_(squadra, i)) return false;
@@ -602,8 +659,8 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
       var partenzaIdx = 0, rientroIdx = nodi.length - 1;
       var stopIndices = [];
       for (var k = 1; k < nodi.length - 1; k++) stopIndices.push(k);
-      var matrice = costruisciMatrice_(nodi, regole);
-      var risultato = costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matrice, partenzaIdx, rientroIdx, regole);
+      var matriceStima = costruisciMatriceStimata_(nodi, regole);
+      var risultato = costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima, partenzaIdx, rientroIdx, regole);
 
       risultato.tappe.forEach(function (t, idx) {
         var originale = pool.filter(function (i) { return i.id === t.intervento.id; })[0];
@@ -639,8 +696,10 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
     .sort(function (a, b) { return parseDateStr_(a.giorno) - parseDateStr_(b.giorno); });
 
   var nonIncluse = pool.filter(function (i) { return !i._assegnato; }).map(function (i) {
-    var motivo = 'Non è stato possibile inserirlo nel percorso di nessuna squadra tra il ' +
-      formatDateStr_(dataInizio) + ' e il ' + formatDateStr_(dataFine) + ' (competenza, orario/pausa pranzo o finestra oraria non compatibili).';
+    var motivo = tempoScaduto
+      ? 'Elaborazione interrotta per limite di tempo prima di poter considerare questo intervento: gli interventi già pianificati restano validi, ripeti la pianificazione (magari su un intervallo più corto o con meno squadre insieme) per completare il resto.'
+      : 'Non è stato possibile inserirlo nel percorso di nessuna squadra tra il ' +
+        formatDateStr_(dataInizio) + ' e il ' + formatDateStr_(dataFine) + ' (competenza, orario/pausa pranzo o finestra oraria non compatibili).';
     updateRowFields_('INTERVENTI', i._row, { motivoNonPianificato: motivo });
     return { interventoId: i.id, cliente: i.cliente, motivo: motivo };
   });
@@ -662,6 +721,7 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
     dataInizio: formatDateStr_(dataInizio),
     dataFine: formatDateStr_(dataFine),
     giorni: giorniArray,
-    nonIncluse: nonIncluse
+    nonIncluse: nonIncluse,
+    tempoScaduto: tempoScaduto
   };
 }
