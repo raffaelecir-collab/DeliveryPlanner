@@ -10,6 +10,7 @@ function onOpen() {
     .createMenu('Delivery Planner')
     .addItem('Inizializza / Ripara struttura fogli', 'inizializzaAppDaMenu')
     .addItem('Carica dati di esempio', 'caricaDatiDiEsempioDaMenu')
+    .addItem('Attiva geocodifica automatica su modifica foglio', 'installaTriggerGeocodificaDaMenu')
     .addItem('Apri Web App', 'mostraUrlWebApp')
     .addToUi();
 }

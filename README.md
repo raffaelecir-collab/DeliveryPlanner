@@ -62,9 +62,10 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 | `Config.gs` | Schema dati (colonne dei fogli) e valori di default delle regole |
 | `SheetService.gs` | Lettura/scrittura generica dei fogli basata sullo schema |
 | `Geocoding.gs` | Conversione indirizzo → coordinate (con cache) |
+| `Triggers.gs` | Trigger installabile: geocodifica automatica quando un indirizzo viene scritto direttamente sul foglio |
 | `Setup.gs` | Inizializzazione struttura fogli, menu, dati di esempio |
 | `Teams.gs` / `Interventions.gs` / `Rules.gs` | CRUD (con geocodifica automatica su Squadre/Interventi) |
-| `RouteEngine.gs` | Motore di ottimizzazione percorso (nearest-neighbour + 2-opt, scheduling con pausa pranzo) |
+| `RouteEngine.gs` | Motore di ottimizzazione percorso (inserimento più economico + 2-opt, scheduling con pausa pranzo) |
 | `Code.gs` | `doGet()` e funzioni esposte al client |
 | `Index.html` / `CSS.html` / `JS.html` | Interfaccia utente (SPA) |
 
@@ -159,16 +160,26 @@ tracciare chi ha pianificato cosa e quando.
 Puoi anche aggiungere Squadre o Interventi scrivendo direttamente le righe sul
 foglio invece di usare i form della Web App. In quel caso:
 
-- l'ID e la geocodifica degli indirizzi (lat/lng) non vengono generati in
-  automatico, e la casella "Attiva" delle Squadre — se lasciata vuota —
-  viene comunque considerata attiva per non far sparire la squadra dai
-  selettori;
-- apri comunque una volta la riga dal tab **Squadre**/**Interventi** →
-  "Modifica" → "Salva" (anche senza cambiare nulla): l'app le assegna un ID
-  e geocodifica gli indirizzi, dopodiché la riga si comporta come se fosse
-  stata creata dai form. Finché non fai questo passaggio, la pianificazione
-  di un intervento/squadra inserito a mano darà errore "indirizzo non
-  geocodificato".
+- la casella "Attiva" delle Squadre, se lasciata vuota, viene comunque
+  considerata attiva per non far sparire la squadra dai selettori;
+- l'ID viene assegnato automaticamente la prima volta che la riga viene
+  salvata dalla Web App (Modifica → Salva), non quando la scrivi a mano sul
+  foglio — non è comunque necessario per la pianificazione;
+- la **geocodifica degli indirizzi (lat/lng) può avvenire in automatico
+  anche per le righe scritte a mano**, attivando una volta il trigger
+  dedicato: dal menu **Delivery Planner → "Attiva geocodifica automatica su
+  modifica foglio"**. Alla prima esecuzione Google chiederà di autorizzare
+  lo script (come per `inizializzaApp`): è normale, accetta. Da quel momento,
+  ogni volta che scrivi o incolli un indirizzo nelle colonne "Indirizzo",
+  "Indirizzo di Partenza" o "Indirizzo di Rientro" (anche incollando più
+  righe insieme, es. un import in blocco), le colonne Lat/Lng corrispondenti
+  vengono calcolate e scritte automaticamente da `Triggers.gs`, senza dover
+  passare dalla Web App.
+- se non attivi il trigger, resta comunque valida la procedura manuale:
+  apri la riga dal tab **Squadre**/**Interventi** → "Modifica" → "Salva"
+  (anche senza cambiare nulla) per farla geocodificare. Finché un
+  intervento/squadra non è geocodificato/a (né in automatico né a mano), la
+  pianificazione darà errore "indirizzo non geocodificato".
 
 ## Nota sul servizio Google Maps
 
