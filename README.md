@@ -181,23 +181,30 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      rigido, non solo un avviso), **saltando i giorni non lavorativi**
      impostati in Regole e i giorni in cui una squadra è specificamente non
      disponibile (giorno di riposo o ferie). Con più squadre selezionate,
-     l'assegnazione avviene **in sequenza secondo l'ordine di selezione**:
-     per ciascun giorno, la prima squadra riceve tutti gli interventi
-     compatibili e vicini che riesce a includere fino a **saturare la
-     propria giornata** (il passaggio di riempimento finale la spinge a
-     concentrare quanti più interventi possibile nello stesso giro), e solo
-     dopo la squadra successiva pesca da quello che resta. L'obiettivo è
-     **accorpare gli interventi vicini su meno squadre possibile**,
-     massimizzando ore lavorate e produzione di ciascuna, invece di
-     spalmarli in modo equo su tutte: se il lavoro disponibile non basta per
-     tutte, le squadre più in fondo alla lista restano semplicemente libere
-     per l'intera giornata, invece di ricevere una manciata di interventi a
-     testa. Gli interventi che non trovano posto in nessun giorno/squadra
-     dell'intervallo restano "Da pianificare" con una nota sul motivo. Una
-     squadra senza interventi compatibili (o non disponibile) per un
-     determinato giorno compare comunque nel riepilogo, marcata come
-     "**Giornata libera**" con il motivo: non è necessario che tutte le
-     squadre risultino impegnate ogni giorno.
+     l'assegnazione avviene **in sequenza secondo l'ordine di selezione, una
+     squadra alla volta per l'intero intervallo**: la prima squadra
+     pianifica tutti i giorni dell'intervallo cercando di saturare ogni
+     giornata e di avvicinarsi al proprio target di produzione, e solo dopo
+     che ha esaurito il lavoro compatibile la squadra successiva comincia a
+     pescare da quello che resta (non si alternano giorno per giorno).
+     L'obiettivo è **accorpare gli interventi vicini su meno squadre
+     possibile**, massimizzando ore lavorate e produzione di ciascuna,
+     invece di spalmarli in modo equo su tutte: se il lavoro disponibile non
+     basta per tutte, le squadre più in fondo alla lista restano
+     semplicemente libere per l'intero intervallo, invece di ricevere una
+     manciata di interventi a testa ogni giorno. Gli interventi che non
+     trovano posto in nessun giorno/squadra dell'intervallo restano "Da
+     pianificare" con una nota sul motivo. Una squadra senza interventi
+     compatibili (o non disponibile) per un determinato giorno compare
+     comunque nel riepilogo, marcata come "**Giornata libera**" con il
+     motivo: non è necessario che tutte le squadre risultino impegnate ogni
+     giorno.
+
+     Se una squadra ha **competenze specifiche** impostate (non generica),
+     riceve prima gli interventi che richiedono esplicitamente una di quelle
+     competenze, usando gli interventi generici (competenza vuota, adatti a
+     qualsiasi squadra) solo come riempitivo quando non c'è (più) lavoro
+     specifico disponibile per lei.
 
    In fondo alla pagina trovi il riepilogo dei percorsi già confermati per il
    giorno selezionato, con tutte le squadre affiancate.
@@ -206,17 +213,20 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    "Target Produzione Giornaliera" impostato, il ricavo degli interventi
    pesa (regola **pesoRicavo**) tra i fattori usati per scegliere quali
    interventi assegnarle — insieme a priorità, densità dell'area e
-   vicinanza alla base — così, a parità di altri fattori, si preferiscono
-   gli interventi più redditizi per avvicinarsi al target. Il target
-   **non blocca né interrompe mai** il riempimento delle ore disponibili:
-   anche superato l'obiettivo la squadra continua a ricevere altri
-   interventi se c'è ancora tempo e lavoro compatibile, esattamente come
-   quando non c'è nessun target impostato — è pensato come un indicatore su
-   cui orientare le scelte, non come un tetto. Dove il target è impostato,
-   compare un riepilogo "**Produzione: X€ / target Y€**" (evidenziato in
-   verde quando raggiunto o superato) nella board della pianificazione
-   automatica su intervallo, nell'anteprima del percorso a singolo giorno e
-   nella tab Programmazione.
+   vicinanza alla base. Questo peso **si rafforza automaticamente (fino a
+   5 volte) quando la produzione della giornata è ancora lontana dal
+   target**, per spingere con più decisione verso gli interventi più
+   redditizi e avvicinarsi davvero all'obiettivo, e si attenua man mano che
+   ci si avvicina o lo si supera, tornando al peso base impostato in Regole.
+   Il target **non blocca né interrompe mai** il riempimento delle ore
+   disponibili: anche superato l'obiettivo la squadra continua a ricevere
+   altri interventi se c'è ancora tempo e lavoro compatibile, esattamente
+   come quando non c'è nessun target impostato — è pensato come un
+   indicatore su cui orientare le scelte, non come un tetto. Dove il target
+   è impostato, compare un riepilogo "**Produzione: X€ / target Y€**"
+   (evidenziato in verde quando raggiunto o superato) nella board della
+   pianificazione automatica su intervallo, nell'anteprima del percorso a
+   singolo giorno e nella tab Programmazione.
 4. Tab **Programmazione**: elenco di tutti gli interventi già pianificati
    (percorsi confermati) in un intervallo di date, raggruppati per
    giorno/squadra, con le indicazioni essenziali (ora, cliente, indirizzo) più
@@ -244,9 +254,10 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    priorità, peso e raggio della densità di un'area, preferenza per la
    vicinanza alla base, buffer di setup/parcheggio tra due tappe, velocità
    media di fallback, **minuti di tolleranza sullo sconfinamento nella pausa
-   pranzo**, **peso del ricavo** nella scelta degli interventi da assegnare)
-   — nessun testo libero da digitare a mano, e nessuna modifica al codice
-   richiesta.
+   pranzo**, **peso base del ricavo** nella scelta degli interventi da
+   assegnare, **priorità della competenza specifica** rispetto agli
+   interventi generici) — nessun testo libero da digitare a mano, e nessuna
+   modifica al codice richiesta.
 
 Ogni percorso confermato (in entrambe le modalità) viene registrato nel
 foglio `LogPianificazione` (visibile in fondo al tab Regole), utile per

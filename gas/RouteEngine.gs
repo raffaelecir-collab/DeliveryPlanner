@@ -165,18 +165,23 @@ function densitaPunto_(idx, stopIndices, matrice, raggioMinuti) {
  * conteggiati nell'orario di lavoro) — un punto viene quindi agganciato in testa
  * o in coda al costo di un solo arco, non di un arco fittizio verso la base.
  */
-function costruisciPercorsoInserzione_(stopIndices, matrice, partenzaIdx, nodi, regole) {
+function costruisciPercorsoInserzione_(squadra, stopIndices, matrice, partenzaIdx, nodi, regole) {
   if (stopIndices.length === 0) return [];
   var raggioMinuti = regole.densitaRaggioMinuti || 8;
   var pesoDensita = regole.pesoDensita || 50;
   var pesoProssimita = regole.pesoProssimitaBase || 5;
-  var pesoRicavo = regole.pesoRicavo || 0;
+  // All'inizio della costruzione la produzione della squadra per questa giornata è ancora zero,
+  // quindi si è sempre alla massima distanza dal target: il ricavo pesa già alla sua spinta
+  // massima nella scelta del seme (stessa logica di riempiGiornata_, dove invece si attenua man
+  // mano che la produzione accumulata si avvicina al target).
+  var pesoRicavo = (regole.pesoRicavo || 0) * (squadra.produzioneTarget ? 5 : 1);
 
   function scorePunto(idx) {
     var densita = densitaPunto_(idx, stopIndices, matrice, raggioMinuti);
     var distanzaBase = matrice[partenzaIdx][idx].minuti;
     var ricavo = nodi[idx].intervento.ricavo || 0;
-    return pesoPriorita_(nodi[idx].intervento.priorita, regole) + pesoDensita * densita - pesoProssimita * distanzaBase + pesoRicavo * ricavo;
+    var bonusCompetenza = squadraHaCompetenzaSpecificaPer_(squadra, nodi[idx].intervento) ? (regole.pesoCompetenzaSpecifica || 0) : 0;
+    return pesoPriorita_(nodi[idx].intervento.priorita, regole) + pesoDensita * densita - pesoProssimita * distanzaBase + pesoRicavo * ricavo + bonusCompetenza;
   }
 
   var remaining = stopIndices.slice();
@@ -402,7 +407,7 @@ function pianificaConUpgradeReale_(squadra, nodi, ordine, matriceStima, partenza
  * quelli reali (Google Maps) solo sui tratti del percorso scelto.
  */
 function costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima, partenzaIdx, rientroIdx, regole) {
-  var ordineIniziale = costruisciPercorsoInserzione_(stopIndices, matriceStima, partenzaIdx, nodi, regole);
+  var ordineIniziale = costruisciPercorsoInserzione_(squadra, stopIndices, matriceStima, partenzaIdx, nodi, regole);
   var risultato = pianificaOrarioPercorso_(squadra, nodi, ordineIniziale, matriceStima, partenzaIdx, rientroIdx, regole);
   var ordineFinale = ordineIniziale;
 
@@ -449,11 +454,29 @@ function riempiGiornata_(squadra, nodi, risultato, matriceStima, partenzaIdx, ri
     return matriceStima[prima][idx].minuti + matriceStima[idx][dopo].minuti - matriceStima[prima][dopo].minuti;
   }
 
+  var target = squadra.produzioneTarget || 0;
+
   for (var iter = 0; iter < MAX_ITERAZIONI; iter++) {
     if (corrente.nonIncluse.length === 0 || corrente.tappe.length === 0) break;
 
     var ordineAttuale = corrente.tappe.map(function (t) { return idxPerId[t.intervento.id]; });
     if (ordineAttuale.indexOf(undefined) !== -1) break; // id incoerente: non rischiare, esci senza ulteriori aggiunte
+
+    // Quanto manca al target di produzione della squadra guida QUANTO il ricavo pesa in questo
+    // giro: più siamo lontani dal target, più un candidato redditizio viene preferito con forza
+    // (fino a diverse volte il peso base); avvicinandosi al target il peso torna gradualmente a
+    // quello base impostato in Regole. Superato il target, nessuna spinta aggiuntiva — resta
+    // comunque un fattore tra gli altri, non un vincolo, e il riempimento della giornata non si
+    // ferma mai per questo.
+    var pesoRicavoBase = regole.pesoRicavo || 0;
+    var pesoRicavoEffettivo = pesoRicavoBase;
+    if (target > 0) {
+      var produzioneAttuale = corrente.tappe.reduce(function (sum, t) { return sum + (t.intervento.ricavo || 0); }, 0);
+      if (produzioneAttuale < target) {
+        var distanzaDalTarget = (target - produzioneAttuale) / target; // 0..1
+        pesoRicavoEffettivo = pesoRicavoBase * (1 + distanzaDalTarget * 4); // fino a 5x quando molto lontani
+      }
+    }
 
     // Per ciascun candidato scartato, cerca il punto di inserimento più economico su TUTTO il
     // percorso (non solo in coda): un intervento può stare bene "in mezzo" a due tappe già
@@ -470,11 +493,11 @@ function riempiGiornata_(squadra, nodi, risultato, matriceStima, partenzaIdx, ri
         }
         var durata = nodi[idx].intervento.durataMinuti || 60;
         var ricavo = nodi[idx].intervento.ricavo || 0;
-        // Il ricavo abbassa il costo "percepito" di un candidato (a parità di tutto il resto lo
-        // fa scegliere prima), per avvicinarsi al target di produzione della squadra senza mai
-        // impedire il riempimento della giornata: resta comunque un fattore tra gli altri, non
-        // un vincolo.
-        return { idx: idx, id: n.interventoId, pos: migliorPos, costo: migliorCosto + durata - (regole.pesoRicavo || 0) * ricavo };
+        var bonusCompetenza = squadraHaCompetenzaSpecificaPer_(squadra, nodi[idx].intervento) ? (regole.pesoCompetenzaSpecifica || 0) : 0;
+        // Il ricavo e la competenza specifica abbassano il costo "percepito" di un candidato (a
+        // parità di tutto il resto lo fanno scegliere prima), senza mai impedire il riempimento
+        // della giornata: restano fattori tra gli altri, non vincoli.
+        return { idx: idx, id: n.interventoId, pos: migliorPos, costo: migliorCosto + durata - pesoRicavoEffettivo * ricavo - bonusCompetenza };
       })
       .sort(function (a, b) { return a.costo - b.costo; })
       .slice(0, MAX_CANDIDATI_PER_TENTATIVO);
@@ -835,6 +858,20 @@ function squadraCoprCompetenza_(squadra, intervento) {
   return !competenzaIntervento || competenze.length === 0 || competenze.indexOf(competenzaIntervento) !== -1;
 }
 
+/**
+ * true se la squadra ha una o più competenze specifiche elencate (non è "generica") E
+ * l'intervento richiede esplicitamente una di quelle competenze (non è un intervento generico
+ * a competenza vuota). Usato per far preferire, a un tecnico specializzato, gli interventi che
+ * richiedono proprio la sua specializzazione rispetto a quelli generici — che restano comunque
+ * assegnabili come riempitivo quando non c'è (più) lavoro specifico disponibile.
+ */
+function squadraHaCompetenzaSpecificaPer_(squadra, intervento) {
+  var competenze = splitList_(squadra.competenze).map(function (c) { return c.toLowerCase(); });
+  if (competenze.length === 0) return false;
+  var competenzaIntervento = String(intervento.competenza || '').trim().toLowerCase();
+  return !!competenzaIntervento && competenze.indexOf(competenzaIntervento) !== -1;
+}
+
 /** true se `giorno` (Date) cade in uno dei periodi di ferie/assenza della squadra. */
 function squadraInFerie_(squadra, giorno) {
   if (!squadra.feriePeriodi) return false;
@@ -866,12 +903,15 @@ function motivoIndisponibilita_(squadra, giorno) {
 
 /**
  * Pianifica automaticamente, senza selezione manuale, tutti gli interventi "Da pianificare"
- * compatibili con una o più squadre su un intervallo di giorni: per ciascun giorno (in ordine),
- * ciascuna squadra (nell'ordine indicato in squadraIds) pesca dal pool condiviso di interventi
- * ancora disponibili la cui finestra (Non prima del / Scadenza) include quel giorno, genera il
- * percorso ottimizzato e lo scrive subito sul foglio. La competenza richiesta è un filtro
- * rigido (nessuna selezione manuale a fare da controllo umano). Con più squadre selezionate,
- * la prima della lista ha la precedenza nella scelta degli interventi in ciascun giorno.
+ * compatibili con una o più squadre su un intervallo di giorni. Con più squadre selezionate,
+ * vengono saturate UNA ALLA VOLTA per l'intero intervallo (non un giorno alla volta a turno):
+ * la prima squadra della lista pianifica tutti i giorni dell'intervallo per cui trova lavoro
+ * compatibile, cercando di saturare ogni giornata e di avvicinarsi al proprio target di
+ * produzione, prima che la squadra successiva anche solo consideri il pool condiviso. Questo
+ * evita che lavoro concentrabile su una sola squadra (es. interventi vicini tra loro, senza
+ * vincoli di data) venga invece frammentato un po' su ciascuna squadra ogni giorno: se il lavoro
+ * disponibile non basta per tutte, le squadre più in fondo alla lista restano semplicemente
+ * libere per l'intero intervallo.
  */
 function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
   if (!squadraIds || squadraIds.length === 0) throw new Error('Seleziona almeno una squadra.');
@@ -914,26 +954,22 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
   var giorniLavorativi = splitList_(regole.giorniLavorativi || 'Lun,Mar,Mer,Gio,Ven');
 
   var giorniMap = {}; // 'dd/MM/yyyy' -> array di { squadraId, squadraNome, colore, tappe }
-  var giorno = dataInizio;
-  while (giorno <= dataFine) {
-    if (new Date().getTime() - inizioEsecuzione > TEMPO_MASSIMO_MS) { tempoScaduto = true; break; }
-    if (giorniLavorativi.length > 0 && giorniLavorativi.indexOf(GIORNI_SETTIMANA[giorno.getDay()]) === -1) {
-      giorno = addDays_(giorno, 1);
-      continue;
-    }
-    var giornoFmt = formatDateStr_(giorno);
-    if (!giorniMap[giornoFmt]) giorniMap[giornoFmt] = [];
 
-    // Le squadre vengono servite IN SEQUENZA, non in parallelo: la squadra corrente satura la
-    // propria giornata (tutti gli interventi compatibili/vicini che riesce a includere, fino a
-    // riempire il turno) prima che la successiva riceva anche solo un intervento. L'obiettivo è
-    // concentrare gli interventi vicini su meno squadre possibile — massimizzando ore lavorate e
-    // produzione di ciascuna — piuttosto che spalmarli equamente su tutte: una squadra può
-    // restare "libera" per l'intera giornata se non resta lavoro compatibile dopo che le squadre
-    // precedenti (nell'ordine di selezione) hanno saturato la propria.
-    squadre.forEach(function (squadra) {
-      if (tempoScaduto) return;
-      if (new Date().getTime() - inizioEsecuzione > TEMPO_MASSIMO_MS) { tempoScaduto = true; return; }
+  // Ciclo ESTERNO sulle squadre (nell'ordine di selezione), ciclo INTERNO sui giorni: la squadra
+  // corrente pianifica l'intero intervallo, saturando quante più giornate possibile, prima che
+  // la successiva anche solo cominci — invece di alternarsi giorno per giorno con le altre.
+  squadre.forEach(function (squadra) {
+    if (tempoScaduto) return;
+    var giorno = dataInizio;
+    while (giorno <= dataFine) {
+      if (tempoScaduto) break;
+      if (new Date().getTime() - inizioEsecuzione > TEMPO_MASSIMO_MS) { tempoScaduto = true; break; }
+      if (giorniLavorativi.length > 0 && giorniLavorativi.indexOf(GIORNI_SETTIMANA[giorno.getDay()]) === -1) {
+        giorno = addDays_(giorno, 1);
+        continue;
+      }
+      var giornoFmt = formatDateStr_(giorno);
+      if (!giorniMap[giornoFmt]) giorniMap[giornoFmt] = [];
 
       if (!squadraDisponibileGiorno_(squadra, giorno)) {
         giorniMap[giornoFmt].push({
@@ -941,7 +977,8 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
           tappe: [], libera: true, motivoLibera: motivoIndisponibilita_(squadra, giorno),
           produzioneTotale: 0, produzioneTarget: squadra.produzioneTarget || 0
         });
-        return;
+        giorno = addDays_(giorno, 1);
+        continue;
       }
 
       var candidatiOggi = pool.filter(function (i) {
@@ -963,7 +1000,8 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
           squadraId: squadra.id, squadraNome: squadra.nome, colore: squadra.colore, tappe: [], libera: true,
           produzioneTotale: 0, produzioneTarget: squadra.produzioneTarget || 0
         });
-        return;
+        giorno = addDays_(giorno, 1);
+        continue;
       }
 
       var nodi = costruisciNodi_(squadra, candidatiOggi);
@@ -998,9 +1036,9 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
         produzioneTotale: anteprimaGiorno.produzioneTotale,
         produzioneTarget: anteprimaGiorno.produzioneTarget
       });
-    });
-    giorno = addDays_(giorno, 1);
-  }
+      giorno = addDays_(giorno, 1);
+    }
+  });
 
   var giorniArray = Object.keys(giorniMap)
     .map(function (g) { return { giorno: g, squadre: giorniMap[g] }; })
