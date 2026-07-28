@@ -33,17 +33,24 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      economico" con seme scelto per priorità e densità dell'area — le zone con
      più interventi vicini vengono privilegiate e completate per intero, e gli
      interventi geograficamente "di passaggio" tra due tappe già pianificate
-     vengono raccolti automaticamente — più raffinamento 2-opt sulla matrice
-     dei tempi di viaggio reali via Google Maps Directions, con ripiego sulla
-     stima in linea d'aria se il servizio non è disponibile), poi assegna gli
-     orari rispettando:
+     vengono raccolti automaticamente — più raffinamento 2-opt e un passaggio
+     finale di "riempimento" che tenta di aggiungere in coda gli interventi
+     scartati più economici da raggiungere, per non lasciare la giornata a
+     metà quando c'è ancora tempo utile). Le distanze usano una stima in linea
+     d'aria per scegliere rapidamente ordine e composizione del percorso, poi
+     vengono aggiornate con i tempi reali via Google Maps Directions solo sui
+     tratti effettivamente scelti (così anche pianificando decine di
+     interventi su più giorni/squadre il calcolo resta rapido). Il motore
+     assegna poi gli orari rispettando:
      - **l'orario di lavoro della squadra** — il viaggio dall'indirizzo di
        partenza alla prima tappa e dall'ultima tappa all'indirizzo di rientro
        **non** viene conteggiato in questo orario (è trasferimento fuori
        turno); vengono comunque mostrati come informazione l'orario stimato
        di uscita e di rientro;
-     - **l'eventuale pausa pranzo** — nessuna tappa viene collocata in quella
-       fascia, lo scheduling la salta automaticamente;
+     - **l'eventuale pausa pranzo** — non si può *iniziare* un nuovo
+       intervento durante la pausa (slitta a fine pausa), ma un intervento già
+       in corso può proseguire ed essere "a cavallo" della pausa senza essere
+       interrotto;
      - **la finestra oraria richiesta da ciascun cliente**.
   4. Puoi affinare manualmente il percorso proposto (sposta su/giù una tappa,
      rimuovine una) prima di confermarlo: ogni modifica ricalcola subito gli
@@ -139,17 +146,22 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      (senza passaggio di conferma) un percorso ottimizzato per ciascuna
      squadra in ciascun giorno dell'intervallo, usando via via gli interventi
      "Da pianificare" ancora disponibili e compatibili (qui la competenza
-     richiesta è un filtro rigido, non solo un avviso). Utile per riempire più
-     giorni — e più squadre — in un colpo solo; gli interventi che non
-     trovano posto in nessun giorno/squadra dell'intervallo restano "Da
-     pianificare" con una nota sul motivo.
+     richiesta è un filtro rigido, non solo un avviso), **saltando i giorni
+     non lavorativi** impostati in Regole. Utile per riempire più giorni — e
+     più squadre — in un colpo solo; gli interventi che non trovano posto in
+     nessun giorno/squadra dell'intervallo restano "Da pianificare" con una
+     nota sul motivo.
 
    In fondo alla pagina trovi il riepilogo dei percorsi già confermati per il
    giorno selezionato, con tutte le squadre affiancate.
-4. Tab **Regole**: puoi modificare a caldo i parametri del motore (pesi delle
+4. Tab **Regole**: ogni regola ha il controllo adatto al suo tipo — un
+   selettore con i giorni della settimana per "Giorni Lavorativi" (rispettato
+   dalla pianificazione automatica su intervallo, che salta i giorni non
+   spuntati), campi numerici per tutti gli altri parametri (pesi delle
    priorità, peso e raggio della densità di un'area, preferenza per la
    vicinanza alla base, buffer di setup/parcheggio tra due tappe, velocità
-   media di fallback) senza toccare il codice.
+   media di fallback) — nessun testo libero da digitare a mano, e nessuna
+   modifica al codice richiesta.
 
 Ogni percorso confermato (in entrambe le modalità) viene registrato nel
 foglio `LogPianificazione` (visibile in fondo al tab Regole), utile per

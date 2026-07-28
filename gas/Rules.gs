@@ -2,9 +2,14 @@
  * Lettura/scrittura delle regole di pianificazione (foglio "Regole", coppie chiave/valore).
  */
 
+/** Elenco regole con `tipo` allegato (da REGOLE_DEFAULT) per guidare il rendering del form lato client. */
 function listaRegole() {
   inizializzaRegoleDefault_();
-  return readAll_('REGOLE');
+  var tipoPerChiave = {};
+  REGOLE_DEFAULT.forEach(function (r) { tipoPerChiave[r.chiave] = r.tipo || 'numero'; });
+  return readAll_('REGOLE').map(function (r) {
+    return Object.assign({}, r, { tipo: tipoPerChiave[r.chiave] || 'testo' });
+  });
 }
 
 function salvaRegola(regola) {
