@@ -170,6 +170,7 @@
     if (view === 'squadre') loadSquadre();
     if (view === 'impostazioni') { loadRegole(); loadLog(); }
     if (view === 'pianificazione' && pianState.giorno) aggiornaBoardGiorno();
+    if (view === 'programmazione') caricaProgrammazione();
   }
 
   // ---------- modale generico basato su schema ----------
@@ -519,11 +520,17 @@
     var competenzeSquadra = squadra ? splitListClient(squadra.competenze).map(function (c) { return c.toLowerCase(); }) : [];
     var pianificatiIds = pianState.pianificati.map(function (i) { return i.id; });
     tbody.innerHTML = tutti.map(function (i) {
-      var checked = pianificatiIds.indexOf(i.id) !== -1 ? 'checked' : '';
-      var warn = (i.competenza && competenzeSquadra.length && competenzeSquadra.indexOf(i.competenza.toLowerCase()) === -1)
+      var giaPianificato = pianificatiIds.indexOf(i.id) !== -1;
+      var checked = giaPianificato ? 'checked' : '';
+      var incompatibile = !!(i.competenza && competenzeSquadra.length && competenzeSquadra.indexOf(i.competenza.toLowerCase()) === -1);
+      // Una competenza incompatibile blocca la nuova selezione (rispecchia il vincolo rigido
+      // lato server), ma se l'intervento è già pianificato per questa squadra (es. competenze
+      // cambiate dopo l'assegnazione) resta comunque deselezionabile.
+      var disabled = (incompatibile && !giaPianificato) ? 'disabled' : '';
+      var warn = incompatibile
         ? ' <span class="warn-icon" title="Competenza non tra quelle della squadra">⚠</span>' : '';
-      return '<tr>' +
-        '<td><input type="checkbox" data-id="' + i.id + '" ' + checked + '></td>' +
+      return '<tr' + (disabled ? ' class="row-disabled"' : '') + '>' +
+        '<td><input type="checkbox" data-id="' + i.id + '" ' + checked + ' ' + disabled + '></td>' +
         '<td>' + escapeHtml(i.cliente) + '</td>' +
         '<td>' + escapeHtml(i.indirizzo || '') + '</td>' +
         '<td>' + escapeHtml(i.competenza || '-') + warn + '</td>' +
@@ -563,10 +570,16 @@
     }
     boardEl.innerHTML = risultato.giorni.map(function (g) {
       var teamsHtml = g.squadre.map(function (sq) {
-        var stopsHtml = sq.tappe.map(function (t) {
-          return '<div class="stop"><span class="ora">' + t.oraInizio + '-' + t.oraFine + '</span> <span class="cliente">' + escapeHtml(t.cliente) + '</span>' +
-            '<div class="meta">' + escapeHtml(t.indirizzo || '') + ' · ' + t.durataMinuti + ' min</div></div>';
-        }).join('');
+        // Una squadra senza tappe in questo giorno viene mostrata esplicitamente come "libera"
+        // invece di sparire semplicemente dal riepilogo (non tutte le squadre devono per forza
+        // essere impegnate ogni giorno: se gli interventi disponibili bastano per una sola
+        // squadra, l'altra resta libera e va indicato chiaramente, non lasciato ambiguo).
+        var stopsHtml = sq.libera || !sq.tappe.length
+          ? '<div class="stop libera"><em>Giornata libera — nessun intervento compatibile da assegnare.</em></div>'
+          : sq.tappe.map(function (t) {
+            return '<div class="stop"><span class="ora">' + t.oraInizio + '-' + t.oraFine + '</span> <span class="cliente">' + escapeHtml(t.cliente) + '</span>' +
+              '<div class="meta">' + escapeHtml(t.indirizzo || '') + ' · ' + t.durataMinuti + ' min</div></div>';
+          }).join('');
         return '<div class="board-team"><div class="team-head"><span class="team-dot" style="background:' + (sq.colore || '#999') + '"></span>' + escapeHtml(sq.squadraNome) + '</div>' + stopsHtml + '</div>';
       }).join('');
       return '<div class="board-day"><div class="day-title">' + g.giorno + '</div><div class="board-teams">' + teamsHtml + '</div></div>';
@@ -774,6 +787,106 @@
     });
   }
 
+  // ---------- vista Programmazione (elenco confermato + deseleziona + riempi buco) ----------
+  var progState = { righe: [] };
+
+  function raggruppaProgrammazione(righe) {
+    var giorniMap = {};
+    righe.forEach(function (r) {
+      if (!giorniMap[r.dataPianificata]) giorniMap[r.dataPianificata] = {};
+      var squadre = giorniMap[r.dataPianificata];
+      if (!squadre[r.squadraId]) {
+        squadre[r.squadraId] = { squadraId: r.squadraId, squadraNome: r.squadraNome, colore: r.colore, righe: [] };
+      }
+      squadre[r.squadraId].righe.push(r);
+    });
+    return Object.keys(giorniMap).sort(function (a, b) {
+      var pa = a.split('/'), pb = b.split('/');
+      return new Date(pa[2], pa[1] - 1, pa[0]) - new Date(pb[2], pb[1] - 1, pb[0]);
+    }).map(function (giorno) {
+      var squadre = Object.keys(giorniMap[giorno]).map(function (k) { return giorniMap[giorno][k]; });
+      squadre.sort(function (a, b) { return a.squadraNome < b.squadraNome ? -1 : 1; });
+      return { giorno: giorno, squadre: squadre };
+    });
+  }
+
+  function renderProgrammazione() {
+    var el = document.getElementById('prog-risultato');
+    if (!progState.righe.length) {
+      el.innerHTML = '<div class="empty-hint">Nessun intervento pianificato nell\'intervallo selezionato.</div>';
+      return;
+    }
+    var giorni = raggruppaProgrammazione(progState.righe);
+    el.innerHTML = '<div class="board">' + giorni.map(function (g) {
+      var teamsHtml = g.squadre.map(function (sq) {
+        var righeHtml = sq.righe.map(function (r) {
+          return '<tr>' +
+            '<td>' + (r.oraPianificata || '') + '</td>' +
+            '<td>' + escapeHtml(r.cliente) + '</td>' +
+            '<td>' + escapeHtml(r.indirizzo || '') + '</td>' +
+            '<td>' + escapeHtml(r.telefono || '-') + '</td>' +
+            '<td><button type="button" class="btn secondary" data-action="rimuovi" data-id="' + r.id + '" data-row="' + r._row + '" data-squadra="' + sq.squadraId + '" data-giorno="' + g.giorno + '">Rimuovi</button></td>' +
+          '</tr>';
+        }).join('');
+        return '<div class="prog-team">' +
+          '<div class="team-head"><span class="team-dot" style="background:' + (sq.colore || '#999') + '"></span>' + escapeHtml(sq.squadraNome) +
+          '<button type="button" class="btn secondary btn-riempi-buco" data-action="riempi-buco" data-squadra="' + sq.squadraId + '" data-giorno="' + g.giorno + '">Riempi buco</button></div>' +
+          '<table class="prog-table"><thead><tr><th>Ora</th><th>Cliente</th><th>Indirizzo</th><th>Telefono</th><th></th></tr></thead><tbody>' + righeHtml + '</tbody></table>' +
+        '</div>';
+      }).join('');
+      return '<div class="board-day"><div class="day-title">' + g.giorno + '</div>' + teamsHtml + '</div>';
+    }).join('') + '</div>';
+  }
+
+  function caricaProgrammazione() {
+    var dal = document.getElementById('prog-dal').value;
+    var al = document.getElementById('prog-al').value;
+    if (!dal || !al) { toast('Seleziona l\'intervallo di date.', 'error'); return; }
+    return callServer('getProgrammazione', fromInputDate(dal), fromInputDate(al)).then(function (righe) {
+      progState.righe = righe;
+      renderProgrammazione();
+    }).catch(function (err) { toast('Errore nel caricamento: ' + (err.message || err), 'error'); });
+  }
+
+  /** Ripianifica squadra/giorno usando i pianificati rimasti + il pool disponibile, per riempire il buco lasciato da una deselezione (o semplicemente per massimizzare l'utilizzo del turno). */
+  function riempiBucoGiornoClick(squadraId, giornoStr) {
+    return callServer('riempiBucoGiorno', squadraId, giornoStr).then(function (anteprima) {
+      var msg = anteprima.tappe.length
+        ? 'Buco riempito: ' + anteprima.tappe.length + ' tappe pianificate per ' + anteprima.squadraNome + ' il ' + giornoStr + '.'
+        : 'Nessun intervento disponibile da inserire per ' + anteprima.squadraNome + ' il ' + giornoStr + '.';
+      toast(msg, 'success');
+      return caricaProgrammazione();
+    }).catch(function (err) { toast('Errore nel riempimento: ' + (err.message || err), 'error'); });
+  }
+
+  function rimuoviProgrammatoClick(id, row, squadraId, giornoStr) {
+    if (!window.confirm('Rimuovere questo intervento dal percorso? Tornerà "Da pianificare" e il buco lasciato aperto verrà subito ricoperto, se possibile, con altri interventi disponibili.')) return;
+    callServer('ripianificaIntervento', id, row).then(function () {
+      return riempiBucoGiornoClick(squadraId, giornoStr);
+    }).catch(function (err) { toast('Errore nella rimozione: ' + (err.message || err), 'error'); });
+  }
+
+  function setupProgrammazioneTab() {
+    var oggi = new Date();
+    var fra6 = new Date(oggi.getTime() + 6 * 24 * 3600 * 1000);
+    var elDal = document.getElementById('prog-dal');
+    if (elDal) elDal.value = toInputDate(oggi);
+    var elAl = document.getElementById('prog-al');
+    if (elAl) elAl.value = toInputDate(fra6);
+    on('btn-carica-programmazione', 'click', caricaProgrammazione);
+    onQuery('#prog-risultato', 'click', function (e) {
+      var btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      var squadraId = btn.dataset.squadra, giornoStr = btn.dataset.giorno;
+      if (btn.dataset.action === 'rimuovi') {
+        rimuoviProgrammatoClick(btn.dataset.id, btn.dataset.row, squadraId, giornoStr);
+      } else if (btn.dataset.action === 'riempi-buco') {
+        if (!window.confirm('Ripianificare "' + squadraId + '" per il ' + giornoStr + ' includendo eventuali interventi disponibili per riempire le ore libere?')) return;
+        riempiBucoGiornoClick(squadraId, giornoStr);
+      }
+    });
+  }
+
   // ---------- bootstrap ----------
   // Ogni setup viene isolato: se una parte fallisce (es. un elemento mancante perché
   // un file HTML non è stato aggiornato/copiato insieme agli altri) non deve impedire
@@ -792,6 +905,7 @@
     safeRun_('modal', setupModal);
     safeRun_('pianificazione', setupPianificazioneTab);
     safeRun_('interventi', setupInterventiTab);
+    safeRun_('programmazione', setupProgrammazioneTab);
     safeRun_('squadre', setupSquadreTab);
     safeRun_('regole', setupRegoleTab);
 

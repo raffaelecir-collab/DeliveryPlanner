@@ -412,34 +412,49 @@ function costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima,
  * (che tipicamente corrisponde a proseguire lungo il percorso di rientro).
  */
 function riempiGiornata_(squadra, nodi, risultato, matriceStima, partenzaIdx, rientroIdx, regole) {
-  var MAX_ITERAZIONI = 15;
-  var MAX_CANDIDATI_PER_TENTATIVO = 6;
+  var MAX_ITERAZIONI = 30;
+  var MAX_CANDIDATI_PER_TENTATIVO = 8;
   var corrente = risultato;
 
   var idxPerId = {};
   nodi.forEach(function (n, idx) { if (n.intervento) idxPerId[n.intervento.id] = idx; });
+
+  function costoInserzionePosizione(route, idx, pos) {
+    if (pos === -1) return matriceStima[idx][route[0]].minuti;
+    if (pos === route.length - 1) return matriceStima[route[pos]][idx].minuti;
+    var prima = route[pos], dopo = route[pos + 1];
+    return matriceStima[prima][idx].minuti + matriceStima[idx][dopo].minuti - matriceStima[prima][dopo].minuti;
+  }
 
   for (var iter = 0; iter < MAX_ITERAZIONI; iter++) {
     if (corrente.nonIncluse.length === 0 || corrente.tappe.length === 0) break;
 
     var ordineAttuale = corrente.tappe.map(function (t) { return idxPerId[t.intervento.id]; });
     if (ordineAttuale.indexOf(undefined) !== -1) break; // id incoerente: non rischiare, esci senza ulteriori aggiunte
-    var ultimoIdx = ordineAttuale[ordineAttuale.length - 1];
 
+    // Per ciascun candidato scartato, cerca il punto di inserimento più economico su TUTTO il
+    // percorso (non solo in coda): un intervento può stare bene "in mezzo" a due tappe già
+    // pianificate anche se da sola l'ultima tappa sembrerebbe lontana. Questo massimizza le
+    // probabilità di riempire i buchi residui della giornata.
     var candidati = corrente.nonIncluse
       .filter(function (n) { return idxPerId[n.interventoId] !== undefined; })
       .map(function (n) {
         var idx = idxPerId[n.interventoId];
-        var viaggio = matriceStima[ultimoIdx][idx].minuti;
+        var migliorPos = -1, migliorCosto = Infinity;
+        for (var pos = -1; pos < ordineAttuale.length; pos++) {
+          var costo = costoInserzionePosizione(ordineAttuale, idx, pos);
+          if (costo < migliorCosto) { migliorCosto = costo; migliorPos = pos; }
+        }
         var durata = nodi[idx].intervento.durataMinuti || 60;
-        return { idx: idx, id: n.interventoId, costo: viaggio + durata };
+        return { idx: idx, id: n.interventoId, pos: migliorPos, costo: migliorCosto + durata };
       })
       .sort(function (a, b) { return a.costo - b.costo; })
       .slice(0, MAX_CANDIDATI_PER_TENTATIVO);
 
     var migliorato = false;
     for (var i = 0; i < candidati.length; i++) {
-      var provaOrdine = ordineAttuale.concat([candidati[i].idx]);
+      var provaOrdine = ordineAttuale.slice();
+      provaOrdine.splice(candidati[i].pos + 1, 0, candidati[i].idx);
       var provaRisultato = pianificaConUpgradeReale_(squadra, nodi, provaOrdine, matriceStima, partenzaIdx, rientroIdx, regole);
       if (provaRisultato.tappe.length > corrente.tappe.length) {
         // pianificaConUpgradeReale_ conosce solo gli elementi passati in provaOrdine: bisogna
@@ -558,6 +573,15 @@ function anteprimaPercorso(squadraId, giornoStr, interventoIds, ordineManuale) {
     return it;
   });
 
+  // La competenza richiesta è un vincolo rigido: una squadra non può essere assegnata a un
+  // intervento la cui competenza non è tra le proprie, né in questa modalità manuale né in
+  // quella automatica (già filtrata a monte da squadraCoprCompetenza_ in pianificaIntervallo).
+  var incompatibili = selezionati.filter(function (it) { return !squadraCoprCompetenza_(squadra, it); });
+  if (incompatibili.length > 0) {
+    throw new Error('La squadra "' + squadra.nome + '" non ha la competenza richiesta per: ' +
+      incompatibili.map(function (it) { return it.cliente + ' (' + it.competenza + ')'; }).join(', ') + '.');
+  }
+
   var nodi = costruisciNodi_(squadra, selezionati);
   var partenzaIdx = 0, rientroIdx = nodi.length - 1;
   var stopIndices = [];
@@ -633,6 +657,121 @@ function confermaPercorso(squadraId, giornoStr, interventoIdsOrdinati) {
   return anteprima;
 }
 
+// ---------- vista "Programmazione": elenco pianificato + riempimento buchi ----------
+
+/**
+ * Elenco degli interventi già pianificati (stato Pianificato) in un intervallo di date,
+ * con le indicazioni essenziali più il telefono, pensato per l'uso sul campo (contattare
+ * il cliente) e per poter deselezionare una tappa già programmata.
+ */
+function getProgrammazione(dataInizioStr, dataFineStr) {
+  var dataInizio = parseDateStr_(dataInizioStr);
+  var dataFine = parseDateStr_(dataFineStr);
+  if (!dataInizio || !dataFine) throw new Error('Intervallo di date non valido.');
+
+  var squadreMap = {};
+  readAll_('SQUADRE').forEach(function (s) { squadreMap[s.id] = s; });
+
+  var righe = readAll_('INTERVENTI').filter(function (i) {
+    if (i.stato !== STATO_INTERVENTO.PIANIFICATO) return false;
+    var d = parseDateStr_(i.dataPianificata);
+    return d && d >= dataInizio && d <= dataFine;
+  });
+
+  righe.sort(function (a, b) {
+    var diff = parseDateStr_(a.dataPianificata) - parseDateStr_(b.dataPianificata);
+    if (diff !== 0) return diff;
+    var an = squadreMap[a.squadraId] ? squadreMap[a.squadraId].nome : (a.squadraId || '');
+    var bn = squadreMap[b.squadraId] ? squadreMap[b.squadraId].nome : (b.squadraId || '');
+    if (an !== bn) return an < bn ? -1 : 1;
+    return (a.ordineTappa || 0) - (b.ordineTappa || 0);
+  });
+
+  return righe.map(function (i) {
+    var s = squadreMap[i.squadraId];
+    return {
+      id: i.id,
+      _row: i._row,
+      cliente: i.cliente,
+      indirizzo: i.indirizzo,
+      telefono: i.telefono || '',
+      competenza: i.competenza,
+      priorita: i.priorita,
+      durataMinuti: i.durataMinuti,
+      dataPianificata: i.dataPianificata,
+      oraPianificata: i.oraPianificata,
+      squadraId: i.squadraId,
+      squadraNome: s ? s.nome : i.squadraId,
+      colore: s ? s.colore : '#999999'
+    };
+  });
+}
+
+/**
+ * Ripianifica da capo una squadra/giorno partendo dagli interventi già assegnati (se restati
+ * dopo una deselezione) più il pool di interventi ancora "Da pianificare" compatibili con quel
+ * giorno e quella squadra, per riempire il buco lasciato aperto. Riusa la stessa costruzione +
+ * riempimento giornata della pianificazione automatica, quindi tenta anche l'inserimento di
+ * interventi di passaggio nelle ore rimaste libere. Gli interventi che restano fuori (o che
+ * erano pianificati ma non trovano più posto nel nuovo percorso) tornano "Da pianificare".
+ */
+function riempiBucoGiorno(squadraId, giornoStr) {
+  var regole = getRegoleMappa_();
+  var squadra = assicuraIdTutti_('SQUADRE').filter(function (s) { return s.id === squadraId; })[0];
+  if (!squadra) throw new Error('Squadra non trovata.');
+  if (!isNum_(squadra.latPartenza) || !isNum_(squadra.lngPartenza)) {
+    throw new Error('L\'indirizzo di partenza della squadra "' + squadra.nome + '" non è geocodificato. Ri-salva la squadra con un indirizzo valido.');
+  }
+  var giorno = parseDateStr_(giornoStr);
+  if (!giorno) throw new Error('Data non valida.');
+  var giornoFmt = formatDateStr_(giorno);
+
+  var tuttiInterventi = assicuraIdTutti_('INTERVENTI');
+  var giaPianificati = tuttiInterventi.filter(function (i) {
+    return i.squadraId === squadraId && i.dataPianificata === giornoFmt && i.stato === STATO_INTERVENTO.PIANIFICATO;
+  });
+  var disponibiliCompatibili = tuttiInterventi.filter(function (i) {
+    if (i.stato !== STATO_INTERVENTO.DA_PIANIFICARE) return false;
+    if (!isNum_(i.lat) || !isNum_(i.lng)) return false;
+    if (!squadraCoprCompetenza_(squadra, i)) return false;
+    var dr = parseDateStr_(i.dataRichiesta);
+    if (dr && giorno < dr) return false;
+    var sc = parseDateStr_(i.scadenza);
+    if (sc && giorno > sc) return false;
+    return true;
+  });
+
+  var selezionati = giaPianificati.concat(disponibiliCompatibili);
+  if (selezionati.length === 0) {
+    return formattaAnteprima_(squadra, giorno, { tappe: [], nonIncluse: [], partenzaStimata: null, rientroStimato: null, distanzaTotaleKm: 0, tempoViaggioTotaleMinuti: 0 });
+  }
+
+  var nodi = costruisciNodi_(squadra, selezionati);
+  var partenzaIdx = 0, rientroIdx = nodi.length - 1;
+  var stopIndices = [];
+  for (var k = 1; k < nodi.length - 1; k++) stopIndices.push(k);
+  var matriceStima = costruisciMatriceStimata_(nodi, regole);
+  var risultato = costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima, partenzaIdx, rientroIdx, regole);
+
+  risultato.tappe.forEach(function (t, idx) {
+    updateRowFields_('INTERVENTI', t.intervento._row, {
+      stato: STATO_INTERVENTO.PIANIFICATO,
+      squadraId: squadra.id,
+      dataPianificata: giornoFmt,
+      oraPianificata: t.oraInizio,
+      ordineTappa: idx + 1,
+      motivoNonPianificato: ''
+    });
+  });
+  risultato.nonIncluse.forEach(function (n) {
+    updateRowFields_('INTERVENTI', n.intervento._row, {
+      stato: STATO_INTERVENTO.DA_PIANIFICARE, squadraId: '', dataPianificata: '', oraPianificata: '', ordineTappa: '', motivoNonPianificato: n.motivo
+    });
+  });
+
+  return formattaAnteprima_(squadra, giorno, risultato);
+}
+
 // ---------- pianificazione automatica su un intervallo di giorni (una squadra) ----------
 
 function addDays_(date, n) {
@@ -706,6 +845,7 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
       continue;
     }
     var giornoFmt = formatDateStr_(giorno);
+    if (!giorniMap[giornoFmt]) giorniMap[giornoFmt] = [];
     squadre.forEach(function (squadra) {
       if (tempoScaduto) return;
       if (new Date().getTime() - inizioEsecuzione > TEMPO_MASSIMO_MS) { tempoScaduto = true; return; }
@@ -718,7 +858,15 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
         if (sc && giorno > sc) return false;
         return true;
       });
-      if (candidatiOggi.length === 0) return;
+
+      // Anche senza nessun candidato (o nessuno pianificabile), la squadra viene comunque
+      // riportata per questo giorno, marcata come libera: meglio un vuoto esplicito che una
+      // squadra silenziosamente assente dal riepilogo, specie con più squadre che condividono
+      // lo stesso pool di interventi disponibili.
+      if (candidatiOggi.length === 0) {
+        giorniMap[giornoFmt].push({ squadraId: squadra.id, squadraNome: squadra.nome, colore: squadra.colore, tappe: [], libera: true });
+        return;
+      }
 
       var nodi = costruisciNodi_(squadra, candidatiOggi);
       var partenzaIdx = 0, rientroIdx = nodi.length - 1;
@@ -740,18 +888,16 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
         });
       });
 
-      if (risultato.tappe.length > 0) {
-        if (!giorniMap[giornoFmt]) giorniMap[giornoFmt] = [];
-        var anteprimaGiorno = formattaAnteprima_(squadra, giorno, risultato);
-        giorniMap[giornoFmt].push({
-          squadraId: squadra.id,
-          squadraNome: squadra.nome,
-          colore: squadra.colore,
-          tappe: anteprimaGiorno.tappe,
-          partenzaStimata: anteprimaGiorno.partenzaStimata,
-          rientroStimato: anteprimaGiorno.rientroStimato
-        });
-      }
+      var anteprimaGiorno = formattaAnteprima_(squadra, giorno, risultato);
+      giorniMap[giornoFmt].push({
+        squadraId: squadra.id,
+        squadraNome: squadra.nome,
+        colore: squadra.colore,
+        tappe: anteprimaGiorno.tappe,
+        partenzaStimata: anteprimaGiorno.partenzaStimata,
+        rientroStimato: anteprimaGiorno.rientroStimato,
+        libera: risultato.tappe.length === 0
+      });
     });
     giorno = addDays_(giorno, 1);
   }

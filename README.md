@@ -15,8 +15,8 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
   `Squadre`, `Interventi`, `Regole` e `LogPianificazione`. Li crea in
   automatico lo script (non serve prepararli a mano).
 - **Web App (HtmlService)**: un'unica pagina con tab per Pianificazione,
-  Interventi, Squadre e Regole, che comunica col backend tramite
-  `google.script.run`.
+  Interventi, Programmazione, Squadre e Regole, che comunica col backend
+  tramite `google.script.run`.
 - **Geocodifica automatica** (`Geocoding.gs`): quando salvi una squadra o un
   intervento, il rispettivo indirizzo viene convertito in coordinate tramite
   il servizio Maps integrato di Apps Script (nessuna chiave API da
@@ -25,8 +25,11 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
   manuale-assistito, non un'assegnazione automatica cieca:
   1. Scegli **squadra** e **giorno**.
   2. Seleziona dall'elenco gli interventi "Da pianificare" da includere in
-     quel giro (con avviso se la competenza richiesta non è tra quelle della
-     squadra).
+     quel giro. La **competenza richiesta è un vincolo rigido anche qui**: un
+     intervento la cui competenza non è tra quelle della squadra scelta ha la
+     casella disabilitata (non selezionabile), con l'icona ⚠ a indicarne il
+     motivo — resta comunque deselezionabile se era già pianificato per quella
+     squadra prima di un cambio di competenze.
   3. Premi **"Ottimizza percorso"**: il motore calcola l'ordine di visita che
      minimizza il tempo di spostamento totale, per massimizzare quanti
      interventi entrano nel tempo disponibile (costruzione a "inserimento più
@@ -59,7 +62,11 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      interventi coinvolti. Gli interventi che non entrano nel giro restano
      "Da pianificare" con una nota sul motivo, così restano visibili e
      gestibili (es. spostarli a un altro giorno, altra squadra, o rivedere la
-     finestra oraria).
+     finestra oraria). **Non è obbligatorio riempire per forza tutte le
+     squadre**: se gli interventi disponibili bastano solo per alcune, le
+     altre restano semplicemente senza percorso per quel giorno (nessuna
+     tappa "finta" viene creata) — nella pianificazione automatica su
+     intervallo questo viene indicato esplicitamente (vedi sotto).
 
 ## Struttura dei file (`gas/`)
 
@@ -72,7 +79,7 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 | `Triggers.gs` | Trigger installabile: geocodifica automatica quando un indirizzo viene scritto direttamente sul foglio |
 | `Setup.gs` | Inizializzazione struttura fogli, menu, dati di esempio |
 | `Teams.gs` / `Interventions.gs` / `Rules.gs` | CRUD (con geocodifica automatica su Squadre/Interventi) |
-| `RouteEngine.gs` | Motore di ottimizzazione percorso (inserimento più economico + 2-opt, scheduling con pausa pranzo) |
+| `RouteEngine.gs` | Motore di ottimizzazione percorso (inserimento più economico + 2-opt, scheduling con pausa pranzo, vista "Programmazione" e riempimento buchi) |
 | `Code.gs` | `doGet()` e funzioni esposte al client |
 | `Index.html` / `CSS.html` / `JS.html` | Interfaccia utente (SPA) |
 
@@ -116,15 +123,19 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 
 ## Uso quotidiano
 
-1. Tab **Squadre**: censisci le squadre con competenze (promemoria),
-   indirizzo di partenza a inizio turno, indirizzo di rientro a fine turno
-   (lascia vuoto se coincide con la partenza), orario di lavoro e, se
-   presente, la fascia della pausa pranzo. Indirizzo di partenza e rientro
-   vengono geocodificati automaticamente al salvataggio.
+1. Tab **Squadre**: censisci le squadre con competenze, indirizzo di partenza
+   a inizio turno, indirizzo di rientro a fine turno (lascia vuoto se
+   coincide con la partenza), orario di lavoro e, se presente, la fascia
+   della pausa pranzo. Indirizzo di partenza e rientro vengono geocodificati
+   automaticamente al salvataggio. Le **competenze sono un vincolo rigido**
+   (non solo un promemoria): una squadra senza una data competenza non potrà
+   mai essere assegnata a un intervento che la richiede, né nella selezione
+   manuale né nella pianificazione automatica (lascia il campo vuoto se la
+   squadra copre qualsiasi competenza).
 2. Tab **Interventi**: inserisci gli interventi da pianificare (cliente,
    indirizzo — geocodificato automaticamente —, competenza richiesta,
-   priorità, durata stimata, finestra oraria, eventuale non-prima-del/scadenza
-   informativi).
+   priorità, durata stimata, finestra oraria, **telefono** del cliente per
+   contattarlo sul campo, eventuale non-prima-del/scadenza informativi).
 
    Sotto ogni campo indirizzo (Squadre e Interventi) c'è un link **"🗺️
    Mostra mappa"**: apre un'anteprima piccola e ridimensionabile (trascina
@@ -150,11 +161,29 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      non lavorativi** impostati in Regole. Utile per riempire più giorni — e
      più squadre — in un colpo solo; gli interventi che non trovano posto in
      nessun giorno/squadra dell'intervallo restano "Da pianificare" con una
-     nota sul motivo.
+     nota sul motivo. Una squadra senza interventi compatibili per un
+     determinato giorno compare comunque nel riepilogo, marcata come
+     "**Giornata libera**": non è necessario che tutte le squadre risultino
+     impegnate ogni giorno.
 
    In fondo alla pagina trovi il riepilogo dei percorsi già confermati per il
    giorno selezionato, con tutte le squadre affiancate.
-4. Tab **Regole**: ogni regola ha il controllo adatto al suo tipo — un
+4. Tab **Programmazione**: elenco di tutti gli interventi già pianificati
+   (percorsi confermati) in un intervallo di date, raggruppati per
+   giorno/squadra, con le indicazioni essenziali (ora, cliente, indirizzo) più
+   il **numero di telefono** — utile per contattare il cliente direttamente
+   da questa vista. Da qui puoi:
+   - **"Rimuovi"** su una singola riga: l'intervento torna "Da pianificare"
+     (deselezione di una tappa già programmata);
+   - **"Riempi buco"** per una squadra/giorno: ripianifica subito quella
+     combinazione usando le tappe rimaste più il pool di interventi ancora
+     "Da pianificare" compatibili (stessa competenza, stesso rispetto di
+     finestre orarie/pausa pranzo/orario di lavoro), per non lasciare ore di
+     turno inutilizzate. Premendo "Rimuovi" questo riempimento **parte in
+     automatico** subito dopo la deselezione, così il buco lasciato aperto in
+     un giorno già programmato viene ricoperto, se possibile, senza un passo
+     manuale in più.
+5. Tab **Regole**: ogni regola ha il controllo adatto al suo tipo — un
    selettore con i giorni della settimana per "Giorni Lavorativi" (rispettato
    dalla pianificazione automatica su intervallo, che salta i giorni non
    spuntati), campi numerici per tutti gli altri parametri (pesi delle

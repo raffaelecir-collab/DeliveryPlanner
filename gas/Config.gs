@@ -41,7 +41,7 @@ var SCHEMA = {
     fields: [
       { key: 'id', label: 'ID', type: 'text', readonly: true },
       { key: 'nome', label: 'Nome Squadra', type: 'text', required: true },
-      { key: 'competenze', label: 'Competenze (separate da virgola)', type: 'text', help: 'Es: elettrico,idraulico — usato solo come promemoria in fase di selezione.' },
+      { key: 'competenze', label: 'Competenze (separate da virgola)', type: 'text', help: 'Es: elettrico,idraulico — vincolo rigido: alla squadra possono essere assegnati solo interventi la cui competenza richiesta è tra queste (vuoto = nessun vincolo, la squadra copre qualsiasi competenza).' },
       { key: 'indirizzoPartenza', label: 'Indirizzo di Partenza (inizio turno)', type: 'text', required: true, mapPreview: true, mapCoordFields: ['latPartenza', 'lngPartenza'] },
       { key: 'indirizzoRientro', label: 'Indirizzo di Rientro (fine turno)', type: 'text', help: 'Lascia vuoto se coincide con la partenza.', mapPreview: true, mapCoordFields: ['latRientro', 'lngRientro'] },
       { key: 'latPartenza', label: 'Lat Partenza', type: 'number', readonly: true },
@@ -80,7 +80,8 @@ var SCHEMA = {
       { key: 'oraPianificata', label: 'Ora Pianificata', type: 'text', readonly: true },
       { key: 'ordineTappa', label: 'Ordine nel Percorso', type: 'number', readonly: true },
       { key: 'note', label: 'Note', type: 'text' },
-      { key: 'motivoNonPianificato', label: 'Nota Pianificazione', type: 'text', readonly: true }
+      { key: 'motivoNonPianificato', label: 'Nota Pianificazione', type: 'text', readonly: true },
+      { key: 'telefono', label: 'Telefono', type: 'text' }
     ]
   },
   REGOLE: {

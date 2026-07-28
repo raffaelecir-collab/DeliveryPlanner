@@ -14,6 +14,7 @@
     <nav class="tabs">
       <button class="tab-btn active" data-view="pianificazione">Pianificazione</button>
       <button class="tab-btn" data-view="interventi">Interventi</button>
+      <button class="tab-btn" data-view="programmazione">Programmazione</button>
       <button class="tab-btn" data-view="squadre">Squadre</button>
       <button class="tab-btn" data-view="impostazioni">Regole</button>
     </nav>
@@ -124,6 +125,28 @@
               <tbody></tbody>
             </table>
           </div>
+        </div>
+      </section>
+
+      <!-- VISTA PROGRAMMAZIONE -->
+      <section class="view" id="view-programmazione">
+        <div class="card">
+          <h2>Programmazione confermata</h2>
+          <p class="sub">Elenco degli interventi già pianificati (percorsi confermati) in un intervallo di date, con i dati essenziali e il telefono per contattare il cliente sul campo. "Rimuovi" riporta l'intervento a "Da pianificare"; "Riempi buco" ripianifica subito quella squadra/giorno usando gli interventi ancora disponibili, per non lasciare ore di lavoro inutilizzate.</p>
+          <div class="row">
+            <div class="field">
+              <label>Dal</label>
+              <input type="date" id="prog-dal">
+            </div>
+            <div class="field">
+              <label>Al</label>
+              <input type="date" id="prog-al">
+            </div>
+            <div class="field">
+              <button class="btn secondary" id="btn-carica-programmazione">Carica</button>
+            </div>
+          </div>
+          <div id="prog-risultato" style="margin-top:14px;"><div class="empty-hint">Seleziona un intervallo di date e premi "Carica".</div></div>
         </div>
       </section>
 
