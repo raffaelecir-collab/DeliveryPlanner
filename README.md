@@ -50,11 +50,22 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
        **non** viene conteggiato in questo orario (è trasferimento fuori
        turno); vengono comunque mostrati come informazione l'orario stimato
        di uscita e di rientro;
-     - **l'eventuale pausa pranzo** — non si può *iniziare* un nuovo
-       intervento durante la pausa (slitta a fine pausa), ma un intervento già
-       in corso può proseguire ed essere "a cavallo" della pausa senza essere
-       interrotto;
-     - **la finestra oraria richiesta da ciascun cliente**.
+     - **l'eventuale pausa pranzo** — non si può mai *iniziare* un nuovo
+       intervento durante la pausa (slitta a fine pausa). Un intervento già in
+       corso quando inizia la pausa può sconfinarci dentro solo entro la
+       tolleranza impostata in Regole (**pausaTolleranzaMinuti**, default 15
+       minuti): un piccolo sconfinamento viene tollerato senza interrompere il
+       lavoro, ma oltre quella soglia la pausa viene inserita per intero (il
+       tecnico si ferma davvero e riprende a fine pausa), spostando in avanti
+       il completamento reale dell'intervento e, di conseguenza, l'orario
+       delle tappe successive;
+     - **la finestra oraria richiesta da ciascun cliente**;
+     - **l'eventuale indisponibilità della squadra** — giorni settimanali di
+       riposo specifici (oltre ai giorni lavorativi generali) e periodi di
+       ferie/assenza impostati sulla scheda della squadra: nei giorni
+       coperti da questi non le viene assegnato alcun intervento (la
+       selezione manuale su quel giorno viene bloccata con un errore
+       esplicito).
   4. Puoi affinare manualmente il percorso proposto (sposta su/giù una tappa,
      rimuovine una) prima di confermarlo: ogni modifica ricalcola subito gli
      orari.
@@ -131,7 +142,14 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    (non solo un promemoria): una squadra senza una data competenza non potrà
    mai essere assegnata a un intervento che la richiede, né nella selezione
    manuale né nella pianificazione automatica (lascia il campo vuoto se la
-   squadra copre qualsiasi competenza).
+   squadra copre qualsiasi competenza). Sulla stessa scheda puoi indicare
+   l'**indisponibilità della squadra**: un selettore dei **giorni della
+   settimana** in cui quella squadra in particolare non lavora (es. un
+   part-time con giorno di riposo infrasettimanale, oltre ai giorni
+   lavorativi generali impostati in Regole) e uno o più **periodi di
+   ferie/assenza** (Dal/Al, aggiungibili con "+ Aggiungi periodo"): nei
+   giorni coperti da questi la squadra non viene mai considerata dalla
+   pianificazione (né manuale né automatica).
 2. Tab **Interventi**: inserisci gli interventi da pianificare (cliente,
    indirizzo — geocodificato automaticamente —, competenza richiesta,
    priorità, durata stimata, finestra oraria, **telefono** del cliente per
@@ -151,20 +169,32 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      percorso", eventualmente affina l'ordine (frecce su/giù, rimuovi tappa)
      e premi "Conferma e salva percorso".
    - **Pianificazione automatica su intervallo**: seleziona una o più
-     squadre (checklist sopra le date — la prima selezionata ha la precedenza
-     nella scelta degli interventi in ciascun giorno) e un intervallo Dal/Al,
-     poi premi "Pianifica intervallo": il sistema genera e **scrive subito**
-     (senza passaggio di conferma) un percorso ottimizzato per ciascuna
-     squadra in ciascun giorno dell'intervallo, usando via via gli interventi
-     "Da pianificare" ancora disponibili e compatibili (qui la competenza
-     richiesta è un filtro rigido, non solo un avviso), **saltando i giorni
-     non lavorativi** impostati in Regole. Utile per riempire più giorni — e
-     più squadre — in un colpo solo; gli interventi che non trovano posto in
-     nessun giorno/squadra dell'intervallo restano "Da pianificare" con una
-     nota sul motivo. Una squadra senza interventi compatibili per un
-     determinato giorno compare comunque nel riepilogo, marcata come
-     "**Giornata libera**": non è necessario che tutte le squadre risultino
-     impegnate ogni giorno.
+     squadre e un intervallo Dal/Al, poi premi "Pianifica intervallo": il
+     sistema genera e **scrive subito** (senza passaggio di conferma) un
+     percorso ottimizzato per ciascuna squadra in ciascun giorno
+     dell'intervallo, usando via via gli interventi "Da pianificare" ancora
+     disponibili e compatibili (qui la competenza richiesta è un filtro
+     rigido, non solo un avviso), **saltando i giorni non lavorativi**
+     impostati in Regole e i giorni in cui una squadra è specificamente non
+     disponibile (giorno di riposo o ferie). Con più squadre selezionate per
+     lo stesso giorno, gli interventi non vengono assegnati "una squadra alla
+     volta per intero" nell'ordine di selezione: ogni squadra viene servita
+     **in parallelo, un intervento alla volta**, scegliendo ad ogni turno
+     quello compatibile più economico da raggiungere da dove si trova in
+     quel momento. Così un intervento vicino a una squadra già presente in
+     quella zona le viene naturalmente assegnato, invece di essere dato a
+     un'altra squadra mandata apposta per un solo intervento — che
+     finirebbe poi con gran parte della giornata inutilizzata pur avendoci
+     una squadra già sul posto in grado di completarlo. Questo, insieme al
+     passaggio di riempimento finale, è pensato per **massimizzare le ore di
+     turno effettivamente utilizzate** di ogni squadra, invece di lasciarne
+     alcune a metà giornata quando ci sarebbe ancora lavoro compatibile da
+     redistribuire. Gli interventi che non trovano posto in nessun
+     giorno/squadra dell'intervallo restano "Da pianificare" con una nota sul
+     motivo. Una squadra senza interventi compatibili (o non disponibile) per
+     un determinato giorno compare comunque nel riepilogo, marcata come
+     "**Giornata libera**" con il motivo: non è necessario che tutte le
+     squadre risultino impegnate ogni giorno.
 
    In fondo alla pagina trovi il riepilogo dei percorsi già confermati per il
    giorno selezionato, con tutte le squadre affiancate.
@@ -189,8 +219,9 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    spuntati), campi numerici per tutti gli altri parametri (pesi delle
    priorità, peso e raggio della densità di un'area, preferenza per la
    vicinanza alla base, buffer di setup/parcheggio tra due tappe, velocità
-   media di fallback) — nessun testo libero da digitare a mano, e nessuna
-   modifica al codice richiesta.
+   media di fallback, **minuti di tolleranza sullo sconfinamento nella pausa
+   pranzo**) — nessun testo libero da digitare a mano, e nessuna modifica al
+   codice richiesta.
 
 Ogni percorso confermato (in entrambe le modalità) viene registrato nel
 foglio `LogPianificazione` (visibile in fondo al tab Regole), utile per

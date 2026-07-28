@@ -53,7 +53,9 @@ var SCHEMA = {
       { key: 'pausaPranzoInizio', label: 'Pausa Pranzo - Inizio (HH:mm)', type: 'text', help: 'Lascia vuoto se la squadra non ha una pausa fissa.' },
       { key: 'pausaPranzoFine', label: 'Pausa Pranzo - Fine (HH:mm)', type: 'text' },
       { key: 'colore', label: 'Colore', type: 'color', default: '#4285F4' },
-      { key: 'attiva', label: 'Attiva', type: 'checkbox', default: true }
+      { key: 'attiva', label: 'Attiva', type: 'checkbox', default: true },
+      { key: 'giorniIndisponibili', label: 'Giorni Settimanali Non Disponibili', type: 'giorni', help: 'Oltre ai giorni lavorativi generali (impostati in Regole), seleziona eventuali giorni della settimana in cui QUESTA squadra in particolare non è disponibile (es. part-time). Nessuna selezione = segue il calendario standard.' },
+      { key: 'feriePeriodi', label: 'Periodi di Ferie/Assenza', type: 'ferie', help: 'Intervalli di date (Dal/Al) in cui la squadra è completamente non disponibile: durante questi periodi non le viene assegnato alcun intervento, né manualmente né nella pianificazione automatica.' }
     ]
   },
   INTERVENTI: {
@@ -118,6 +120,7 @@ var SCHEMA = {
 var REGOLE_DEFAULT = [
   { chiave: 'giorniLavorativi', valore: 'Lun,Mar,Mer,Gio,Ven', tipo: 'giorni', descrizione: 'Giorni della settimana in cui la pianificazione automatica su intervallo può assegnare interventi (i giorni non selezionati vengono saltati).' },
   { chiave: 'bufferSetupMinuti', valore: '10', tipo: 'numero', descrizione: 'Minuti fissi di parcheggio/setup aggiunti ad ogni spostamento tra due tappe, oltre al tempo di viaggio.' },
+  { chiave: 'pausaTolleranzaMinuti', valore: '15', tipo: 'numero', descrizione: 'Minuti di sconfinamento nella pausa pranzo tollerati per un intervento già in corso quando inizia la pausa: entro questa soglia l\'intervento prosegue senza interruzioni. Oltre la soglia, la pausa viene inserita per intero (il tecnico si ferma e il completamento dell\'intervento, e delle tappe successive, slitta in avanti di conseguenza). Con 0, qualunque sconfinamento inserisce subito la pausa.' },
   { chiave: 'velocitaMediaKmH', valore: '30', tipo: 'numero', descrizione: 'Velocità media (km/h) usata per stimare il tempo di viaggio quando il calcolo reale (Google Maps) non è disponibile.' },
   { chiave: 'pesoPrioritaUrgente', valore: '1000', tipo: 'numero', descrizione: 'Peso della priorità Urgente, usato come criterio secondario nella costruzione iniziale del percorso.' },
   { chiave: 'pesoPrioritaAlta', valore: '100', tipo: 'numero', descrizione: 'Peso della priorità Alta.' },

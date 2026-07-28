@@ -122,6 +122,12 @@
   .checklist-squadre label { display: flex; align-items: center; gap: 6px; background: var(--grigio-100); border: 1px solid var(--grigio-200); border-radius: 20px; padding: 6px 12px 6px 8px; font-size: 12.5px; cursor: pointer; }
   .checklist-squadre input[type=checkbox] { margin: 0; }
 
+  .ferie-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+  .ferie-riga { display: flex; align-items: center; gap: 6px; }
+  .ferie-riga input[type=date] { flex: 1; min-width: 0; }
+  .ferie-rimuovi { border: 1px solid var(--grigio-400); background: #fff; border-radius: 5px; width: 26px; height: 26px; cursor: pointer; font-size: 12px; flex-shrink: 0; }
+  .ferie-rimuovi:hover { background: var(--grigio-100); }
+
   #modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
   #modal-overlay.hidden { display: none; }
   #modal-box { background: #fff; border-radius: var(--radius); width: min(560px, 92vw); max-height: 88vh; overflow-y: auto; padding: 22px; }

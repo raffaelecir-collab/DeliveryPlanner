@@ -237,25 +237,38 @@ function dueOptMigliora_(ordine, matrice) {
 
 // ---------- orario di lavoro e pausa pranzo ----------
 //
-// La pausa pranzo blocca solo l'INIZIO di un nuovo intervento in quella fascia (la squadra
-// non viene mandata a iniziare un lavoro proprio durante la pausa): un intervento già in corso,
-// iniziato prima della pausa, può proseguire senza interruzioni ed essere "a cavallo" della
-// pausa stessa — non viene spezzato né bloccato a metà.
+// La pausa pranzo blocca sempre l'INIZIO di un nuovo intervento in quella fascia (la squadra
+// non viene mai mandata a iniziare un lavoro proprio durante la pausa). Un intervento già in
+// corso quando inizia la pausa può sconfinarci dentro solo entro la tolleranza impostata in
+// Regole (pausaTolleranzaMinuti): un piccolo sconfinamento viene tollerato senza spezzare il
+// lavoro, ma oltre quella soglia la pausa viene inserita per intero (il tecnico si ferma
+// davvero e riprende a fine pausa), spostando in avanti il completamento reale dell'intervento
+// e, di conseguenza, l'orario delle tappe successive.
 
 /**
  * Primo istante >= candidateStart, entro l'orario di lavoro, in cui è possibile iniziare un
- * intervento: se cade dentro la pausa pranzo viene spostato alla fine della pausa (un intervento
- * non può INIZIARE in pausa), ma una volta iniziato può proseguire oltre la pausa e oltre
- * l'orario di fine turno non è mai consentito.
+ * intervento, più l'istante di completamento REALE (che può essere posticipato dall'inserimento
+ * della pausa pranzo). Restituisce null se non c'è modo di iniziare/completare entro il turno.
  */
-function trovaSlotValido_(candidateStart, durata, oraInizioMin, oraFineMin, pausaInizioMin, pausaFineMin) {
+function trovaSlotValido_(candidateStart, durata, oraInizioMin, oraFineMin, pausaInizioMin, pausaFineMin, tolleranzaPausaMinuti) {
   var start = Math.max(candidateStart, oraInizioMin);
-  if (pausaInizioMin !== null && pausaFineMin !== null && pausaFineMin > pausaInizioMin &&
-    start >= pausaInizioMin && start < pausaFineMin) {
-    start = pausaFineMin;
+  var haPausa = pausaInizioMin !== null && pausaFineMin !== null && pausaFineMin > pausaInizioMin;
+  if (haPausa && start >= pausaInizioMin && start < pausaFineMin) {
+    start = pausaFineMin; // un intervento non può INIZIARE durante la pausa
   }
-  if (start + durata > oraFineMin) return null;
-  return start;
+
+  var fine = start + durata;
+  if (haPausa && start < pausaInizioMin && fine > pausaInizioMin) {
+    // L'intervento è già in corso quando comincia la pausa: quanti minuti di lavoro
+    // sconfinerebbero nella pausa se si proseguisse senza fermarsi.
+    var minutiSconfinamento = fine - pausaInizioMin;
+    if (minutiSconfinamento > (tolleranzaPausaMinuti || 0)) {
+      fine += (pausaFineMin - pausaInizioMin); // pausa inserita per intero
+    }
+  }
+
+  if (fine > oraFineMin) return null;
+  return { start: start, fine: fine };
 }
 
 // ---------- scheduling: assegna gli orari lungo l'ordine scelto ----------
@@ -266,6 +279,7 @@ function pianificaOrarioPercorso_(squadra, nodi, ordine, matrice, partenzaIdx, r
   var pausaInizioMin = squadra.pausaPranzoInizio ? timeToMinutes_(squadra.pausaPranzoInizio) : null;
   var pausaFineMin = squadra.pausaPranzoFine ? timeToMinutes_(squadra.pausaPranzoFine) : null;
   var bufferSetup = regole.bufferSetupMinuti || 10;
+  var tolleranzaPausaMinuti = regole.pausaTolleranzaMinuti || 0;
 
   var cursor = null;
   var prevIdx = partenzaIdx;
@@ -284,11 +298,11 @@ function pianificaOrarioPercorso_(squadra, nodi, ordine, matrice, partenzaIdx, r
     var candidateStart = isFirst
       ? Math.max(oraInizioMin, finestraInizioInt)
       : Math.max(cursor + viaggio.minuti + bufferSetup, finestraInizioInt);
-    var start = trovaSlotValido_(candidateStart, durata, oraInizioMin, oraFineMin, pausaInizioMin, pausaFineMin);
-    if (start === null || start + durata > finestraFineInt) {
+    var slot = trovaSlotValido_(candidateStart, durata, oraInizioMin, oraFineMin, pausaInizioMin, pausaFineMin, tolleranzaPausaMinuti);
+    if (slot === null || slot.fine > finestraFineInt) {
       nonIncluse.push({
         intervento: intervento,
-        motivo: start === null
+        motivo: slot === null
           ? 'Non entra nel turno disponibile (orario di lavoro/pausa pranzo insufficienti)'
           : 'Non rispetta la finestra oraria richiesta dal cliente (' + intervento.finestraInizio + '-' + intervento.finestraFine + ')'
       });
@@ -296,15 +310,15 @@ function pianificaOrarioPercorso_(squadra, nodi, ordine, matrice, partenzaIdx, r
     }
     tappe.push({
       intervento: intervento,
-      oraInizio: minutesToTime_(start),
-      oraFine: minutesToTime_(start + durata),
+      oraInizio: minutesToTime_(slot.start),
+      oraFine: minutesToTime_(slot.fine),
       viaggioMinutiDallaPrecedente: isFirst ? 0 : Math.round(viaggio.minuti),
       distanzaKmDallaPrecedente: isFirst ? 0 : viaggio.km,
       stimato: viaggio.stimato
     });
     if (!isFirst) { distanzaTotale += viaggio.km; tempoViaggioTotale += viaggio.minuti; }
     if (primoIdxEffettivo === null) primoIdxEffettivo = idx;
-    cursor = start + durata;
+    cursor = slot.fine;
     prevIdx = idx;
     isFirst = false;
   });
@@ -377,9 +391,14 @@ function pianificaConUpgradeReale_(squadra, nodi, ordine, matriceStima, partenza
  * tiene il risultato originale), per non sacrificare mai il numero di interventi eseguibili
  * in cambio di un percorso marginalmente più corto. Infine i tempi vengono aggiornati con
  * quelli reali (Google Maps) solo sui tratti del percorso scelto.
+ *
+ * Se `ordineInizialeForzato` è fornito (es. dalla costruzione congiunta multi-squadra), viene
+ * usato al posto della normale costruzione a inserimento più economico: eventuali candidati di
+ * stopIndices non compresi in quell'ordine (mai considerati in questo turno di assegnazione)
+ * vengono comunque proposti al passaggio di riempimento finale, per non perdere copertura.
  */
-function costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima, partenzaIdx, rientroIdx, regole) {
-  var ordineIniziale = costruisciPercorsoInserzione_(stopIndices, matriceStima, partenzaIdx, nodi, regole);
+function costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima, partenzaIdx, rientroIdx, regole, ordineInizialeForzato) {
+  var ordineIniziale = ordineInizialeForzato || costruisciPercorsoInserzione_(stopIndices, matriceStima, partenzaIdx, nodi, regole);
   var risultato = pianificaOrarioPercorso_(squadra, nodi, ordineIniziale, matriceStima, partenzaIdx, rientroIdx, regole);
   var ordineFinale = ordineIniziale;
 
@@ -399,6 +418,17 @@ function costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima,
   }
 
   var risultatoFinale = pianificaConUpgradeReale_(squadra, nodi, ordineFinale, matriceStima, partenzaIdx, rientroIdx, regole);
+
+  if (ordineInizialeForzato) {
+    var consideratiSet = {};
+    ordineInizialeForzato.forEach(function (idx) { consideratiSet[idx] = true; });
+    stopIndices.forEach(function (idx) {
+      if (!consideratiSet[idx]) {
+        risultatoFinale.nonIncluse.push({ intervento: nodi[idx].intervento, motivo: 'Non ancora considerato in questo turno di assegnazione' });
+      }
+    });
+  }
+
   return riempiGiornata_(squadra, nodi, risultatoFinale, matriceStima, partenzaIdx, rientroIdx, regole);
 }
 
@@ -564,6 +594,11 @@ function anteprimaPercorso(squadraId, giornoStr, interventoIds, ordineManuale) {
   if (!isNum_(squadra.latPartenza) || !isNum_(squadra.lngPartenza)) {
     throw new Error('L\'indirizzo di partenza della squadra "' + squadra.nome + '" non è geocodificato. Ri-salva la squadra con un indirizzo valido.');
   }
+  var giorno = parseDateStr_(giornoStr);
+  if (!giorno) throw new Error('Data non valida.');
+  if (!squadraDisponibileGiorno_(squadra, giorno)) {
+    throw new Error('La squadra "' + squadra.nome + '" non è disponibile il ' + formatDateStr_(giorno) + ' (' + motivoIndisponibilita_(squadra, giorno) + ').');
+  }
 
   var tuttiInterventi = assicuraIdTutti_('INTERVENTI');
   var selezionati = interventoIds.map(function (id) {
@@ -588,7 +623,6 @@ function anteprimaPercorso(squadraId, giornoStr, interventoIds, ordineManuale) {
   for (var i = 1; i < nodi.length - 1; i++) stopIndices.push(i);
 
   var matriceStima = costruisciMatriceStimata_(nodi, regole);
-  var giorno = parseDateStr_(giornoStr);
 
   if (ordineManuale && ordineManuale.length === stopIndices.length) {
     var ordine = ordineManuale.map(function (id) {
@@ -724,6 +758,9 @@ function riempiBucoGiorno(squadraId, giornoStr) {
   }
   var giorno = parseDateStr_(giornoStr);
   if (!giorno) throw new Error('Data non valida.');
+  if (!squadraDisponibileGiorno_(squadra, giorno)) {
+    throw new Error('La squadra "' + squadra.nome + '" non è disponibile il ' + formatDateStr_(giorno) + ' (' + motivoIndisponibilita_(squadra, giorno) + ').');
+  }
   var giornoFmt = formatDateStr_(giorno);
 
   var tuttiInterventi = assicuraIdTutti_('INTERVENTI');
@@ -787,6 +824,104 @@ function squadraCoprCompetenza_(squadra, intervento) {
   return !intervento.competenza || competenze.length === 0 || competenze.indexOf(String(intervento.competenza).toLowerCase()) !== -1;
 }
 
+/** true se `giorno` (Date) cade in uno dei periodi di ferie/assenza della squadra. */
+function squadraInFerie_(squadra, giorno) {
+  if (!squadra.feriePeriodi) return false;
+  var periodi;
+  try { periodi = JSON.parse(squadra.feriePeriodi); } catch (e) { return false; }
+  if (!Array.isArray(periodi)) return false;
+  return periodi.some(function (p) {
+    var dal = parseDateStr_(p.dal), al = parseDateStr_(p.al);
+    return dal && al && giorno >= dal && giorno <= al;
+  });
+}
+
+/**
+ * true se la squadra è disponibile in quel giorno: né in un giorno settimanale di
+ * indisponibilità specifico della squadra, né in un periodo di ferie/assenza.
+ */
+function squadraDisponibileGiorno_(squadra, giorno) {
+  if (squadraInFerie_(squadra, giorno)) return false;
+  var giorniIndisponibili = splitList_(squadra.giorniIndisponibili);
+  if (giorniIndisponibili.indexOf(GIORNI_SETTIMANA[giorno.getDay()]) !== -1) return false;
+  return true;
+}
+
+/** Messaggio descrittivo del motivo di non disponibilità (assume che squadraDisponibileGiorno_ sia già false). */
+function motivoIndisponibilita_(squadra, giorno) {
+  if (squadraInFerie_(squadra, giorno)) return 'In ferie/assente';
+  return 'Giorno di riposo settimanale della squadra';
+}
+
+/**
+ * Costruisce, per un singolo giorno con più squadre coinvolte, un ordine di visita di partenza
+ * per ciascuna squadra assegnando gli interventi "a round": ad ogni giro, ogni squadra ancora
+ * attiva prova ad accodare al proprio percorso l'intervento compatibile e ancora libero più
+ * economico da raggiungere (viaggio dall'ultimo punto raggiunto), rispettando orario di lavoro,
+ * pausa pranzo e finestra oraria. Le squadre vengono quindi servite "in parallelo" invece che una
+ * alla volta per intero: un intervento vicino a una squadra già presente in quella zona le viene
+ * naturalmente assegnato (costo di avvicinamento quasi nullo), invece di essere dato a un'altra
+ * squadra mandata apposta per un solo intervento — che finirebbe poi con gran parte della
+ * giornata inutilizzata pur avendoci una squadra già sul posto in grado di completarlo. Questo è
+ * solo un ordine di PARTENZA: il raffinamento successivo (2-opt + riempimento in qualsiasi
+ * posizione) in costruisciEPianificaPercorso_ lo perfeziona e recupera eventuali interventi
+ * rimasti fuori da questo passaggio.
+ */
+function costruisciOrdiniGiornoCongiunti_(squadre, candidatiPerSquadra, regole) {
+  var tolleranzaPausaMinuti = regole.pausaTolleranzaMinuti || 0;
+  var bufferSetup = regole.bufferSetupMinuti || 10;
+
+  var oraInizioMin = {}, oraFineMin = {}, pausaInizioMin = {}, pausaFineMin = {};
+  var cursorMin = {}, ultimoPunto = {}, ordine = {};
+  squadre.forEach(function (s) {
+    oraInizioMin[s.id] = timeToMinutes_(s.oraInizio);
+    oraFineMin[s.id] = timeToMinutes_(s.oraFine);
+    pausaInizioMin[s.id] = s.pausaPranzoInizio ? timeToMinutes_(s.pausaPranzoInizio) : null;
+    pausaFineMin[s.id] = s.pausaPranzoFine ? timeToMinutes_(s.pausaPranzoFine) : null;
+    cursorMin[s.id] = oraInizioMin[s.id];
+    ultimoPunto[s.id] = { lat: s.latPartenza, lng: s.lngPartenza };
+    ordine[s.id] = [];
+  });
+
+  var assegnato = {}; // interventoId -> true non appena vinto da una squadra in un round
+  var attive = squadre.slice();
+
+  while (attive.length > 0) {
+    var progresso = false;
+    attive = attive.filter(function (s) {
+      var candidati = (candidatiPerSquadra[s.id] || []).filter(function (i) { return !assegnato[i.id]; });
+      if (!candidati.length) return false; // nessun candidato rimasto per questa squadra: esce definitivamente
+
+      var migliore = null;
+      candidati.forEach(function (cand) {
+        var viaggio = stimaViaggio_(ultimoPunto[s.id], cand, regole).minuti;
+        var durata = cand.durataMinuti || 60;
+        var finestraInizioInt = timeToMinutes_(cand.finestraInizio || '00:00');
+        var finestraFineInt = timeToMinutes_(cand.finestraFine || '23:59');
+        var candidateStart = Math.max(cursorMin[s.id] + viaggio + bufferSetup, finestraInizioInt);
+        var slot = trovaSlotValido_(candidateStart, durata, oraInizioMin[s.id], oraFineMin[s.id], pausaInizioMin[s.id], pausaFineMin[s.id], tolleranzaPausaMinuti);
+        if (!slot || slot.fine > finestraFineInt) return; // non entra nel turno di questa squadra
+        // Il costo di questo giro è dominato dalla vicinanza (l'obiettivo è consolidare le
+        // squadre già in zona), con una lieve preferenza per la priorità più alta a parità di
+        // distanza.
+        var costo = viaggio - pesoPriorita_(cand.priorita, regole) * 0.05;
+        if (!migliore || costo < migliore.costo) migliore = { cand: cand, costo: costo, fine: slot.fine };
+      });
+
+      if (!migliore) return false; // nessun candidato rimasto entra nel tempo residuo: squadra esaurita per oggi
+      ordine[s.id].push(migliore.cand.id);
+      assegnato[migliore.cand.id] = true;
+      cursorMin[s.id] = migliore.fine;
+      ultimoPunto[s.id] = { lat: migliore.cand.lat, lng: migliore.cand.lng };
+      progresso = true;
+      return true;
+    });
+    if (!progresso) break;
+  }
+
+  return ordine; // { squadraId: [interventoId, ...] }
+}
+
 /**
  * Pianifica automaticamente, senza selezione manuale, tutti gli interventi "Da pianificare"
  * compatibili con una o più squadre su un intervallo di giorni: per ciascun giorno (in ordine),
@@ -846,10 +981,25 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
     }
     var giornoFmt = formatDateStr_(giorno);
     if (!giorniMap[giornoFmt]) giorniMap[giornoFmt] = [];
+
+    // Le squadre in ferie o nel loro giorno di riposo settimanale specifico vengono escluse
+    // subito da questo giorno, ma comunque riportate come "libere" con il motivo, invece di
+    // sparire silenziosamente dal riepilogo.
+    var squadreDisponibiliOggi = [];
     squadre.forEach(function (squadra) {
-      if (tempoScaduto) return;
-      if (new Date().getTime() - inizioEsecuzione > TEMPO_MASSIMO_MS) { tempoScaduto = true; return; }
-      var candidatiOggi = pool.filter(function (i) {
+      if (!squadraDisponibileGiorno_(squadra, giorno)) {
+        giorniMap[giornoFmt].push({
+          squadraId: squadra.id, squadraNome: squadra.nome, colore: squadra.colore,
+          tappe: [], libera: true, motivoLibera: motivoIndisponibilita_(squadra, giorno)
+        });
+        return;
+      }
+      squadreDisponibiliOggi.push(squadra);
+    });
+
+    var candidatiPerSquadra = {};
+    squadreDisponibiliOggi.forEach(function (squadra) {
+      candidatiPerSquadra[squadra.id] = pool.filter(function (i) {
         if (i._assegnato) return false;
         if (!squadraCoprCompetenza_(squadra, i)) return false;
         var dr = parseDateStr_(i.dataRichiesta);
@@ -858,6 +1008,17 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
         if (sc && giorno > sc) return false;
         return true;
       });
+    });
+
+    // Costruzione congiunta: le squadre disponibili oggi vengono servite "in parallelo" (a
+    // round) invece che una alla volta per intero, così un intervento vicino a una squadra già
+    // in zona le viene naturalmente assegnato invece che a un'altra squadra mandata apposta.
+    var ordiniCongiunti = costruisciOrdiniGiornoCongiunti_(squadreDisponibiliOggi, candidatiPerSquadra, regole);
+
+    squadreDisponibiliOggi.forEach(function (squadra) {
+      if (tempoScaduto) return;
+      if (new Date().getTime() - inizioEsecuzione > TEMPO_MASSIMO_MS) { tempoScaduto = true; return; }
+      var candidatiOggi = candidatiPerSquadra[squadra.id];
 
       // Anche senza nessun candidato (o nessuno pianificabile), la squadra viene comunque
       // riportata per questo giorno, marcata come libera: meglio un vuoto esplicito che una
@@ -873,7 +1034,15 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
       var stopIndices = [];
       for (var k = 1; k < nodi.length - 1; k++) stopIndices.push(k);
       var matriceStima = costruisciMatriceStimata_(nodi, regole);
-      var risultato = costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima, partenzaIdx, rientroIdx, regole);
+
+      var idxPerId = {};
+      nodi.forEach(function (n, idx) { if (n.intervento) idxPerId[n.intervento.id] = idx; });
+      var ordineForzato = (ordiniCongiunti[squadra.id] || [])
+        .map(function (id) { return idxPerId[id]; })
+        .filter(function (idx) { return idx !== undefined; });
+      if (ordineForzato.length === 0) ordineForzato = null;
+
+      var risultato = costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima, partenzaIdx, rientroIdx, regole, ordineForzato);
 
       risultato.tappe.forEach(function (t, idx) {
         var originale = pool.filter(function (i) { return i.id === t.intervento.id; })[0];

@@ -142,6 +142,13 @@
     var p = str.split('-');
     return p[2] + '/' + p[1] + '/' + p[0];
   }
+  function parseDateStrClient(str) {
+    if (!str) return null;
+    var p = String(str).split(/[\/\-]/);
+    if (p.length !== 3) return null;
+    if (p[0].length === 4) return new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+    return new Date(parseInt(p[2], 10), parseInt(p[1], 10) - 1, parseInt(p[0], 10));
+  }
   function timeToMinutesClient(hhmm) {
     var p = String(hhmm || '0:0').split(':');
     return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
@@ -194,6 +201,76 @@
       var label = document.createElement('label');
       label.textContent = field.label + (field.required ? ' *' : '');
       wrap.appendChild(label);
+
+      if (field.type === 'giorni') {
+        var selezionatiGiorni = splitListClient(existingObj && existingObj[field.key] !== undefined ? existingObj[field.key] : (field.default || ''));
+        var giorniDiv = document.createElement('div');
+        giorniDiv.className = 'checklist-squadre';
+        giorniDiv.dataset.keyGiorni = field.key;
+        GIORNI_ORDINE.forEach(function (g) {
+          var lbl = document.createElement('label');
+          var cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = g;
+          cb.checked = selezionatiGiorni.indexOf(g) !== -1;
+          lbl.appendChild(cb); lbl.appendChild(document.createTextNode(g));
+          giorniDiv.appendChild(lbl);
+        });
+        wrap.appendChild(giorniDiv);
+        if (field.help) {
+          var helpGiorni = document.createElement('div');
+          helpGiorni.className = 'field-help';
+          helpGiorni.textContent = field.help;
+          wrap.appendChild(helpGiorni);
+        }
+        form.appendChild(wrap);
+        return;
+      }
+
+      if (field.type === 'ferie') {
+        var periodiDiv = document.createElement('div');
+        periodiDiv.className = 'ferie-list';
+        periodiDiv.dataset.keyFerie = field.key;
+        var periodiEsistenti = [];
+        try { periodiEsistenti = JSON.parse((existingObj && existingObj[field.key]) || '[]'); } catch (e) { periodiEsistenti = []; }
+        if (!Array.isArray(periodiEsistenti)) periodiEsistenti = [];
+
+        function aggiungiRigaFerie(dal, al) {
+          var riga = document.createElement('div');
+          riga.className = 'ferie-riga';
+          var inputDal = document.createElement('input');
+          inputDal.type = 'date'; inputDal.className = 'ferie-dal';
+          if (dal) { var dDal = parseDateStrClient(dal); if (dDal) inputDal.value = toInputDate(dDal); }
+          var inputAl = document.createElement('input');
+          inputAl.type = 'date'; inputAl.className = 'ferie-al';
+          if (al) { var dAl = parseDateStrClient(al); if (dAl) inputAl.value = toInputDate(dAl); }
+          var btnRimuovi = document.createElement('button');
+          btnRimuovi.type = 'button'; btnRimuovi.className = 'ferie-rimuovi'; btnRimuovi.textContent = '✕';
+          btnRimuovi.addEventListener('click', function () { riga.remove(); });
+          riga.appendChild(inputDal);
+          riga.appendChild(document.createTextNode(' → '));
+          riga.appendChild(inputAl);
+          riga.appendChild(btnRimuovi);
+          periodiDiv.appendChild(riga);
+        }
+        periodiEsistenti.forEach(function (p) { aggiungiRigaFerie(p.dal, p.al); });
+
+        var btnAggiungiFerie = document.createElement('button');
+        btnAggiungiFerie.type = 'button';
+        btnAggiungiFerie.className = 'btn secondary small';
+        btnAggiungiFerie.textContent = '+ Aggiungi periodo';
+        btnAggiungiFerie.addEventListener('click', function () { aggiungiRigaFerie(); });
+
+        wrap.appendChild(periodiDiv);
+        wrap.appendChild(btnAggiungiFerie);
+        if (field.help) {
+          var helpFerie = document.createElement('div');
+          helpFerie.className = 'field-help';
+          helpFerie.textContent = field.help;
+          wrap.appendChild(helpFerie);
+        }
+        form.appendChild(wrap);
+        return;
+      }
+
       var input;
       if (field.type === 'select') {
         input = document.createElement('select');
@@ -252,6 +329,19 @@
         else obj[key] = input.value;
         if (fieldDef && fieldDef.required && !obj[key]) mancante = fieldDef.label;
       });
+      form.querySelectorAll('[data-key-giorni]').forEach(function (container) {
+        var key = container.dataset.keyGiorni;
+        obj[key] = Array.prototype.slice.call(container.querySelectorAll('input:checked')).map(function (cb) { return cb.value; }).join(',');
+      });
+      form.querySelectorAll('[data-key-ferie]').forEach(function (container) {
+        var key = container.dataset.keyFerie;
+        var periodi = Array.prototype.slice.call(container.querySelectorAll('.ferie-riga')).map(function (riga) {
+          var dal = riga.querySelector('.ferie-dal').value, al = riga.querySelector('.ferie-al').value;
+          if (!dal || !al) return null;
+          return { dal: fromInputDate(dal), al: fromInputDate(al) };
+        }).filter(Boolean);
+        obj[key] = JSON.stringify(periodi);
+      });
       if (mancante) { toast('Campo obbligatorio mancante: ' + mancante, 'error'); return; }
       var fnName = SAVE_FN[modalState.schemaKey];
       var saveBtn = document.getElementById('modal-save');
@@ -280,10 +370,20 @@
 
   function renderSquadre(list) {
     var tbody = document.querySelector('#tabella-squadre tbody');
-    if (!list.length) { tbody.innerHTML = '<tr><td colspan="8"><div class="empty-hint">Nessuna squadra. Aggiungine una.</div></td></tr>'; return; }
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="9"><div class="empty-hint">Nessuna squadra. Aggiungine una.</div></td></tr>'; return; }
     tbody.innerHTML = list.map(function (s) {
       var rientro = s.indirizzoRientro ? escapeHtml(s.indirizzoRientro) : '<span style="color:#999;">= partenza</span>';
       var pausa = (s.pausaPranzoInizio && s.pausaPranzoFine) ? (s.pausaPranzoInizio + ' - ' + s.pausaPranzoFine) : '<span style="color:#999;">nessuna</span>';
+      var giorniOff = splitListClient(s.giorniIndisponibili);
+      var periodiFerie = [];
+      try { periodiFerie = JSON.parse(s.feriePeriodi || '[]'); } catch (e) { periodiFerie = []; }
+      if (!Array.isArray(periodiFerie)) periodiFerie = [];
+      var disponibilitaParti = [];
+      if (giorniOff.length) disponibilitaParti.push('Riposo: ' + giorniOff.join(', '));
+      if (periodiFerie.length) disponibilitaParti.push(periodiFerie.length + ' periodo/i di ferie');
+      var disponibilita = disponibilitaParti.length
+        ? '<span style="font-size:11.5px;">' + escapeHtml(disponibilitaParti.join(' · ')) + '</span>'
+        : '<span style="color:#999;">standard</span>';
       return '<tr>' +
         '<td><span class="team-dot" style="background:' + (s.colore || '#999') + '"></span></td>' +
         '<td>' + escapeHtml(s.nome) + '</td>' +
@@ -292,6 +392,7 @@
         '<td>' + (s.oraInizio || '') + ' - ' + (s.oraFine || '') + '</td>' +
         '<td>' + pausa + '</td>' +
         '<td>' + (s.attiva ? '✅' : '❌') + '</td>' +
+        '<td>' + disponibilita + '</td>' +
         '<td><div class="actions-cell">' +
           '<button class="btn small secondary" data-action="modifica" data-row="' + s._row + '">Modifica</button>' +
           '<button class="btn small danger" data-action="elimina" data-row="' + s._row + '">Elimina</button>' +
@@ -575,7 +676,7 @@
         // essere impegnate ogni giorno: se gli interventi disponibili bastano per una sola
         // squadra, l'altra resta libera e va indicato chiaramente, non lasciato ambiguo).
         var stopsHtml = sq.libera || !sq.tappe.length
-          ? '<div class="stop libera"><em>Giornata libera — nessun intervento compatibile da assegnare.</em></div>'
+          ? '<div class="stop libera"><em>Giornata libera — ' + escapeHtml(sq.motivoLibera || 'nessun intervento compatibile da assegnare') + '.</em></div>'
           : sq.tappe.map(function (t) {
             return '<div class="stop"><span class="ora">' + t.oraInizio + '-' + t.oraFine + '</span> <span class="cliente">' + escapeHtml(t.cliente) + '</span>' +
               '<div class="meta">' + escapeHtml(t.indirizzo || '') + ' · ' + t.durataMinuti + ' min</div></div>';
