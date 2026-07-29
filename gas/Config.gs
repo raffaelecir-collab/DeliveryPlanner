@@ -20,7 +20,7 @@ var SHEET_NAMES = {
 var IMPORT_ESTERNO_HEADERS = [
   'Ods', 'Attività', 'Nome Cliente', 'Data Disp.', 'Data Scadenza', 'Urgente',
   'Note Sicuritalia', 'Stato', 'Note Site', 'Data App.', 'Ora App.', 'Tecnico',
-  'Indirizzo', 'Comune', 'Provincia', 'Telefono', 'Aging scaduto'
+  'Importo ODS', 'Indirizzo', 'Comune', 'Provincia', 'Telefono', 'Aging scaduto'
 ];
 
 /** Colonne del foglio esterno senza le quali una riga non può diventare un Intervento. */

@@ -55,6 +55,58 @@ function classificaStatoEsterno_(statoEsternoRaw, squadraMatch, dataApp) {
 }
 
 /**
+ * Legenda durata stimata per tipo di "Attività" (colonna del tracking esterno), alcune delle
+ * quali graduate sull'"Importo ODS" (fornita dal cliente). Le soglie sono intervalli chiusi a
+ * sinistra sul valore più basso (es. per Installazione WiComm: importo <= 280 -> 240 min,
+ * 280 < importo <= 350 -> 360 min, importo > 350 -> 480 min), così ogni importo ricade in
+ * esattamente una fascia, inclusi i valori esattamente sui confini indicati. Per "Integrazione
+ * impianto" il terzo importo indicato dal cliente (360) non si combina in una fascia coerente
+ * con gli altri due (130 e 270): assumendo un refuso, è trattata con lo stesso schema a 2 soglie
+ * delle altre attività graduate (< 130 / 130-270 / > 270) — verificare e correggere se non è
+ * l'intenzione.
+ */
+var LEGENDA_DURATA_ATTIVITA_ = {
+  'installazione periferica': function () { return 120; },
+  'installazione wicomm': function (importo) {
+    if (importo === null) return null;
+    if (importo <= 280) return 240;
+    if (importo <= 350) return 360;
+    return 480;
+  },
+  'manutenzione correttiva': function () { return 60; },
+  'manutenzione ispettiva': function () { return 60; },
+  'smontaggio': function () { return 45; },
+  'integrazione impianto': function (importo) {
+    if (importo === null) return null;
+    if (importo <= 130) return 120;
+    if (importo <= 270) return 240;
+    return 480;
+  },
+  'scarico immagini': function () { return 120; },
+  'installazione filare': function (importo) {
+    if (importo === null) return null;
+    if (importo <= 280) return 240;
+    if (importo <= 350) return 360;
+    return 480;
+  }
+};
+
+/**
+ * Durata stimata (minuti) per una riga del tracking esterno, secondo LEGENDA_DURATA_ATTIVITA_.
+ * Restituisce null se l'Attività non è tra quelle note, o se richiede un Importo ODS numerico
+ * che non è disponibile: in quel caso il chiamante lascia il campo durata invariato (default
+ * dello schema per un nuovo intervento, valore già presente per uno aggiornato).
+ */
+function calcolaDurataAttivitaImport_(attivitaRaw, importoOdsRaw) {
+  var chiave = String(attivitaRaw || '').trim().toLowerCase();
+  var calcolatore = LEGENDA_DURATA_ATTIVITA_[chiave];
+  if (!calcolatore) return null;
+  var importo = (importoOdsRaw === '' || importoOdsRaw === null || importoOdsRaw === undefined) ? null : parseFloat(importoOdsRaw);
+  if (importo !== null && isNaN(importo)) importo = null;
+  return calcolatore(importo);
+}
+
+/**
  * Apre il foglio esterno configurato in Regole (chiave "foglioImportEsternoId") e ne restituisce
  * la prima tab, con un errore chiaro se l'ID manca o se il foglio non è raggiungibile/condiviso
  * con l'account che esegue la Web App.
@@ -97,6 +149,10 @@ function apriFoglioImportEsterno_() {
  * già portato dalla Web App oltre "Da pianificare" (pianificato, completato, annullato) non
  * viene mai retrocesso da un successivo re-import: solo i campi anagrafici (cliente, indirizzo,
  * priorità, date, note, telefono) vengono aggiornati.
+ *
+ * "Urgente" (TRUE/FALSE) diventa priorità Urgente/Normale; "Data Scadenza" viene riportata come
+ * scadenza dell'Intervento; la durata stimata è calcolata da LEGENDA_DURATA_ATTIVITA_ in base ad
+ * "Attività" (e, per alcune attività, all'"Importo ODS").
  *
  * Guardrail di tempo (come in pianificaIntervallo): con un foglio molto grande l'esecuzione
  * potrebbe avvicinarsi al limite di Apps Script: se il tempo sta per scadere, si interrompe
@@ -179,6 +235,13 @@ function importaInterventiEsterni() {
       codiceEsterno: odsStr
     };
     if (esistente) payload.id = esistente.id;
+
+    // Durata stimata dalla legenda per tipo di Attività (alcune graduate sull'Importo ODS): se
+    // l'Attività non è tra quelle note o manca un Importo ODS necessario, il campo non viene
+    // incluso nel payload, così resta il default dello schema (nuovo intervento) o il valore già
+    // presente (aggiornamento), invece di sovrascriverlo con un dato incerto.
+    var durataCalcolata = calcolaDurataAttivitaImport_(attivita, valoreColonnaImport_(row, idx, 'Importo ODS'));
+    if (durataCalcolata !== null) payload.durataMinuti = durataCalcolata;
 
     if (puoImpostarePianificazione) {
       var tecnicoNome = String(valoreColonnaImport_(row, idx, 'Tecnico') || '').trim();

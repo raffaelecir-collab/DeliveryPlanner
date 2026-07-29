@@ -371,6 +371,25 @@ Cosa succede per ogni riga con "Ods" valorizzato:
 - **Urgente** spuntato diventa priorità "Urgente", altrimenti "Normale";
 - **Data Disp./Data Scadenza** diventano rispettivamente "Non Prima Del" e
   "Scadenza"; **Telefono** viene riportato così com'è;
+- la **durata stimata** viene dedotta da "Attività" (ed eventualmente
+  dall'"Importo ODS", per le attività graduate a fasce), secondo la
+  legenda in `LEGENDA_DURATA_ATTIVITA_` (`gas/Import.gs`):
+
+  | Attività | Durata |
+  |---|---|
+  | Installazione Periferica | 120 min |
+  | Installazione WiComm | Importo ODS ≤ 280€ → 240 min · ≤ 350€ → 360 min · oltre → 480 min |
+  | Manutenzione correttiva | 60 min |
+  | Manutenzione ispettiva | 60 min |
+  | Smontaggio | 45 min |
+  | Integrazione impianto | Importo ODS ≤ 130€ → 120 min · ≤ 270€ → 240 min · oltre → 480 min |
+  | Scarico immagini | 120 min |
+  | Installazione filare | Importo ODS ≤ 280€ → 240 min · ≤ 350€ → 360 min · oltre → 480 min |
+
+  Se l'Attività non è tra queste (o manca l'Importo ODS per una graduata a
+  fasce), la durata non viene toccata: resta il default dello schema (60
+  min) per un nuovo intervento, o il valore già presente per un
+  aggiornamento;
 - **Attività, Stato (del tracking esterno), Note Sicuritalia e Note Site**
   vengono uniti in un unico campo "Note", per non perdere nessuna
   informazione anche se non hanno una colonna dedicata;
