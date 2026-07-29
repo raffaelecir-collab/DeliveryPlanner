@@ -8,22 +8,23 @@ var SHEET_NAMES = {
   SQUADRE: 'Squadre',
   INTERVENTI: 'Interventi',
   REGOLE: 'Regole',
-  LOG: 'LogPianificazione',
-  IMPORT_ESTERNO: 'ImportInterventi'
+  LOG: 'LogPianificazione'
 };
 
 /**
- * Intestazioni del foglio "grezzo" ImportInterventi, nello stesso ordine e con lo stesso
- * testo dell'export del sistema di tracking esterno del cliente: si incollano i dati lì
- * (sovrascrivendo pure le righe di esempio) e si preme "Importa" nel tab Interventi della
- * Web App. Non è uno SCHEMA con CRUD proprio: è solo un'area di staging che Import.gs legge
- * per posizione di colonna.
+ * Colonne attese nella prima tab del foglio Google esterno (tracking) da cui si importano gli
+ * Interventi (vedi Import.gs): usate per validare l'intestazione trovata e per i messaggi di
+ * errore. Le colonne vengono lette per NOME (dall'intestazione del foglio esterno stesso), non
+ * per posizione, quindi il loro ordine nel foglio esterno può differire da questo elenco.
  */
 var IMPORT_ESTERNO_HEADERS = [
   'Ods', 'Attività', 'Nome Cliente', 'Data Disp.', 'Data Scadenza', 'Urgente',
   'Note Sicuritalia', 'Stato', 'Note Site', 'Data App.', 'Ora App.', 'Tecnico',
   'Indirizzo', 'Comune', 'Provincia', 'Telefono', 'Aging scaduto'
 ];
+
+/** Colonne del foglio esterno senza le quali una riga non può diventare un Intervento. */
+var IMPORT_ESTERNO_COLONNE_OBBLIGATORIE = ['Ods', 'Nome Cliente', 'Indirizzo'];
 
 var PRIORITA = {
   URGENTE: 'Urgente',
@@ -136,6 +137,7 @@ var SCHEMA = {
  */
 var REGOLE_DEFAULT = [
   { chiave: 'giorniLavorativi', valore: 'Lun,Mar,Mer,Gio,Ven', tipo: 'giorni', descrizione: 'Giorni della settimana in cui la pianificazione automatica su intervallo può assegnare interventi (i giorni non selezionati vengono saltati).' },
+  { chiave: 'foglioImportEsternoId', valore: '1SOJ8-aNc2tDXeXhDmxNew3ILTyGb-6j2ENrIeZzijEU', tipo: 'testo', descrizione: 'ID del foglio Google esterno (tracking) da cui il pulsante "Importa" nel tab Interventi legge gli interventi da importare. Si trova nell\'URL del foglio: docs.google.com/spreadsheets/d/QUESTO-ID/edit — deve essere condiviso (almeno in lettura) con l\'account Google che esegue la Web App. Viene letta la prima tab del foglio.' },
   { chiave: 'bufferSetupMinuti', valore: '10', tipo: 'numero', descrizione: 'Minuti fissi di parcheggio/setup aggiunti ad ogni spostamento tra due tappe, oltre al tempo di viaggio.' },
   { chiave: 'pausaTolleranzaMinuti', valore: '15', tipo: 'numero', descrizione: 'Minuti di sconfinamento nella pausa pranzo tollerati per un intervento già in corso quando inizia la pausa: entro questa soglia l\'intervento prosegue senza interruzioni. Oltre la soglia, la pausa viene inserita per intero (il tecnico si ferma e il completamento dell\'intervento, e delle tappe successive, slitta in avanti di conseguenza). Con 0, qualunque sconfinamento inserisce subito la pausa.' },
   { chiave: 'velocitaMediaKmH', valore: '30', tipo: 'numero', descrizione: 'Velocità media (km/h) usata per stimare il tempo di viaggio quando il calcolo reale (Google Maps) non è disponibile.' },

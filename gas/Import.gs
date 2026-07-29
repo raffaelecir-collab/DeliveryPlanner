@@ -1,26 +1,17 @@
 /**
- * Import di Interventi da un foglio "grezzo" (tab ImportInterventi) con le stesse colonne
- * dell'export del sistema di tracking esterno del cliente: si incollano i dati in quella tab
- * (sovrascrivendo pure le righe di esempio) e si preme "Importa" nel tab Interventi della Web
- * App. Ogni riga con "Ods" valorizzato diventa (o aggiorna, se l'Ods è già stato importato in
- * precedenza) un Intervento, con l'indirizzo geocodificato automaticamente come nel salvataggio
- * manuale.
+ * Import di Interventi direttamente dalla prima tab di un foglio Google esterno (il sistema di
+ * tracking del cliente), il cui ID è configurato nella regola "foglioImportEsternoId" (tab
+ * Regole). Si preme "Importa" nel tab Interventi della Web App: ogni riga con "Ods" valorizzato
+ * diventa (o aggiorna, se l'Ods è già stato importato in precedenza) un Intervento, con
+ * l'indirizzo geocodificato automaticamente come nel salvataggio manuale. Le colonne vengono
+ * lette per NOME dall'intestazione del foglio esterno (non per posizione), quindi il loro
+ * ordine lì può differire da IMPORT_ESTERNO_HEADERS.
  */
 
-/** Crea/ripara il foglio ImportInterventi con l'intestazione attesa (senza toccare eventuali dati già incollati). */
-function ensureImportSheet_() {
-  var sheet = getOrCreateSheet_(SHEET_NAMES.IMPORT_ESTERNO);
-  var range = sheet.getRange(1, 1, 1, IMPORT_ESTERNO_HEADERS.length);
-  var current = range.getValues()[0];
-  var needsWrite = false;
-  for (var i = 0; i < IMPORT_ESTERNO_HEADERS.length; i++) {
-    if (current[i] !== IMPORT_ESTERNO_HEADERS[i]) { needsWrite = true; break; }
-  }
-  if (needsWrite) {
-    range.setValues([IMPORT_ESTERNO_HEADERS]);
-    sheet.setFrozenRows(1);
-  }
-  return sheet;
+/** Legge una cella per nome di colonna; '' se quella colonna non esiste nel foglio esterno. */
+function valoreColonnaImport_(row, idx, header) {
+  var i = idx[header];
+  return (i === undefined || row[i] === null || row[i] === undefined) ? '' : row[i];
 }
 
 function normalizzaOraImport_(raw) {
@@ -44,9 +35,34 @@ function normalizzaTelefonoImport_(raw) {
 }
 
 /**
- * Legge il foglio ImportInterventi ed esegue l'import: per ogni riga con "Ods" valorizzato
- * crea (o aggiorna, se l'Ods corrisponde a un Intervento già importato in precedenza) una
- * riga su Interventi, geocodificando l'indirizzo (Indirizzo + Comune + Provincia).
+ * Apre il foglio esterno configurato in Regole (chiave "foglioImportEsternoId") e ne restituisce
+ * la prima tab, con un errore chiaro se l'ID manca o se il foglio non è raggiungibile/condiviso
+ * con l'account che esegue la Web App.
+ */
+function apriFoglioImportEsterno_() {
+  var regole = getRegoleMappa_();
+  var foglioId = regole.foglioImportEsternoId ? String(regole.foglioImportEsternoId).trim() : '';
+  if (!foglioId) {
+    throw new Error('Nessun ID di foglio esterno configurato: impostalo nella regola "foglioImportEsternoId" (tab Regole).');
+  }
+  var ssEsterno;
+  try {
+    ssEsterno = SpreadsheetApp.openById(foglioId);
+  } catch (e) {
+    throw new Error('Impossibile aprire il foglio esterno (ID "' + foglioId + '"): ' + e.message +
+      '. Verifica che l\'ID sia corretto (si trova nell\'URL del foglio: docs.google.com/spreadsheets/d/ID/edit) ' +
+      'e che il foglio sia condiviso almeno in lettura con l\'account Google che esegue la Web App.');
+  }
+  var sheet = ssEsterno.getSheets()[0];
+  if (!sheet) throw new Error('Il foglio esterno (ID "' + foglioId + '") non ha nessuna tab.');
+  return sheet;
+}
+
+/**
+ * Legge la prima tab del foglio esterno configurato ed esegue l'import: per ogni riga con "Ods"
+ * valorizzato crea (o aggiorna, se l'Ods corrisponde a un Intervento già importato in
+ * precedenza) una riga su Interventi, geocodificando l'indirizzo (Indirizzo + Comune +
+ * Provincia).
  *
  * Se "Tecnico" corrisponde al nome di una squadra esistente E "Data App." è valorizzata,
  * l'intervento viene importato già "Pianificato" per quella squadra/data/ora — senza però
@@ -62,14 +78,23 @@ function normalizzaTelefonoImport_(raw) {
  * rischiare un errore a metà senza alcun riscontro.
  */
 function importaInterventiEsterni() {
-  var sheet = ensureImportSheet_();
+  var sheet = apriFoglioImportEsterno_();
   var lastRow = sheet.getLastRow();
   var risultatoVuoto = { creati: 0, aggiornati: 0, saltati: 0, falliti: 0, dettagliSaltati: [], dettagliFalliti: [], tempoScaduto: false };
   if (lastRow < 2) return risultatoVuoto;
 
-  var values = sheet.getRange(2, 1, lastRow - 1, IMPORT_ESTERNO_HEADERS.length).getValues();
+  var lastCol = sheet.getLastColumn();
+  var headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
   var idx = {};
-  IMPORT_ESTERNO_HEADERS.forEach(function (h, i) { idx[h] = i; });
+  headerRow.forEach(function (h, i) { idx[String(h).trim()] = i; });
+
+  var mancanti = IMPORT_ESTERNO_COLONNE_OBBLIGATORIE.filter(function (c) { return idx[c] === undefined; });
+  if (mancanti.length) {
+    throw new Error('Il foglio esterno non ha le colonne obbligatorie attese (mancano: ' + mancanti.join(', ') +
+      '). Colonne previste: ' + IMPORT_ESTERNO_HEADERS.join(', ') + '.');
+  }
+
+  var values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
 
   var squadrePerNome = {};
   readAll_('SQUADRE').forEach(function (s) { squadrePerNome[String(s.nome || '').trim().toLowerCase()] = s; });
@@ -90,12 +115,12 @@ function importaInterventiEsterni() {
     var isEmpty = row.every(function (v) { return v === '' || v === null || v === undefined; });
     if (isEmpty) continue;
 
-    var odsRaw = row[idx['Ods']];
+    var odsRaw = valoreColonnaImport_(row, idx, 'Ods');
     var odsStr = (odsRaw === null || odsRaw === undefined || odsRaw === '') ? '' : String(typeof odsRaw === 'number' ? Math.round(odsRaw) : odsRaw).trim();
-    var cliente = String(row[idx['Nome Cliente']] || '').trim();
-    var indirizzoBase = String(row[idx['Indirizzo']] || '').trim();
-    var comune = String(row[idx['Comune']] || '').trim();
-    var provincia = String(row[idx['Provincia']] || '').trim();
+    var cliente = String(valoreColonnaImport_(row, idx, 'Nome Cliente') || '').trim();
+    var indirizzoBase = String(valoreColonnaImport_(row, idx, 'Indirizzo') || '').trim();
+    var comune = String(valoreColonnaImport_(row, idx, 'Comune') || '').trim();
+    var provincia = String(valoreColonnaImport_(row, idx, 'Provincia') || '').trim();
 
     if (!odsStr || !cliente || !indirizzoBase) {
       saltati++;
@@ -105,10 +130,14 @@ function importaInterventiEsterni() {
 
     var indirizzoCompleto = [indirizzoBase, comune, provincia].filter(function (p) { return p; }).join(', ');
     var noteParti = [];
-    if (row[idx['Attività']]) noteParti.push('Attività: ' + row[idx['Attività']]);
-    if (row[idx['Stato']]) noteParti.push('Stato tracking esterno: ' + row[idx['Stato']]);
-    if (row[idx['Note Sicuritalia']]) noteParti.push('Note Sicuritalia: ' + row[idx['Note Sicuritalia']]);
-    if (row[idx['Note Site']]) noteParti.push('Note Site: ' + row[idx['Note Site']]);
+    var attivita = valoreColonnaImport_(row, idx, 'Attività');
+    var statoEsterno = valoreColonnaImport_(row, idx, 'Stato');
+    var noteSicuritalia = valoreColonnaImport_(row, idx, 'Note Sicuritalia');
+    var noteSite = valoreColonnaImport_(row, idx, 'Note Site');
+    if (attivita) noteParti.push('Attività: ' + attivita);
+    if (statoEsterno) noteParti.push('Stato tracking esterno: ' + statoEsterno);
+    if (noteSicuritalia) noteParti.push('Note Sicuritalia: ' + noteSicuritalia);
+    if (noteSite) noteParti.push('Note Site: ' + noteSite);
 
     var esistente = interventiPerCodice[odsStr];
     var puoImpostarePianificazione = !esistente || esistente.stato === STATO_INTERVENTO.DA_PIANIFICARE;
@@ -116,24 +145,24 @@ function importaInterventiEsterni() {
     var payload = {
       cliente: cliente,
       indirizzo: indirizzoCompleto,
-      priorita: row[idx['Urgente']] === true ? PRIORITA.URGENTE : PRIORITA.NORMALE,
-      dataRichiesta: normalizzaDataImport_(row[idx['Data Disp.']]),
-      scadenza: normalizzaDataImport_(row[idx['Data Scadenza']]),
+      priorita: valoreColonnaImport_(row, idx, 'Urgente') === true ? PRIORITA.URGENTE : PRIORITA.NORMALE,
+      dataRichiesta: normalizzaDataImport_(valoreColonnaImport_(row, idx, 'Data Disp.')),
+      scadenza: normalizzaDataImport_(valoreColonnaImport_(row, idx, 'Data Scadenza')),
       note: noteParti.join(' | '),
-      telefono: normalizzaTelefonoImport_(row[idx['Telefono']]),
+      telefono: normalizzaTelefonoImport_(valoreColonnaImport_(row, idx, 'Telefono')),
       codiceEsterno: odsStr
     };
     if (esistente) payload.id = esistente.id;
 
     if (puoImpostarePianificazione) {
-      var tecnicoNome = String(row[idx['Tecnico']] || '').trim();
-      var dataApp = normalizzaDataImport_(row[idx['Data App.']]);
+      var tecnicoNome = String(valoreColonnaImport_(row, idx, 'Tecnico') || '').trim();
+      var dataApp = normalizzaDataImport_(valoreColonnaImport_(row, idx, 'Data App.'));
       var squadraMatch = tecnicoNome ? squadrePerNome[tecnicoNome.toLowerCase()] : null;
       if (squadraMatch && dataApp) {
         payload.stato = STATO_INTERVENTO.PIANIFICATO;
         payload.squadraId = squadraMatch.id;
         payload.dataPianificata = dataApp;
-        payload.oraPianificata = normalizzaOraImport_(row[idx['Ora App.']]);
+        payload.oraPianificata = normalizzaOraImport_(valoreColonnaImport_(row, idx, 'Ora App.'));
       } else if (!esistente) {
         payload.stato = STATO_INTERVENTO.DA_PIANIFICARE;
       }

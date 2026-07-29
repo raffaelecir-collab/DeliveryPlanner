@@ -114,10 +114,10 @@
       <section class="view" id="view-interventi">
         <div class="card">
           <h2>Importa da tracking esterno</h2>
-          <p class="sub">Incolla i dati esportati dal tuo sistema di tracking nella tab del Google Sheet chiamata <b>ImportInterventi</b> (stesse colonne: Ods, Attività, Nome Cliente, Data Disp., Data Scadenza, Urgente, Note Sicuritalia, Stato, Note Site, Data App., Ora App., Tecnico, Indirizzo, Comune, Provincia, Telefono), sostituendo le righe sotto l'intestazione. Poi premi Importa: ogni riga con "Ods" valorizzato diventa un Intervento (indirizzo geocodificato automaticamente); un Ods già importato in precedenza aggiorna l'intervento invece di duplicarlo. Se "Tecnico" corrisponde al nome di una squadra e "Data App." è compilata, l'intervento entra già "Pianificato" per quella squadra/data/ora (verifica poi a mano che non si sovrapponga ad altri percorsi già confermati). Un intervento già pianificato/completato/annullato dalla Web App non viene mai retrocesso da un nuovo import.</p>
+          <p class="sub">Premi Importa per leggere direttamente la prima tab del foglio Google esterno configurato nella regola <b>foglioImportEsternoId</b> (tab Regole — di default punta al foglio di tracking del cliente). Ogni riga con "Ods" valorizzato diventa un Intervento (indirizzo geocodificato automaticamente da Indirizzo + Comune + Provincia); un Ods già importato in precedenza aggiorna l'intervento invece di duplicarlo. Se "Tecnico" corrisponde al nome di una squadra e "Data App." è compilata, l'intervento entra già "Pianificato" per quella squadra/data/ora (verifica poi a mano che non si sovrapponga ad altri percorsi già confermati). Un intervento già pianificato/completato/annullato dalla Web App non viene mai retrocesso da un nuovo import.</p>
           <div class="row">
             <div class="field">
-              <button class="btn" id="btn-importa-esterno">📥 Importa da ImportInterventi</button>
+              <button class="btn" id="btn-importa-esterno">📥 Importa da tracking esterno</button>
             </div>
           </div>
           <div id="import-esterno-risultato" style="margin-top:12px;"></div>

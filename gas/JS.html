@@ -574,6 +574,8 @@
         '</div>';
       } else if (r.tipo === 'percentuale') {
         controllo = '<input type="number" step="1" min="0" max="100" data-chiave="' + escapeHtml(r.chiave) + '" value="' + escapeHtml(r.valore) + '" style="width:70px"> <span style="color:#666;">%</span>';
+      } else if (r.tipo === 'testo') {
+        controllo = '<input type="text" data-chiave="' + escapeHtml(r.chiave) + '" value="' + escapeHtml(r.valore) + '" style="width:280px">';
       } else {
         controllo = '<input type="number" step="any" data-chiave="' + escapeHtml(r.chiave) + '" value="' + escapeHtml(r.valore) + '" style="width:100px">';
       }

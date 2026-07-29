@@ -90,7 +90,7 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 | `Triggers.gs` | Trigger installabile: geocodifica automatica quando un indirizzo viene scritto direttamente sul foglio |
 | `Setup.gs` | Inizializzazione struttura fogli, menu, dati di esempio |
 | `Teams.gs` / `Interventions.gs` / `Rules.gs` | CRUD (con geocodifica automatica su Squadre/Interventi) |
-| `Import.gs` | Import di Interventi dal foglio grezzo `ImportInterventi` (tracking esterno) |
+| `Import.gs` | Import di Interventi direttamente da un foglio Google esterno (tracking) |
 | `RouteEngine.gs` | Motore di ottimizzazione percorso (inserimento più economico + 2-opt, scheduling con pausa pranzo, vista "Programmazione" e riempimento buchi) |
 | `Code.gs` | `doGet()` e funzioni esposte al client |
 | `Index.html` / `CSS.html` / `JS.html` | Interfaccia utente (SPA) |
@@ -347,18 +347,21 @@ foglio invece di usare i form della Web App. In quel caso:
 
 Se gestisci già gli interventi in un altro sistema (es. un export con colonne
 Ods/Attività/Tecnico/Data Appuntamento) puoi portarli negli Interventi della
-Web App senza doverli ricopiare a mano:
-
-1. Apri il foglio Google e vai sulla tab **ImportInterventi** (creata
-   automaticamente all'avvio, con le colonne: Ods, Attività, Nome Cliente,
-   Data Disp., Data Scadenza, Urgente, Note Sicuritalia, Stato, Note Site,
-   Data App., Ora App., Tecnico, Indirizzo, Comune, Provincia, Telefono,
-   Aging scaduto).
-2. Incolla lì i dati esportati dal tuo sistema, **sotto** la riga di
-   intestazione (che deve restare invariata) — puoi sovrascrivere quello che
-   c'era prima, è solo un'area di appoggio.
-3. Nella Web App, tab **Interventi**, premi **"📥 Importa da
-   ImportInterventi"**.
+Web App senza doverli ricopiare a mano: nella Web App, tab **Interventi**,
+premi **"📥 Importa da tracking esterno"**. Il pulsante legge **direttamente
+la prima tab** del foglio Google esterno indicato nella regola
+**`foglioImportEsternoId`** (tab Regole, valore di default già impostato
+sull'ID del foglio di tracking del cliente) — non serve copiare/incollare
+nulla. Il foglio esterno deve avere una riga di intestazione con (almeno) le
+colonne: Ods, Nome Cliente, Indirizzo (obbligatorie) e, se presenti, anche
+Attività, Data Disp., Data Scadenza, Urgente, Note Sicuritalia, Stato, Note
+Site, Data App., Ora App., Tecnico, Comune, Provincia, Telefono — le colonne
+si riconoscono per **nome dell'intestazione**, quindi il loro ordine nel
+foglio esterno può essere qualsiasi. Se cambia il foglio da cui importare
+(o l'ID è sbagliato/il foglio non è condiviso), basta aggiornare il valore
+di `foglioImportEsternoId` in Regole: **il foglio esterno deve essere
+condiviso almeno in lettura** con l'account Google che esegue la Web App,
+altrimenti l'import segnala chiaramente l'errore.
 
 Cosa succede per ogni riga con "Ods" valorizzato:
 
