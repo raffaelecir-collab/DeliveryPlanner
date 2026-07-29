@@ -425,25 +425,37 @@ Cosa succede per ogni riga compilata (Nome Cliente + Indirizzo valorizzati):
   Quando Tecnico/Data App. sono valorizzati, squadra/data/ora vengono
   riportati indipendentemente dallo stato risultante (anche per un
   intervento importato come Completato o Annullato), per non perdere la
-  traccia di chi e quando lo ha eseguito;
-- se presente, l'**Ods diventa il "Codice Esterno"** dell'intervento. **Se
-  "Ods" è assente** la riga viene **importata comunque** (non più
-  saltata), senza Codice Esterno, con una nota di avviso "⚠ Importato senza
-  Ods nel tracking esterno" sull'intervento, perché senza quel codice non
-  c'è modo di riconoscere in futuro se quella riga è già stata importata.
+  traccia di chi e quando lo ha eseguito. Se l'intervento è già stato preso
+  in carico dalla Web App (già oltre "Da pianificare": pianificato dal
+  motore o a mano, completato, annullato), stato/squadra/data/ora **non
+  vengono più toccati** da un successivo import, qualunque cosa dica nel
+  frattempo il tracking esterno — solo i campi anagrafici restano
+  aggiornabili (vedi sotto);
+- se presente, l'**Ods diventa il "Codice Esterno"** dell'intervento, usato
+  per **riconciliare** le righe tra un import e l'altro. **Se "Ods" è
+  assente** la riga viene **importata comunque** (non saltata), senza
+  Codice Esterno, con una nota di avviso "⚠ Importato senza Ods nel
+  tracking esterno" sull'intervento, perché senza quel codice non c'è modo
+  di riconoscerla in un futuro re-import.
 
-**Evitare i duplicati sui re-import**: ogni riga importata con successo
-viene **marcata direttamente sul foglio esterno** (colonna "Importato Web
-App", creata automaticamente se assente, con la data/ora dell'import) — un
-run successivo salta le righe già marcate, quindi **importa solo gli
-interventi realmente nuovi**, con o senza Ods. Righe già presenti su
-Interventi da prima dell'introduzione di questo marcatore vengono
-riconosciute (via Ods coincidente) e marcate a posteriori, senza essere
-duplicate. Al termine, la Web App mostra quanti interventi sono stati
-creati, quanti già presenti (marcatore trovato, nessuna azione), quanti
-saltati (Nome Cliente o Indirizzo mancanti) e quanti falliti (tipicamente
-indirizzo non geocodificabile — questi ultimi NON vengono marcati, così un
-run successivo li ritenta dopo la correzione), coi dettagli riga per riga.
+**Comportamento sui re-import**: una riga **con Ods** viene sempre
+riconciliata con l'Intervento corrispondente (via Codice Esterno) — se
+esiste già, i suoi **campi anagrafici vengono aggiornati** con i valori
+attuali del foglio esterno (cliente, indirizzo, priorità, date, note,
+telefono, ricavo, durata: se cambi qualcosa sul tracking esterno — es. il
+numero di telefono, o lo stato passa a "completato"/"annullato" — un nuovo
+import lo riporta sull'Intervento **senza creare una riga duplicata**); se
+non esiste ancora, viene creato. Una riga **senza Ods**, non avendo alcuna
+chiave su cui riconciliare, viene invece importata **una sola volta** e poi
+marcata **direttamente sul foglio esterno** (colonna "Importato Web App",
+creata automaticamente se assente): i run successivi la saltano e restano
+"congelate" — eventuali modifiche successive a quella riga specifica non
+verranno più riportate. Al termine, la Web App mostra quanti interventi
+sono stati creati, quanti aggiornati, quanti già importati in precedenza
+senza Ods (marcatore trovato, nessuna azione), quanti saltati (Nome Cliente
+o Indirizzo mancanti) e quanti falliti (tipicamente indirizzo non
+geocodificabile — questi ultimi non vengono marcati, così un run
+successivo li ritenta dopo la correzione), coi dettagli riga per riga.
 
 ## Nota sul servizio Google Maps e sulle prestazioni
 

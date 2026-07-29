@@ -2,12 +2,14 @@
  * Import di Interventi direttamente dalla prima tab di un foglio Google esterno (il sistema di
  * tracking del cliente), il cui ID è configurato nella regola "foglioImportEsternoId" (tab
  * Regole). Si preme "Importa" nel tab Interventi della Web App: ogni riga compilata (Nome
- * Cliente + Indirizzo valorizzati, "Ods" opzionale) NON ANCORA importata diventa un nuovo
- * Intervento, con l'indirizzo geocodificato automaticamente come nel salvataggio manuale. Le
- * righe già importate in un run precedente (marcate direttamente sul foglio esterno, vedi
- * importaInterventiEsterni) vengono saltate: ogni run successivo al primo importa solo gli
- * interventi realmente nuovi. Le colonne vengono lette per NOME dall'intestazione del foglio
- * esterno (non per posizione), quindi il loro ordine lì può differire da IMPORT_ESTERNO_HEADERS.
+ * Cliente + Indirizzo valorizzati, "Ods" opzionale) crea un nuovo Intervento, con l'indirizzo
+ * geocodificato automaticamente come nel salvataggio manuale. Una riga con "Ods" già importato in
+ * precedenza viene riconciliata con l'Intervento esistente (Codice Esterno): i campi anagrafici
+ * vengono AGGIORNATI con i valori attuali del foglio esterno invece di creare un duplicato — solo
+ * le righe senza Ods, prive di qualunque chiave su cui riconciliare, vengono importate una sola
+ * volta e poi "congelate" (marcate direttamente sul foglio esterno). Le colonne vengono lette per
+ * NOME dall'intestazione del foglio esterno (non per posizione), quindi il loro ordine lì può
+ * differire da IMPORT_ESTERNO_HEADERS.
  */
 
 /** Legge una cella per nome di colonna; '' se quella colonna non esiste nel foglio esterno. */
@@ -148,34 +150,41 @@ function trovaOCreaColonnaMarcatore_(sheet, headerRow, lastCol) {
 }
 
 /**
- * Legge la prima tab del foglio esterno configurato dall'alto e crea un Intervento per ogni riga
- * compilata (Nome Cliente + Indirizzo valorizzati), geocodificando l'indirizzo (Indirizzo +
- * Comune + Provincia) come nel salvataggio manuale. "Ods" non è più obbligatorio per riga: se
- * assente, l'intervento viene comunque importato (senza Codice Esterno) con una nota di avviso,
- * dato che non c'è modo di riconoscerlo in un futuro re-import.
+ * Legge la prima tab del foglio esterno configurato dall'alto ed elabora ogni riga compilata
+ * (Nome Cliente + Indirizzo valorizzati), geocodificando l'indirizzo (Indirizzo + Comune +
+ * Provincia) come nel salvataggio manuale.
  *
  * L'elaborazione SI FERMA alla prima riga non compilata (né Ods né Nome Cliente né Indirizzo):
  * il foglio esterno tipicamente ha centinaia di righe "modello" vuote sotto i dati veri (con
  * solo la casella Urgente valorizzata a FALSE di default), che altrimenti verrebbero comunque
  * scandite una per una.
  *
- * Per evitare duplicati sui re-import, ogni riga importata con successo viene marcata scrivendo
- * un timestamp nella colonna IMPORT_ESTERNO_COLONNA_MARCATORE **nel foglio esterno stesso**
- * (creata automaticamente se assente): un run successivo salta le righe già marcate, quindi
- * importa solo gli interventi realmente nuovi. Le righe già presenti su Interventi da prima
- * dell'introduzione di questo marcatore (riconosciute per Ods coincidente con un Codice Esterno
- * già presente) non vengono ri-create: la riga esterna viene semplicemente marcata a posteriori.
+ * Una riga con "Ods" viene sempre riconciliata con Interventi tramite il Codice Esterno: se
+ * esiste già un Intervento con quell'Ods, i suoi campi anagrafici (cliente, indirizzo, priorità,
+ * date, note, telefono, ricavo, durata) vengono AGGIORNATI con i valori attuali del foglio
+ * esterno — non viene mai creata una riga duplicata. Se l'Intervento non esiste ancora, viene
+ * creato. In entrambi i casi, se non ancora oltre "Da pianificare" (cioè se la Web App non lo ha
+ * già preso in carico attivamente), stato/squadra/data/ora vengono anche loro aggiornati in base
+ * a Stato/Tecnico/Data App.; un Intervento che la Web App ha già pianificato/completato/annullato
+ * non viene mai retrocesso da un re-import, anche se il tracking esterno segna qualcos'altro.
+ *
+ * Una riga SENZA "Ods" non ha invece alcuna chiave su cui riconciliare un futuro re-import:
+ * viene importata una sola volta (con una nota di avviso sull'intervento) e marcata direttamente
+ * sul foglio esterno, nella colonna IMPORT_ESTERNO_COLONNA_MARCATORE (creata automaticamente se
+ * assente): i run successivi la saltano, restando quindi "congelata" — eventuali modifiche
+ * successive di quella riga sul foglio esterno non verranno più riportate, proprio perché non è
+ * possibile distinguerla da una riga diversa senza un Ods.
  *
  * Lo stato (colonna "Stato" del foglio esterno, testo libero non standardizzato) viene mappato
  * sui 4 stati dell'Intervento da classificaStatoEsterno_ (vedi lì per le parole chiave
  * riconosciute). In particolare, quando risulta un appuntamento fissato (Tecnico corrisponde al
- * nome di una squadra esistente e "Data App." è valorizzata), l'intervento viene importato già
- * "Pianificato" per quella squadra/data/ora: da quel momento è un Intervento pianificato a tutti
- * gli effetti — compare nel tab Programmazione, si può rimuovere/completare/annullare o spostare
- * su un'altra squadra/giorno dalla mappa di selezione, esattamente come una pianificazione fatta
- * dalla Web App — con l'unica differenza che l'import NON ricalcola né inserisce la tappa nel
- * percorso ottimizzato di quella squadra/giorno: va verificato a mano (o con "Riempi buco") che
- * non si sovrapponga ad altri interventi già confermati.
+ * nome di una squadra esistente e "Data App." è valorizzata), l'intervento viene importato/
+ * aggiornato come "Pianificato" per quella squadra/data/ora: da quel momento è un Intervento
+ * pianificato a tutti gli effetti — compare nel tab Programmazione, si può rimuovere/completare/
+ * annullare o spostare su un'altra squadra/giorno dalla mappa di selezione, esattamente come una
+ * pianificazione fatta dalla Web App — con l'unica differenza che l'import NON ricalcola né
+ * inserisce la tappa nel percorso ottimizzato di quella squadra/giorno: va verificato a mano (o
+ * con "Riempi buco") che non si sovrapponga ad altri interventi già confermati.
  *
  * "Urgente" (TRUE/FALSE) diventa priorità Urgente/Normale; "Data Scadenza" viene riportata come
  * scadenza dell'Intervento; "Importo ODS" diventa il Ricavo (€); la durata stimata è calcolata
@@ -184,13 +193,12 @@ function trovaOCreaColonnaMarcatore_(sheet, headerRow, lastCol) {
  *
  * Guardrail di tempo (come in pianificaIntervallo): con moltissime righe da importare in un solo
  * run, se il tempo sta per scadere si interrompe l'elaborazione delle righe restanti
- * restituendo comunque quanto già importato (le righe già marcate non verranno riproposte al
- * run successivo).
+ * restituendo comunque quanto già importato/aggiornato fin lì.
  */
 function importaInterventiEsterni() {
   var sheet = apriFoglioImportEsterno_();
   var lastRow = sheet.getLastRow();
-  var risultatoVuoto = { creati: 0, giaImportati: 0, saltati: 0, falliti: 0, dettagliSaltati: [], dettagliFalliti: [], tempoScaduto: false };
+  var risultatoVuoto = { creati: 0, aggiornati: 0, giaImportati: 0, saltati: 0, falliti: 0, dettagliSaltati: [], dettagliFalliti: [], tempoScaduto: false };
   if (lastRow < 2) return risultatoVuoto;
 
   var lastCol = sheet.getLastColumn();
@@ -204,6 +212,9 @@ function importaInterventiEsterni() {
       '). Colonne previste: ' + IMPORT_ESTERNO_HEADERS.join(', ') + '.');
   }
 
+  // Il marcatore serve SOLO per le righe senza Ods (nessun'altra chiave possibile): quelle con
+  // Ods si riconciliano invece via Codice Esterno su Interventi, quindi possono essere
+  // rielaborate (e aggiornate) ad ogni run senza rischio di duplicati.
   var colonnaMarcatore = trovaOCreaColonnaMarcatore_(sheet, headerRow, lastCol);
   var marcatori = sheet.getRange(2, colonnaMarcatore + 1, lastRow - 1, 1).getValues();
 
@@ -212,16 +223,14 @@ function importaInterventiEsterni() {
   var squadrePerNome = {};
   readAll_('SQUADRE').forEach(function (s) { squadrePerNome[String(s.nome || '').trim().toLowerCase()] = s; });
 
-  // Righe con Ods già presente su Interventi da un import precedente all'introduzione del
-  // marcatore: non vanno ri-create, la riga esterna va solo marcata a posteriori.
-  var codiciEsistenti = {};
-  readAll_('INTERVENTI').forEach(function (i) { if (i.codiceEsterno) codiciEsistenti[String(i.codiceEsterno)] = true; });
+  var interventiPerCodice = {};
+  readAll_('INTERVENTI').forEach(function (i) { if (i.codiceEsterno) interventiPerCodice[String(i.codiceEsterno)] = i; });
 
   var TEMPO_MASSIMO_MS = 4.5 * 60 * 1000;
   var inizioEsecuzione = new Date().getTime();
   var tempoScaduto = false;
 
-  var creati = 0, giaImportati = 0, saltati = 0, falliti = 0;
+  var creati = 0, aggiornati = 0, giaImportati = 0, saltati = 0, falliti = 0;
   var dettagliSaltati = [], dettagliFalliti = [];
 
   for (var r = 0; r < values.length; r++) {
@@ -237,8 +246,9 @@ function importaInterventiEsterni() {
     // "modello" vuote, ci si ferma senza scandire il resto del foglio.
     if (!odsStr && !cliente && !indirizzoBase) break;
 
-    // Già marcata come importata in un run precedente: salta, non è una riga nuova.
-    if (marcatori[r][0]) { giaImportati++; continue; }
+    // Senza Ods, il marcatore è l'unico modo per riconoscere una riga già importata: se già
+    // marcata, resta congelata (nessun aggiornamento possibile senza una chiave).
+    if (!odsStr && marcatori[r][0]) { giaImportati++; continue; }
 
     if (!cliente || !indirizzoBase) {
       saltati++;
@@ -246,12 +256,8 @@ function importaInterventiEsterni() {
       continue;
     }
 
-    if (odsStr && codiciEsistenti[odsStr]) {
-      // Importato in un run precedente all'introduzione del marcatore: non duplicare, marca soltanto.
-      sheet.getRange(r + 2, colonnaMarcatore + 1).setValue(new Date());
-      giaImportati++;
-      continue;
-    }
+    var esistente = odsStr ? interventiPerCodice[odsStr] : null;
+    var puoImpostarePianificazione = !esistente || esistente.stato === STATO_INTERVENTO.DA_PIANIFICARE;
 
     var comune = String(valoreColonnaImport_(row, idx, 'Comune') || '').trim();
     var provincia = String(valoreColonnaImport_(row, idx, 'Provincia') || '').trim();
@@ -262,7 +268,7 @@ function importaInterventiEsterni() {
     var statoEsterno = valoreColonnaImport_(row, idx, 'Stato');
     var noteSicuritalia = valoreColonnaImport_(row, idx, 'Note Sicuritalia');
     var noteSite = valoreColonnaImport_(row, idx, 'Note Site');
-    if (!odsStr) noteParti.push('⚠ Importato senza Ods nel tracking esterno (verificare eventuali duplicati a mano)');
+    if (!odsStr) noteParti.push('⚠ Importato senza Ods nel tracking esterno (non aggiornabile ai re-import successivi)');
     if (attivita) noteParti.push('Attività: ' + attivita);
     if (statoEsterno) noteParti.push('Stato tracking esterno: ' + statoEsterno);
     if (noteSicuritalia) noteParti.push('Note Sicuritalia: ' + noteSicuritalia);
@@ -278,6 +284,7 @@ function importaInterventiEsterni() {
       telefono: normalizzaTelefonoImport_(valoreColonnaImport_(row, idx, 'Telefono'))
     };
     if (odsStr) payload.codiceEsterno = odsStr;
+    if (esistente) payload.id = esistente.id;
 
     var importoOdsRaw = valoreColonnaImport_(row, idx, 'Importo ODS');
     var importoOds = (importoOdsRaw === '' || importoOdsRaw === null || importoOdsRaw === undefined) ? NaN : parseFloat(importoOdsRaw);
@@ -286,14 +293,16 @@ function importaInterventiEsterni() {
     var durataCalcolata = calcolaDurataAttivitaImport_(attivita, importoOdsRaw);
     if (durataCalcolata !== null) payload.durataMinuti = durataCalcolata;
 
-    var tecnicoNome = String(valoreColonnaImport_(row, idx, 'Tecnico') || '').trim();
-    var dataApp = normalizzaDataImport_(valoreColonnaImport_(row, idx, 'Data App.'));
-    var squadraMatch = tecnicoNome ? squadrePerNome[tecnicoNome.toLowerCase()] : null;
-    payload.stato = classificaStatoEsterno_(statoEsterno, squadraMatch, dataApp);
-    if (squadraMatch && dataApp) {
-      payload.squadraId = squadraMatch.id;
-      payload.dataPianificata = dataApp;
-      payload.oraPianificata = normalizzaOraImport_(valoreColonnaImport_(row, idx, 'Ora App.'));
+    if (puoImpostarePianificazione) {
+      var tecnicoNome = String(valoreColonnaImport_(row, idx, 'Tecnico') || '').trim();
+      var dataApp = normalizzaDataImport_(valoreColonnaImport_(row, idx, 'Data App.'));
+      var squadraMatch = tecnicoNome ? squadrePerNome[tecnicoNome.toLowerCase()] : null;
+      payload.stato = classificaStatoEsterno_(statoEsterno, squadraMatch, dataApp);
+      if (squadraMatch && dataApp) {
+        payload.squadraId = squadraMatch.id;
+        payload.dataPianificata = dataApp;
+        payload.oraPianificata = normalizzaOraImport_(valoreColonnaImport_(row, idx, 'Ora App.'));
+      }
     }
 
     try {
@@ -303,12 +312,13 @@ function importaInterventiEsterni() {
       dettagliFalliti.push('Riga ' + (r + 2) + ' (' + cliente + '): ' + e.message);
       continue; // non marcata: un run successivo la ritenterà (es. dopo aver corretto l'indirizzo)
     }
-    sheet.getRange(r + 2, colonnaMarcatore + 1).setValue(new Date());
-    creati++;
+    if (!odsStr) sheet.getRange(r + 2, colonnaMarcatore + 1).setValue(new Date());
+    if (esistente) aggiornati++; else creati++;
   }
 
   return {
     creati: creati,
+    aggiornati: aggiornati,
     giaImportati: giaImportati,
     saltati: saltati,
     falliti: falliti,

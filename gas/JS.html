@@ -487,7 +487,8 @@
   function renderRisultatoImportEsterno_(r) {
     var righe = [
       r.creati + ' creati',
-      r.giaImportati + ' già importati (invariati)',
+      r.aggiornati + ' aggiornati',
+      r.giaImportati + ' già importati in precedenza (senza Ods, invariati)',
       r.saltati + ' saltati (dati obbligatori mancanti)',
       r.falliti + ' falliti (es. indirizzo non geocodificabile)'
     ];
@@ -513,7 +514,8 @@
       callServer('importaInterventiEsterni').then(function (r) {
         renderRisultatoImportEsterno_(r);
         var haProblemi = r.saltati > 0 || r.falliti > 0;
-        toast(r.creati > 0 ? 'Import completato: ' + r.creati + ' nuovi interventi creati.' : 'Nessun intervento nuovo da importare (' + r.giaImportati + ' già presenti).',
+        var totale = r.creati + r.aggiornati;
+        toast(totale > 0 ? 'Import completato: ' + r.creati + ' creati, ' + r.aggiornati + ' aggiornati.' : 'Nessuna riga da creare o aggiornare (' + r.giaImportati + ' già importate senza Ods).',
           haProblemi ? 'error' : 'success');
         return loadInterventi();
       }).catch(function (err) {
