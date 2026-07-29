@@ -1014,23 +1014,30 @@ function costruisciOrdiniGiornoCongiunti_(squadre, candidatiPerSquadra, regole) 
       pesoRicavoEffettivo = pesoRicavoBase * (1 + gap * 4);
     }
 
+    // Il tragitto dalla partenza alla prima tappa del giorno non conta come tempo di viaggio, né
+    // ai fini dell'orario né del limite giornaliero (stessa regola di pianificaOrarioPercorso_,
+    // la funzione di scheduling autoritativa): per la prima mossa della giornata di questa
+    // squadra, quel tragitto resta un segnale di costo utile per scegliere DA QUALE zona
+    // iniziare (si preferisce comunque partire da qualcosa di vicino, a parità di altri
+    // fattori), ma non deve né far scartare il candidato per il limite di viaggio massimo né
+    // spingere in avanti l'orario di inizio calcolato.
+    var isFirstMossa = ordine[s.id].length === 0;
     var migliore = null;
     candidati.forEach(function (cand) {
       var viaggio = stimaViaggio_(ultimoPunto[s.id], cand, regole).minuti;
-      // Il tempo di viaggio TRA le tappe non può superare il limite giornaliero: anche se il
-      // candidato entrerebbe nel turno per tempo disponibile, va scartato se mescolerebbe zone
-      // troppo lontane tra loro (es. un'area già visitata lontana da un'altra nello stesso giro).
-      if (tempoViaggioMassimo > 0 && (viaggioAccumulato[s.id] + viaggio) > tempoViaggioMassimo) return;
+      if (!isFirstMossa && tempoViaggioMassimo > 0 && (viaggioAccumulato[s.id] + viaggio) > tempoViaggioMassimo) return;
       var durata = cand.durataMinuti || 60;
       var finestraInizioInt = timeToMinutes_(cand.finestraInizio || '00:00');
       var finestraFineInt = timeToMinutes_(cand.finestraFine || '23:59');
-      var candidateStart = Math.max(cursorMin[s.id] + viaggio + bufferSetup, finestraInizioInt);
+      var candidateStart = isFirstMossa
+        ? Math.max(oraInizioMin[s.id], finestraInizioInt)
+        : Math.max(cursorMin[s.id] + viaggio + bufferSetup, finestraInizioInt);
       var slot = trovaSlotValido_(candidateStart, durata, oraInizioMin[s.id], oraFineMin[s.id], pausaInizioMin[s.id], pausaFineMin[s.id], tolleranzaPausaMinuti);
       if (!slot || slot.fine > finestraFineInt) return; // non entra nel turno di questa squadra
       var ricavo = cand.ricavo || 0;
       var bonusCompetenza = squadraHaCompetenzaSpecificaPer_(s, cand) ? pesoCompetenzaSpecifica : 0;
       var costo = viaggio - pesoPriorita_(cand.priorita, regole) * 0.05 - pesoRicavoEffettivo * ricavo - bonusCompetenza;
-      if (!migliore || costo < migliore.costo) migliore = { cand: cand, costo: costo, fine: slot.fine, viaggio: viaggio };
+      if (!migliore || costo < migliore.costo) migliore = { cand: cand, costo: costo, fine: slot.fine, viaggio: isFirstMossa ? 0 : viaggio };
     });
     return migliore;
   }
