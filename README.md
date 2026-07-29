@@ -90,6 +90,7 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 | `Triggers.gs` | Trigger installabile: geocodifica automatica quando un indirizzo viene scritto direttamente sul foglio |
 | `Setup.gs` | Inizializzazione struttura fogli, menu, dati di esempio |
 | `Teams.gs` / `Interventions.gs` / `Rules.gs` | CRUD (con geocodifica automatica su Squadre/Interventi) |
+| `Import.gs` | Import di Interventi dal foglio grezzo `ImportInterventi` (tracking esterno) |
 | `RouteEngine.gs` | Motore di ottimizzazione percorso (inserimento più economico + 2-opt, scheduling con pausa pranzo, vista "Programmazione" e riempimento buchi) |
 | `Code.gs` | `doGet()` e funzioni esposte al client |
 | `Index.html` / `CSS.html` / `JS.html` | Interfaccia utente (SPA) |
@@ -341,6 +342,54 @@ foglio invece di usare i form della Web App. In quel caso:
   (anche senza cambiare nulla) per farla geocodificare. Finché un
   intervento/squadra non è geocodificato/a (né in automatico né a mano), la
   pianificazione darà errore "indirizzo non geocodificato".
+
+### Importare gli interventi da un tracking esterno
+
+Se gestisci già gli interventi in un altro sistema (es. un export con colonne
+Ods/Attività/Tecnico/Data Appuntamento) puoi portarli negli Interventi della
+Web App senza doverli ricopiare a mano:
+
+1. Apri il foglio Google e vai sulla tab **ImportInterventi** (creata
+   automaticamente all'avvio, con le colonne: Ods, Attività, Nome Cliente,
+   Data Disp., Data Scadenza, Urgente, Note Sicuritalia, Stato, Note Site,
+   Data App., Ora App., Tecnico, Indirizzo, Comune, Provincia, Telefono,
+   Aging scaduto).
+2. Incolla lì i dati esportati dal tuo sistema, **sotto** la riga di
+   intestazione (che deve restare invariata) — puoi sovrascrivere quello che
+   c'era prima, è solo un'area di appoggio.
+3. Nella Web App, tab **Interventi**, premi **"📥 Importa da
+   ImportInterventi"**.
+
+Cosa succede per ogni riga con "Ods" valorizzato:
+
+- **Cliente e indirizzo** (Indirizzo + Comune + Provincia) vengono presi
+  così come sono e **geocodificati automaticamente**, come per un intervento
+  inserito a mano;
+- **Urgente** spuntato diventa priorità "Urgente", altrimenti "Normale";
+- **Data Disp./Data Scadenza** diventano rispettivamente "Non Prima Del" e
+  "Scadenza"; **Telefono** viene riportato così com'è;
+- **Attività, Stato (del tracking esterno), Note Sicuritalia e Note Site**
+  vengono uniti in un unico campo "Note", per non perdere nessuna
+  informazione anche se non hanno una colonna dedicata;
+- se **Tecnico** corrisponde esattamente al nome di una Squadra esistente
+  **e** "Data App." è compilata, l'intervento entra già **"Pianificato"**
+  per quella squadra/data/ora (Ora App. se presente); attenzione: questo
+  **non ricalcola il percorso** di quella squadra/giorno, quindi vale la
+  pena controllare (o passare da "Riempi buco") che non si sovrapponga ad
+  altre tappe già confermate. Se il Tecnico non corrisponde a nessuna
+  squadra, o manca la Data App., l'intervento entra normalmente come "Da
+  pianificare" e sarà il motore a deciderne la pianificazione;
+- l'**Ods diventa il "Codice Esterno"** dell'intervento: re-importando in
+  futuro lo stesso foglio (magari aggiornato dal tuo sistema), una riga con
+  lo stesso Ods **aggiorna** l'intervento già presente invece di
+  duplicarlo. Un intervento che la Web App ha già portato oltre "Da
+  pianificare" (pianificato manualmente/dal motore, completato, annullato)
+  **non viene mai retrocesso** da un re-import: solo i campi anagrafici
+  (cliente, indirizzo, priorità, date, note, telefono) vengono aggiornati,
+  lo stato/l'assegnazione decisi nella Web App restano intoccati.
+- al termine, la Web App mostra quante righe sono state create/aggiornate,
+  quante saltate (Ods, Nome Cliente o Indirizzo mancanti) e quante fallite
+  (tipicamente indirizzo non geocodificabile), coi dettagli riga per riga.
 
 ## Nota sul servizio Google Maps e sulle prestazioni
 

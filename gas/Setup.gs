@@ -26,6 +26,7 @@ function inizializzaApp() {
     ensureHeader_(SCHEMA[key]);
   });
   inizializzaRegoleDefault_();
+  ensureImportSheet_();
 }
 
 /** Wrapper per il menu del foglio: esegue l'inizializzazione e mostra un alert. */

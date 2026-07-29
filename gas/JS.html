@@ -484,9 +484,41 @@
     }).join('');
   }
 
+  function renderRisultatoImportEsterno_(r) {
+    var righe = [
+      r.creati + ' creati',
+      r.aggiornati + ' aggiornati',
+      r.saltati + ' saltati (dati obbligatori mancanti)',
+      r.falliti + ' falliti (es. indirizzo non geocodificabile)'
+    ];
+    var html = '<div class="summary-cards"><div class="summary-card">' + righe.join(' · ') + '</div></div>';
+    if (r.tempoScaduto) {
+      html += '<div class="non-pianificabili-list" style="margin-top:8px;"><div>Tempo di elaborazione esaurito prima di finire tutte le righe: le righe già lette restano importate, premi di nuovo "Importa" per completare il resto.</div></div>';
+    }
+    var dettagli = (r.dettagliSaltati || []).concat(r.dettagliFalliti || []);
+    if (dettagli.length) {
+      html += '<div class="non-pianificabili-list" style="margin-top:8px;">' +
+        dettagli.map(function (d) { return '<div>' + escapeHtml(d) + '</div>'; }).join('') +
+        '</div>';
+    }
+    document.getElementById('import-esterno-risultato').innerHTML = html;
+  }
+
   function setupInterventiTab() {
     on('btn-nuovo-intervento', 'click', function () { openModal('INTERVENTI', null); });
     on('btn-filtra-interventi', 'click', loadInterventi);
+    on('btn-importa-esterno', 'click', function (e) {
+      var btn = e.target;
+      btn.disabled = true;
+      callServer('importaInterventiEsterni').then(function (r) {
+        renderRisultatoImportEsterno_(r);
+        var totale = r.creati + r.aggiornati;
+        toast(totale > 0 ? 'Import completato: ' + totale + ' interventi creati/aggiornati.' : 'Nessun intervento importato: controlla i dettagli.', totale > 0 ? 'success' : 'error');
+        return loadInterventi();
+      }).catch(function (err) {
+        toast(err.message || String(err), 'error');
+      }).then(function () { btn.disabled = false; });
+    });
     onQuery('#tabella-interventi tbody', 'click', function (e) {
       var btn = e.target.closest('button[data-action]');
       if (!btn) return;

@@ -8,8 +8,22 @@ var SHEET_NAMES = {
   SQUADRE: 'Squadre',
   INTERVENTI: 'Interventi',
   REGOLE: 'Regole',
-  LOG: 'LogPianificazione'
+  LOG: 'LogPianificazione',
+  IMPORT_ESTERNO: 'ImportInterventi'
 };
+
+/**
+ * Intestazioni del foglio "grezzo" ImportInterventi, nello stesso ordine e con lo stesso
+ * testo dell'export del sistema di tracking esterno del cliente: si incollano i dati lì
+ * (sovrascrivendo pure le righe di esempio) e si preme "Importa" nel tab Interventi della
+ * Web App. Non è uno SCHEMA con CRUD proprio: è solo un'area di staging che Import.gs legge
+ * per posizione di colonna.
+ */
+var IMPORT_ESTERNO_HEADERS = [
+  'Ods', 'Attività', 'Nome Cliente', 'Data Disp.', 'Data Scadenza', 'Urgente',
+  'Note Sicuritalia', 'Stato', 'Note Site', 'Data App.', 'Ora App.', 'Tecnico',
+  'Indirizzo', 'Comune', 'Provincia', 'Telefono', 'Aging scaduto'
+];
 
 var PRIORITA = {
   URGENTE: 'Urgente',
@@ -85,7 +99,8 @@ var SCHEMA = {
       { key: 'note', label: 'Note', type: 'text' },
       { key: 'motivoNonPianificato', label: 'Nota Pianificazione', type: 'text', readonly: true },
       { key: 'telefono', label: 'Telefono', type: 'text' },
-      { key: 'ricavo', label: 'Ricavo (€)', type: 'number', default: 0, help: 'Usato per calcolare la produzione (ricavo totale) di ciascuna squadra rispetto al proprio target di produzione giornaliera.' }
+      { key: 'ricavo', label: 'Ricavo (€)', type: 'number', default: 0, help: 'Usato per calcolare la produzione (ricavo totale) di ciascuna squadra rispetto al proprio target di produzione giornaliera.' },
+      { key: 'codiceEsterno', label: 'Codice Esterno (Ods)', type: 'text', readonly: true, help: 'Identificativo dell\'intervento nel sistema di tracking esterno da cui è stato importato (tab ImportInterventi): re-importando lo stesso Ods, questo intervento viene aggiornato invece di duplicato.' }
     ]
   },
   REGOLE: {
