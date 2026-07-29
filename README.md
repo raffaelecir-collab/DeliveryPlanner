@@ -450,12 +450,33 @@ chiave su cui riconciliare, viene invece importata **una sola volta** e poi
 marcata **direttamente sul foglio esterno** (colonna "Importato Web App",
 creata automaticamente se assente): i run successivi la saltano e restano
 "congelate" — eventuali modifiche successive a quella riga specifica non
-verranno più riportate. Al termine, la Web App mostra quanti interventi
-sono stati creati, quanti aggiornati, quanti già importati in precedenza
-senza Ods (marcatore trovato, nessuna azione), quanti saltati (Nome Cliente
-o Indirizzo mancanti) e quanti falliti (tipicamente indirizzo non
-geocodificabile — questi ultimi non vengono marcati, così un run
-successivo li ritenta dopo la correzione), coi dettagli riga per riga.
+verranno più riportate.
+
+**Righe cancellate dal tracking esterno**: se un Ods che era presente in un
+import precedente non compare più tra le righe compilate (la riga è stata
+rimossa dal foglio esterno), l'Intervento corrispondente passa
+automaticamente ad **"Annullato"** — qualunque fosse il suo stato prima
+(anche se già Pianificato o Completato dalla Web App: il tracking esterno è
+considerato la fonte di verità su quali Ods sono ancora attivi). Riguarda
+solo gli Interventi con un Codice Esterno: uno creato a mano nella Web App
+non viene mai toccato da questo meccanismo. Se in seguito lo stesso Ods
+ricompare nel foglio esterno, l'Intervento **torna disponibile**
+automaticamente (rivalutato da zero in base a Stato/Tecnico/Data App., come
+per un import normale) — a meno che nel frattempo un operatore non lo abbia
+annullato di proposito dalla Web App per altri motivi: quell'annullamento
+manuale resta invece protetto e non viene mai "resuscitato" da un
+re-import. Per prudenza, se il foglio esterno risultasse del tutto vuoto
+(0 righe), questo passaggio non viene eseguito — un foglio vuoto indica più
+probabilmente un problema di configurazione/accesso che l'intenzione di
+annullare tutto.
+
+Al termine, la Web App mostra quanti interventi sono stati creati, quanti
+aggiornati, quanti già importati in precedenza senza Ods (marcatore
+trovato, nessuna azione), quanti annullati perché rimossi dal tracking
+esterno, quanti saltati (Nome Cliente o Indirizzo mancanti) e quanti
+falliti (tipicamente indirizzo non geocodificabile — questi ultimi non
+vengono marcati, così un run successivo li ritenta dopo la correzione),
+coi dettagli riga per riga.
 
 ## Nota sul servizio Google Maps e sulle prestazioni
 

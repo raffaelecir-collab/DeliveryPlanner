@@ -39,6 +39,16 @@ function normalizzaTelefonoImport_(raw) {
 }
 
 /**
+ * Nota distintiva scritta su un Intervento quando l'import lo annulla automaticamente perché il
+ * suo Ods non compare più nel foglio esterno (vedi importaInterventiEsterni). Serve a
+ * distinguerlo da un annullamento fatto di proposito da un operatore nella Web App: solo un
+ * Intervento annullato CON questa nota può essere "resuscitato" se il suo Ods ricompare in un
+ * import successivo; uno annullato manualmente resta protetto come qualunque altro Intervento
+ * già preso in carico.
+ */
+var NOTA_ANNULLATO_AUTOMATICO_ = 'Annullato automaticamente: Ods non più presente nel tracking esterno';
+
+/**
  * Mappa lo stato testuale del tracking esterno (libero, non standardizzato: es. "Appuntamentato
  * - yn", "Giacente - nessun blocco") sui 4 stati dell'Intervento, per parola contenuta invece che
  * per corrispondenza esatta — così regge anche valori non ancora visti, senza dover conoscere
@@ -194,11 +204,21 @@ function trovaOCreaColonnaMarcatore_(sheet, headerRow, lastCol) {
  * Guardrail di tempo (come in pianificaIntervallo): con moltissime righe da importare in un solo
  * run, se il tempo sta per scadere si interrompe l'elaborazione delle righe restanti
  * restituendo comunque quanto già importato/aggiornato fin lì.
+ *
+ * Infine, un Ods che in un import precedente era presente ma che ORA non compare più tra le
+ * righe compilate del foglio esterno (riga cancellata dal tracking) fa passare l'Intervento
+ * corrispondente ad "Annullato" — qualunque fosse il suo stato precedente, anche se già
+ * Pianificato o Completato dalla Web App (per scelta esplicita: il tracking esterno è
+ * considerato la fonte di verità su quali Ods sono ancora attivi). Riguarda solo gli Interventi
+ * con un Codice Esterno (mai quelli creati a mano nella Web App) e non tocca quelli già
+ * Annullato. Se il foglio esterno risultasse del tutto vuoto (nessuna riga), per prudenza questo
+ * passaggio non viene eseguito: un foglio vuoto è più probabilmente un problema di
+ * configurazione/accesso che un'intenzione di annullare tutto.
  */
 function importaInterventiEsterni() {
   var sheet = apriFoglioImportEsterno_();
   var lastRow = sheet.getLastRow();
-  var risultatoVuoto = { creati: 0, aggiornati: 0, giaImportati: 0, saltati: 0, falliti: 0, dettagliSaltati: [], dettagliFalliti: [], tempoScaduto: false };
+  var risultatoVuoto = { creati: 0, aggiornati: 0, giaImportati: 0, annullatiRimossi: 0, saltati: 0, falliti: 0, dettagliSaltati: [], dettagliFalliti: [], tempoScaduto: false };
   if (lastRow < 2) return risultatoVuoto;
 
   var lastCol = sheet.getLastColumn();
@@ -233,6 +253,11 @@ function importaInterventiEsterni() {
   var creati = 0, aggiornati = 0, giaImportati = 0, saltati = 0, falliti = 0;
   var dettagliSaltati = [], dettagliFalliti = [];
 
+  // Ods incontrati in questo run (anche se la riga viene poi saltata per altri motivi, es.
+  // indirizzo mancante): usato a fine funzione per riconoscere gli Ods che sono SPARITI dal
+  // foglio esterno rispetto a un import precedente.
+  var odsPresentiOra = {};
+
   for (var r = 0; r < values.length; r++) {
     if (new Date().getTime() - inizioEsecuzione > TEMPO_MASSIMO_MS) { tempoScaduto = true; break; }
     var row = values[r];
@@ -246,6 +271,8 @@ function importaInterventiEsterni() {
     // "modello" vuote, ci si ferma senza scandire il resto del foglio.
     if (!odsStr && !cliente && !indirizzoBase) break;
 
+    if (odsStr) odsPresentiOra[odsStr] = true;
+
     // Senza Ods, il marcatore è l'unico modo per riconoscere una riga già importata: se già
     // marcata, resta congelata (nessun aggiornamento possibile senza una chiave).
     if (!odsStr && marcatori[r][0]) { giaImportati++; continue; }
@@ -257,7 +284,12 @@ function importaInterventiEsterni() {
     }
 
     var esistente = odsStr ? interventiPerCodice[odsStr] : null;
-    var puoImpostarePianificazione = !esistente || esistente.stato === STATO_INTERVENTO.DA_PIANIFICARE;
+    // Un Intervento annullato AUTOMATICAMENTE da un import precedente (Ods sparito) va
+    // riconsiderato da zero se l'Ods ricompare — non è una decisione dell'operatore da
+    // rispettare, solo una conseguenza contabile della sua assenza temporanea.
+    var eraAnnullatoAutomaticamente = esistente && esistente.stato === STATO_INTERVENTO.ANNULLATO &&
+      String(esistente.note || '').indexOf(NOTA_ANNULLATO_AUTOMATICO_) !== -1;
+    var puoImpostarePianificazione = !esistente || esistente.stato === STATO_INTERVENTO.DA_PIANIFICARE || eraAnnullatoAutomaticamente;
 
     var comune = String(valoreColonnaImport_(row, idx, 'Comune') || '').trim();
     var provincia = String(valoreColonnaImport_(row, idx, 'Provincia') || '').trim();
@@ -316,10 +348,26 @@ function importaInterventiEsterni() {
     if (esistente) aggiornati++; else creati++;
   }
 
+  // Righe scomparse dal foglio esterno rispetto a un import precedente: gli Interventi con quel
+  // Codice Esterno passano ad Annullato. Solo se questo run ha visto l'intero foglio (altrimenti,
+  // con un'elaborazione interrotta per tempo, righe non ancora raggiunte sembrerebbero sparite
+  // per errore).
+  var annullatiRimossi = 0;
+  if (!tempoScaduto) {
+    readAll_('INTERVENTI').forEach(function (i) {
+      if (i.codiceEsterno && !odsPresentiOra[String(i.codiceEsterno)] && i.stato !== STATO_INTERVENTO.ANNULLATO) {
+        var notaAggiornata = [NOTA_ANNULLATO_AUTOMATICO_, i.note].filter(function (p) { return p; }).join(' | ');
+        updateRowFields_('INTERVENTI', i._row, { stato: STATO_INTERVENTO.ANNULLATO, note: notaAggiornata });
+        annullatiRimossi++;
+      }
+    });
+  }
+
   return {
     creati: creati,
     aggiornati: aggiornati,
     giaImportati: giaImportati,
+    annullatiRimossi: annullatiRimossi,
     saltati: saltati,
     falliti: falliti,
     dettagliSaltati: dettagliSaltati,
