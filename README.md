@@ -226,6 +226,15 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      qualsiasi squadra) solo come riempitivo quando non c'è (più) lavoro
      specifico disponibile per lei.
 
+     Se una combinazione squadra/giorno ha **già un percorso confermato** in
+     partenza (da un run precedente di "Pianifica intervallo", o pianificato a
+     mano), quelle tappe **restano ferme**: la funzione si limita ad
+     aggiungere nei buchi residui del turno gli interventi vinti nel
+     confronto di quel giorno, senza mai ricostruire da zero o scartare
+     quanto già confermato. Una squadra/giorno con un percorso già completo e
+     nessun nuovo candidato compatibile non compare più come "Giornata
+     libera": mostra il percorso esistente, invariato.
+
    In fondo alla pagina trovi il riepilogo dei percorsi già confermati per il
    giorno selezionato, con tutte le squadre affiancate.
 
@@ -254,11 +263,16 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    da questa vista. Da qui puoi:
    - **"Rimuovi"** su una singola riga: l'intervento torna "Da pianificare"
      (deselezione di una tappa già programmata);
-   - **"Riempi buco"** per una squadra/giorno: ripianifica subito quella
-     combinazione usando le tappe rimaste più il pool di interventi ancora
+   - **"Riempi buco"** per una squadra/giorno: le tappe **già pianificate
+     restano ferme** (stesso ordine relativo tra loro, mai scartate né
+     ripianificate da zero) e vengono solo **aggiunti** interventi ancora
      "Da pianificare" compatibili (stessa competenza, stesso rispetto di
-     finestre orarie/pausa pranzo/orario di lavoro), per non lasciare ore di
-     turno inutilizzate. Premendo "Rimuovi" questo riempimento **parte in
+     finestre orarie/pausa pranzo/orario di lavoro) nei buchi residui del
+     turno, per non lasciare ore inutilizzate. Un nuovo intervento può essere
+     inserito anche "in mezzo" a due tappe già ferme se conviene dal punto di
+     vista del percorso (i loro orari si aggiornano di conseguenza), ma non
+     viene mai rimosso o spostato su un'altra squadra/giorno un intervento già
+     confermato. Premendo "Rimuovi" questo riempimento **parte in
      automatico** subito dopo la deselezione, così il buco lasciato aperto in
      un giorno già programmato viene ricoperto, se possibile, senza un passo
      manuale in più.

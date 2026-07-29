@@ -572,6 +572,99 @@ function riempiGiornata_(squadra, nodi, risultato, matriceStima, partenzaIdx, ri
   return corrente;
 }
 
+/**
+ * Come riempiGiornata_, ma con un pool di candidati ESPLICITO (passato dal chiamante) invece che
+ * ricavato da risultato.nonIncluse: usata da estendiPercorsoEsistente_ per aggiungere nuovi
+ * candidati a un percorso le cui tappe iniziali sono già fissate (vedi lì). Tenta l'inserimento
+ * di ciascun candidato in qualsiasi posizione del percorso attuale, accettandolo solo se il
+ * numero di tappe incluse aumenta — non elimina/sposta mai una tappa già presente.
+ */
+function riempiGiornataConCandidatiEspliciti_(squadra, nodi, risultato, matriceStima, partenzaIdx, rientroIdx, regole) {
+  var MAX_ITERAZIONI = 30;
+  var MAX_CANDIDATI_PER_TENTATIVO = 8;
+  var corrente = risultato;
+
+  var idxPerId = {};
+  nodi.forEach(function (n, idx) { if (n.intervento) idxPerId[n.intervento.id] = idx; });
+
+  function costoInserzionePosizione(route, idx, pos) {
+    if (pos === -1) return matriceStima[idx][route[0]].minuti;
+    if (pos === route.length - 1) return matriceStima[route[pos]][idx].minuti;
+    var prima = route[pos], dopo = route[pos + 1];
+    return matriceStima[prima][idx].minuti + matriceStima[idx][dopo].minuti - matriceStima[prima][dopo].minuti;
+  }
+
+  var target = squadra.produzioneTarget || 0;
+
+  for (var iter = 0; iter < MAX_ITERAZIONI; iter++) {
+    if (corrente.nonIncluse.length === 0 || corrente.tappe.length === 0) break;
+
+    var ordineAttuale = corrente.tappe.map(function (t) { return idxPerId[t.intervento.id]; });
+    if (ordineAttuale.indexOf(undefined) !== -1) break;
+
+    var pesoRicavoBase = pesoRegola_(regole, 'pesoRicavo');
+    var pesoRicavoEffettivo = pesoRicavoBase;
+    if (target > 0) {
+      var produzioneAttuale = corrente.tappe.reduce(function (sum, t) { return sum + (t.intervento.ricavo || 0); }, 0);
+      if (produzioneAttuale < target) {
+        var distanzaDalTarget = (target - produzioneAttuale) / target;
+        pesoRicavoEffettivo = pesoRicavoBase * (1 + distanzaDalTarget * 4);
+      }
+    }
+    var pesoCompetenzaSpecifica = pesoRegola_(regole, 'pesoCompetenzaSpecifica');
+
+    var candidati = corrente.nonIncluse
+      .map(function (n) {
+        var idx = idxPerId[n.intervento.id];
+        if (idx === undefined) return null;
+        var migliorPos = -1, migliorCosto = Infinity;
+        for (var pos = -1; pos < ordineAttuale.length; pos++) {
+          var costo = costoInserzionePosizione(ordineAttuale, idx, pos);
+          if (costo < migliorCosto) { migliorCosto = costo; migliorPos = pos; }
+        }
+        var durata = nodi[idx].intervento.durataMinuti || 60;
+        var ricavo = nodi[idx].intervento.ricavo || 0;
+        var bonusCompetenza = squadraHaCompetenzaSpecificaPer_(squadra, nodi[idx].intervento) ? pesoCompetenzaSpecifica : 0;
+        return { idx: idx, id: n.intervento.id, pos: migliorPos, costo: migliorCosto + durata - pesoRicavoEffettivo * ricavo - bonusCompetenza };
+      })
+      .filter(function (c) { return c !== null; })
+      .sort(function (a, b) { return a.costo - b.costo; })
+      .slice(0, MAX_CANDIDATI_PER_TENTATIVO);
+
+    var migliorato = false;
+    for (var i = 0; i < candidati.length; i++) {
+      var provaOrdine = ordineAttuale.slice();
+      provaOrdine.splice(candidati[i].pos + 1, 0, candidati[i].idx);
+      var provaRisultato = pianificaConUpgradeReale_(squadra, nodi, provaOrdine, matriceStima, partenzaIdx, rientroIdx, regole);
+      if (provaRisultato.tappe.length > corrente.tappe.length) {
+        provaRisultato.nonIncluse = corrente.nonIncluse.filter(function (n) { return n.intervento.id !== candidati[i].id; });
+        corrente = provaRisultato;
+        migliorato = true;
+        break;
+      }
+    }
+    if (!migliorato) break;
+  }
+  return corrente;
+}
+
+/**
+ * Pianifica una giornata mantenendo FISSE (stesso ordine, e stessi orari se nulla cambia) le
+ * tappe indicate da ordineFissato (indici in nodi, tipicamente le tappe già confermate in
+ * precedenza), e prova ad aggiungere — senza mai spostarle o toglierle — i candidati elencati in
+ * indiciCandidati nei buchi residui del turno. Usata quando una squadra/giorno ha già un
+ * percorso confermato (tab Programmazione → "Riempi buco", o pianificazione automatica su un
+ * intervallo che ricade su un giorno già pianificato in precedenza): evita che una ricostruzione
+ * da zero possa riordinare o scartare interventi già pianificati per far posto ad altri.
+ */
+function estendiPercorsoEsistente_(squadra, nodi, ordineFissato, indiciCandidati, matriceStima, partenzaIdx, rientroIdx, regole) {
+  var risultato = pianificaConUpgradeReale_(squadra, nodi, ordineFissato, matriceStima, partenzaIdx, rientroIdx, regole);
+  risultato.nonIncluse = indiciCandidati.map(function (idx) {
+    return { intervento: nodi[idx].intervento, motivo: 'Non è entrato nel tempo residuo della giornata' };
+  });
+  return riempiGiornataConCandidatiEspliciti_(squadra, nodi, risultato, matriceStima, partenzaIdx, rientroIdx, regole);
+}
+
 // ---------- API esposte al client ----------
 
 /** Interventi disponibili per la selezione + eventuale percorso già confermato per squadra+giorno. */
@@ -835,12 +928,13 @@ function getProgrammazione(dataInizioStr, dataFineStr) {
 }
 
 /**
- * Ripianifica da capo una squadra/giorno partendo dagli interventi già assegnati (se restati
- * dopo una deselezione) più il pool di interventi ancora "Da pianificare" compatibili con quel
- * giorno e quella squadra, per riempire il buco lasciato aperto. Riusa la stessa costruzione +
- * riempimento giornata della pianificazione automatica, quindi tenta anche l'inserimento di
- * interventi di passaggio nelle ore rimaste libere. Gli interventi che restano fuori (o che
- * erano pianificati ma non trovano più posto nel nuovo percorso) tornano "Da pianificare".
+ * Aggiunge, senza mai toccarli, interventi al percorso già confermato di una squadra/giorno: gli
+ * interventi già pianificati restano fissi (stesso ordine; l'orario può solo spostarsi se un
+ * nuovo intervento viene inserito prima di loro nel percorso, mai perderli né farli assegnare
+ * altrove), e si prova ad aggiungere il pool di interventi ancora "Da pianificare" compatibili
+ * con quel giorno e quella squadra nei buchi residui del turno (anche "di passaggio", tra due
+ * tappe già fissate). Solo i nuovi candidati che non trovano posto restano "Da pianificare";
+ * quelli già pianificati non vengono mai retrocessi da questa funzione.
  */
 function riempiBucoGiorno(squadraId, giornoStr) {
   var regole = getRegoleMappa_();
@@ -859,7 +953,7 @@ function riempiBucoGiorno(squadraId, giornoStr) {
   var tuttiInterventi = assicuraIdTutti_('INTERVENTI');
   var giaPianificati = tuttiInterventi.filter(function (i) {
     return i.squadraId === squadraId && i.dataPianificata === giornoFmt && i.stato === STATO_INTERVENTO.PIANIFICATO;
-  });
+  }).sort(function (a, b) { return (a.ordineTappa || 0) - (b.ordineTappa || 0); });
   var disponibiliCompatibili = tuttiInterventi.filter(function (i) {
     if (i.stato !== STATO_INTERVENTO.DA_PIANIFICARE) return false;
     if (!isNum_(i.lat) || !isNum_(i.lng)) return false;
@@ -878,10 +972,20 @@ function riempiBucoGiorno(squadraId, giornoStr) {
 
   var nodi = costruisciNodi_(squadra, selezionati);
   var partenzaIdx = 0, rientroIdx = nodi.length - 1;
-  var stopIndices = [];
-  for (var k = 1; k < nodi.length - 1; k++) stopIndices.push(k);
   var matriceStima = costruisciMatriceStimata_(nodi, regole);
-  var risultato = costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima, partenzaIdx, rientroIdx, regole);
+
+  // Le tappe già pianificate (le prime giaPianificati.length di `selezionati`, quindi di `nodi`)
+  // restano fisse; solo gli indici dei nuovi candidati (disponibiliCompatibili) vengono proposti
+  // per il riempimento dei buchi residui — mai una ricostruzione da zero che potrebbe scartarle
+  // o riordinarle per far posto ad altro.
+  var ordineFissato = [];
+  for (var g = 1; g <= giaPianificati.length; g++) ordineFissato.push(g);
+  var indiciCandidati = [];
+  for (var k = giaPianificati.length + 1; k < nodi.length - 1; k++) indiciCandidati.push(k);
+
+  var risultato = ordineFissato.length === 0
+    ? costruisciEPianificaPercorso_(squadra, nodi, indiciCandidati, matriceStima, partenzaIdx, rientroIdx, regole)
+    : estendiPercorsoEsistente_(squadra, nodi, ordineFissato, indiciCandidati, matriceStima, partenzaIdx, rientroIdx, regole);
 
   risultato.tappe.forEach(function (t, idx) {
     updateRowFields_('INTERVENTI', t.intervento._row, {
@@ -1170,11 +1274,18 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
       if (new Date().getTime() - inizioEsecuzione > TEMPO_MASSIMO_MS) { tempoScaduto = true; return; }
       var candidatiOggi = candidatiPerSquadra[squadra.id];
 
-      // Anche senza nessun candidato (o nessuno pianificabile), la squadra viene comunque
-      // riportata per questo giorno, marcata come libera: meglio un vuoto esplicito che una
-      // squadra silenziosamente assente dal riepilogo, specie con più squadre che condividono
-      // lo stesso pool di interventi disponibili.
-      if (candidatiOggi.length === 0) {
+      // Interventi già confermati in precedenza per questa squadra/giorno (es. da un run
+      // precedente di pianificaIntervallo, o pianificati a mano): restano fissi, questa
+      // funzione può solo aggiungere altri interventi nei buchi residui, mai spostarli o
+      // toglierli per far posto a candidati "migliori" nel confronto di oggi.
+      var giaPianificatiOggi = tuttiInterventi.filter(function (i) {
+        return i.squadraId === squadra.id && i.dataPianificata === giornoFmt && i.stato === STATO_INTERVENTO.PIANIFICATO;
+      }).sort(function (a, b) { return (a.ordineTappa || 0) - (b.ordineTappa || 0); });
+
+      // Anche senza nessun candidato nuovo, se la squadra ha già un percorso per questo giorno
+      // va comunque riportato (non "libera"): solo se non c'è NÉ un percorso esistente NÉ
+      // candidati nuovi la squadra risulta libera per questo giorno.
+      if (candidatiOggi.length === 0 && giaPianificatiOggi.length === 0) {
         giorniMap[giornoFmt].push({
           squadraId: squadra.id, squadraNome: squadra.nome, colore: squadra.colore, tappe: [], libera: true,
           produzioneTotale: 0, produzioneTarget: squadra.produzioneTarget || 0
@@ -1182,10 +1293,8 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
         return;
       }
 
-      var nodi = costruisciNodi_(squadra, candidatiOggi);
+      var nodi = costruisciNodi_(squadra, giaPianificatiOggi.concat(candidatiOggi));
       var partenzaIdx = 0, rientroIdx = nodi.length - 1;
-      var stopIndices = [];
-      for (var k = 1; k < nodi.length - 1; k++) stopIndices.push(k);
       var matriceStima = costruisciMatriceStimata_(nodi, regole);
 
       var idxPerId = {};
@@ -1201,11 +1310,24 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
         .map(function (id) { return idxPerId[id]; })
         .filter(function (idx) { return idx !== undefined; });
 
-      var risultato = costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima, partenzaIdx, rientroIdx, regole, ordineForzato);
+      // Le tappe già pianificate (le prime giaPianificatiOggi.length di `nodi`) restano fisse:
+      // le vincitrici del confronto congiunto di oggi vengono solo aggiunte nei buchi residui,
+      // mai usate per ricostruire l'intera giornata da zero.
+      var ordineFissato = [];
+      for (var g = 1; g <= giaPianificatiOggi.length; g++) ordineFissato.push(g);
+
+      var risultato;
+      if (ordineFissato.length === 0) {
+        var stopIndices = [];
+        for (var k = 1; k < nodi.length - 1; k++) stopIndices.push(k);
+        risultato = costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima, partenzaIdx, rientroIdx, regole, ordineForzato);
+      } else {
+        risultato = estendiPercorsoEsistente_(squadra, nodi, ordineFissato, ordineForzato, matriceStima, partenzaIdx, rientroIdx, regole);
+      }
 
       risultato.tappe.forEach(function (t, idx) {
         var originale = pool.filter(function (i) { return i.id === t.intervento.id; })[0];
-        originale._assegnato = true;
+        if (originale) originale._assegnato = true; // già pianificate in precedenza: non fanno parte del pool, restano semplicemente invariate
         updateRowFields_('INTERVENTI', t.intervento._row, {
           stato: STATO_INTERVENTO.PIANIFICATO,
           squadraId: squadra.id,
