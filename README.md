@@ -374,14 +374,31 @@ Cosa succede per ogni riga con "Ods" valorizzato:
 - **Attività, Stato (del tracking esterno), Note Sicuritalia e Note Site**
   vengono uniti in un unico campo "Note", per non perdere nessuna
   informazione anche se non hanno una colonna dedicata;
-- se **Tecnico** corrisponde esattamente al nome di una Squadra esistente
-  **e** "Data App." è compilata, l'intervento entra già **"Pianificato"**
-  per quella squadra/data/ora (Ora App. se presente); attenzione: questo
-  **non ricalcola il percorso** di quella squadra/giorno, quindi vale la
-  pena controllare (o passare da "Riempi buco") che non si sovrapponga ad
-  altre tappe già confermate. Se il Tecnico non corrisponde a nessuna
-  squadra, o manca la Data App., l'intervento entra normalmente come "Da
-  pianificare" e sarà il motore a deciderne la pianificazione;
+- lo **Stato** del tracking esterno (testo libero, non standardizzato) viene
+  comunque mappato sui 4 stati dell'Intervento **per parola contenuta**, così
+  regge qualunque dicitura usata dal tuo sistema senza doverne conoscere
+  l'elenco esatto:
+  - contiene "annullat"/"revocat"/"disdett"/"cancellat" → **Annullato**;
+  - contiene "complet"/"chius"/"eseguit"/"risolt" → **Completato**;
+  - altrimenti, se **Tecnico** corrisponde al nome di una Squadra esistente
+    **e** "Data App." è compilata (un appuntamento è di fatto fissato,
+    qualunque sia la dicitura esatta, es. "Appuntamentato") → **Pianificato**,
+    per quella squadra/data/ora (Ora App. se presente): da quel momento è un
+    intervento pianificato a tutti gli effetti, modificabile/spostabile
+    esattamente come una pianificazione fatta dalla Web App (compare nel tab
+    Programmazione, si può rimuovere/completare/annullare, o spostare su
+    un'altra squadra/giorno dalla mappa di selezione) — con l'unica
+    differenza che l'import **non ricalcola il percorso** di quella
+    squadra/giorno, quindi vale la pena controllare (o passare da "Riempi
+    buco") che non si sovrapponga ad altre tappe già confermate;
+  - in ogni altro caso (es. "Giacente") → **Da pianificare**, e sarà il
+    motore a deciderne la pianificazione.
+
+  Quando Tecnico/Data App. sono valorizzati, squadra/data/ora vengono
+  riportati indipendentemente dallo stato risultante (anche per un
+  intervento importato come Completato o Annullato), per non perdere la
+  traccia di chi e quando lo ha eseguito — esattamente come "Completa" e
+  "Annulla" nella Web App, che non toccano mai squadra/data/ora già presenti;
 - l'**Ods diventa il "Codice Esterno"** dell'intervento: re-importando in
   futuro lo stesso foglio (magari aggiornato dal tuo sistema), una riga con
   lo stesso Ods **aggiorna** l'intervento già presente invece di

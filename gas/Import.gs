@@ -35,6 +35,26 @@ function normalizzaTelefonoImport_(raw) {
 }
 
 /**
+ * Mappa lo stato testuale del tracking esterno (libero, non standardizzato: es. "Appuntamentato
+ * - yn", "Giacente - nessun blocco") sui 4 stati dell'Intervento, per parola contenuta invece che
+ * per corrispondenza esatta — così regge anche valori non ancora visti, senza dover conoscere
+ * l'elenco completo usato nel foglio esterno:
+ * - contiene "annullat"/"revocat"/"disdett"/"cancellat" -> Annullato;
+ * - contiene "complet"/"chius"/"eseguit"/"risolt" -> Completato;
+ * - altrimenti, se "Tecnico" corrisponde a una squadra e "Data App." è valorizzata (un
+ *   appuntamento è di fatto fissato, qualunque sia la dicitura esatta dello stato, es.
+ *   "Appuntamentato") -> Pianificato;
+ * - in ogni altro caso (es. "Giacente") -> Da pianificare.
+ */
+function classificaStatoEsterno_(statoEsternoRaw, squadraMatch, dataApp) {
+  var s = String(statoEsternoRaw || '').trim().toLowerCase();
+  if (/annullat|revocat|disdett|cancellat/.test(s)) return STATO_INTERVENTO.ANNULLATO;
+  if (/complet|chius|eseguit|risolt/.test(s)) return STATO_INTERVENTO.COMPLETATO;
+  if (squadraMatch && dataApp) return STATO_INTERVENTO.PIANIFICATO;
+  return STATO_INTERVENTO.DA_PIANIFICARE;
+}
+
+/**
  * Apre il foglio esterno configurato in Regole (chiave "foglioImportEsternoId") e ne restituisce
  * la prima tab, con un errore chiaro se l'ID manca o se il foglio non è raggiungibile/condiviso
  * con l'account che esegue la Web App.
@@ -64,13 +84,19 @@ function apriFoglioImportEsterno_() {
  * precedenza) una riga su Interventi, geocodificando l'indirizzo (Indirizzo + Comune +
  * Provincia).
  *
- * Se "Tecnico" corrisponde al nome di una squadra esistente E "Data App." è valorizzata,
- * l'intervento viene importato già "Pianificato" per quella squadra/data/ora — senza però
- * ricalcolare né inserire la tappa nel percorso ottimizzato di quella squadra/giorno: va
- * verificato a mano (o con "Riempi buco") che non si sovrapponga ad altri interventi già
- * confermati. Un intervento già portato dalla Web App oltre "Da pianificare" (pianificato,
- * completato, annullato) non viene mai retrocesso da un successivo re-import: solo i campi
- * anagrafici (cliente, indirizzo, priorità, date, note, telefono) vengono aggiornati.
+ * Lo stato (colonna "Stato" del foglio esterno, testo libero non standardizzato) viene mappato
+ * sui 4 stati dell'Intervento da classificaStatoEsterno_ (vedi lì per le parole chiave
+ * riconosciute). In particolare, quando risulta un appuntamento fissato (Tecnico corrisponde al
+ * nome di una squadra esistente e "Data App." è valorizzata), l'intervento viene importato già
+ * "Pianificato" per quella squadra/data/ora: da quel momento è un Intervento pianificato a
+ * tutti gli effetti — compare nel tab Programmazione, si può rimuovere/completare/annullare o
+ * spostare su un'altra squadra/giorno dalla mappa di selezione, esattamente come una
+ * pianificazione fatta dalla Web App — con l'unica differenza che l'import NON ricalcola né
+ * inserisce la tappa nel percorso ottimizzato di quella squadra/giorno: va verificato a mano (o
+ * con "Riempi buco") che non si sovrapponga ad altri interventi già confermati. Un intervento
+ * già portato dalla Web App oltre "Da pianificare" (pianificato, completato, annullato) non
+ * viene mai retrocesso da un successivo re-import: solo i campi anagrafici (cliente, indirizzo,
+ * priorità, date, note, telefono) vengono aggiornati.
  *
  * Guardrail di tempo (come in pianificaIntervallo): con un foglio molto grande l'esecuzione
  * potrebbe avvicinarsi al limite di Apps Script: se il tempo sta per scadere, si interrompe
@@ -158,13 +184,17 @@ function importaInterventiEsterni() {
       var tecnicoNome = String(valoreColonnaImport_(row, idx, 'Tecnico') || '').trim();
       var dataApp = normalizzaDataImport_(valoreColonnaImport_(row, idx, 'Data App.'));
       var squadraMatch = tecnicoNome ? squadrePerNome[tecnicoNome.toLowerCase()] : null;
+      // Lo stato (Pianificato/Completato/Annullato/Da pianificare) viene dedotto sia dal testo
+      // di "Stato" sia da Tecnico/Data App.; se un tecnico e una data risultano comunque
+      // riconosciuti li riportiamo sempre (squadra/data/ora), indipendentemente dallo stato
+      // risultante, così anche un intervento importato come Completato/Annullato mantiene
+      // traccia di chi e quando l'ha eseguito — esattamente come fanno "Completa"/"Annulla"
+      // nella Web App, che non toccano mai squadra/data/ora già presenti.
+      payload.stato = classificaStatoEsterno_(statoEsterno, squadraMatch, dataApp);
       if (squadraMatch && dataApp) {
-        payload.stato = STATO_INTERVENTO.PIANIFICATO;
         payload.squadraId = squadraMatch.id;
         payload.dataPianificata = dataApp;
         payload.oraPianificata = normalizzaOraImport_(valoreColonnaImport_(row, idx, 'Ora App.'));
-      } else if (!esistente) {
-        payload.stato = STATO_INTERVENTO.DA_PIANIFICARE;
       }
     }
 
