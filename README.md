@@ -353,24 +353,34 @@ la prima tab** del foglio Google esterno indicato nella regola
 **`foglioImportEsternoId`** (tab Regole, valore di default già impostato
 sull'ID del foglio di tracking del cliente) — non serve copiare/incollare
 nulla. Il foglio esterno deve avere una riga di intestazione con (almeno) le
-colonne: Ods, Nome Cliente, Indirizzo (obbligatorie) e, se presenti, anche
-Attività, Data Disp., Data Scadenza, Urgente, Note Sicuritalia, Stato, Note
-Site, Data App., Ora App., Tecnico, Comune, Provincia, Telefono — le colonne
-si riconoscono per **nome dell'intestazione**, quindi il loro ordine nel
-foglio esterno può essere qualsiasi. Se cambia il foglio da cui importare
-(o l'ID è sbagliato/il foglio non è condiviso), basta aggiornare il valore
-di `foglioImportEsternoId` in Regole: **il foglio esterno deve essere
-condiviso almeno in lettura** con l'account Google che esegue la Web App,
-altrimenti l'import segnala chiaramente l'errore.
+colonne Nome Cliente e Indirizzo (obbligatorie: **Ods no**, vedi sotto) e,
+se presenti, anche Ods, Attività, Data Disp., Data Scadenza, Urgente, Note
+Sicuritalia, Stato, Note Site, Data App., Ora App., Tecnico, Importo ODS,
+Comune, Provincia, Telefono — le colonne si riconoscono per **nome
+dell'intestazione**, quindi il loro ordine nel foglio esterno può essere
+qualsiasi. Se cambia il foglio da cui importare (o l'ID è sbagliato/il
+foglio non è condiviso), basta aggiornare il valore di
+`foglioImportEsternoId` in Regole: **il foglio esterno deve essere
+condiviso in scrittura** (non solo lettura) con l'account Google che esegue
+la Web App — serve perché l'import vi scrive un marcatore per riconoscere
+le righe già importate (vedi sotto) — altrimenti l'import segnala
+chiaramente l'errore.
 
-Cosa succede per ogni riga con "Ods" valorizzato:
+**L'elaborazione parte dalla prima riga di dati e si ferma alla prima riga
+non compilata** (né Ods né Nome Cliente né Indirizzo): il foglio esterno
+tipicamente ha centinaia di righe "modello" vuote sotto i dati veri (con
+solo la casella Urgente valorizzata a FALSE di default), che quindi non
+vengono nemmeno scandite.
+
+Cosa succede per ogni riga compilata (Nome Cliente + Indirizzo valorizzati):
 
 - **Cliente e indirizzo** (Indirizzo + Comune + Provincia) vengono presi
   così come sono e **geocodificati automaticamente**, come per un intervento
   inserito a mano;
 - **Urgente** spuntato diventa priorità "Urgente", altrimenti "Normale";
 - **Data Disp./Data Scadenza** diventano rispettivamente "Non Prima Del" e
-  "Scadenza"; **Telefono** viene riportato così com'è;
+  "Scadenza"; **Telefono** viene riportato così com'è; **Importo ODS**
+  diventa il **Ricavo (€)** dell'intervento;
 - la **durata stimata** viene dedotta da "Attività" (ed eventualmente
   dall'"Importo ODS", per le attività graduate a fasce), secondo la
   legenda in `LEGENDA_DURATA_ATTIVITA_` (`gas/Import.gs`):
@@ -388,8 +398,7 @@ Cosa succede per ogni riga con "Ods" valorizzato:
 
   Se l'Attività non è tra queste (o manca l'Importo ODS per una graduata a
   fasce), la durata non viene toccata: resta il default dello schema (60
-  min) per un nuovo intervento, o il valore già presente per un
-  aggiornamento;
+  min);
 - **Attività, Stato (del tracking esterno), Note Sicuritalia e Note Site**
   vengono uniti in un unico campo "Note", per non perdere nessuna
   informazione anche se non hanno una colonna dedicata;
@@ -416,19 +425,25 @@ Cosa succede per ogni riga con "Ods" valorizzato:
   Quando Tecnico/Data App. sono valorizzati, squadra/data/ora vengono
   riportati indipendentemente dallo stato risultante (anche per un
   intervento importato come Completato o Annullato), per non perdere la
-  traccia di chi e quando lo ha eseguito — esattamente come "Completa" e
-  "Annulla" nella Web App, che non toccano mai squadra/data/ora già presenti;
-- l'**Ods diventa il "Codice Esterno"** dell'intervento: re-importando in
-  futuro lo stesso foglio (magari aggiornato dal tuo sistema), una riga con
-  lo stesso Ods **aggiorna** l'intervento già presente invece di
-  duplicarlo. Un intervento che la Web App ha già portato oltre "Da
-  pianificare" (pianificato manualmente/dal motore, completato, annullato)
-  **non viene mai retrocesso** da un re-import: solo i campi anagrafici
-  (cliente, indirizzo, priorità, date, note, telefono) vengono aggiornati,
-  lo stato/l'assegnazione decisi nella Web App restano intoccati.
-- al termine, la Web App mostra quante righe sono state create/aggiornate,
-  quante saltate (Ods, Nome Cliente o Indirizzo mancanti) e quante fallite
-  (tipicamente indirizzo non geocodificabile), coi dettagli riga per riga.
+  traccia di chi e quando lo ha eseguito;
+- se presente, l'**Ods diventa il "Codice Esterno"** dell'intervento. **Se
+  "Ods" è assente** la riga viene **importata comunque** (non più
+  saltata), senza Codice Esterno, con una nota di avviso "⚠ Importato senza
+  Ods nel tracking esterno" sull'intervento, perché senza quel codice non
+  c'è modo di riconoscere in futuro se quella riga è già stata importata.
+
+**Evitare i duplicati sui re-import**: ogni riga importata con successo
+viene **marcata direttamente sul foglio esterno** (colonna "Importato Web
+App", creata automaticamente se assente, con la data/ora dell'import) — un
+run successivo salta le righe già marcate, quindi **importa solo gli
+interventi realmente nuovi**, con o senza Ods. Righe già presenti su
+Interventi da prima dell'introduzione di questo marcatore vengono
+riconosciute (via Ods coincidente) e marcate a posteriori, senza essere
+duplicate. Al termine, la Web App mostra quanti interventi sono stati
+creati, quanti già presenti (marcatore trovato, nessuna azione), quanti
+saltati (Nome Cliente o Indirizzo mancanti) e quanti falliti (tipicamente
+indirizzo non geocodificabile — questi ultimi NON vengono marcati, così un
+run successivo li ritenta dopo la correzione), coi dettagli riga per riga.
 
 ## Nota sul servizio Google Maps e sulle prestazioni
 

@@ -23,8 +23,23 @@ var IMPORT_ESTERNO_HEADERS = [
   'Importo ODS', 'Indirizzo', 'Comune', 'Provincia', 'Telefono', 'Aging scaduto'
 ];
 
-/** Colonne del foglio esterno senza le quali una riga non può diventare un Intervento. */
+/**
+ * Colonne che devono esistere nell'intestazione del foglio esterno (a prescindere dal fatto che
+ * singole righe le lascino vuote): "Ods" è qui solo come struttura attesa del foglio, non come
+ * requisito per riga — una riga senza Ods viene comunque importata (vedi Import.gs), purché
+ * Nome Cliente e Indirizzo siano valorizzati.
+ */
 var IMPORT_ESTERNO_COLONNE_OBBLIGATORIE = ['Ods', 'Nome Cliente', 'Indirizzo'];
+
+/**
+ * Colonna aggiunta (creata automaticamente se assente) nel foglio esterno stesso per marcare le
+ * righe già importate: l'import scrive qui un timestamp non appena crea l'Intervento
+ * corrispondente, e ignora le righe già marcate nei run successivi — questo è l'unico modo per
+ * evitare duplicati anche per le righe senza Ods (che altrimenti non avrebbero nessuna chiave su
+ * cui riconoscere un import già avvenuto). Richiede che il foglio esterno sia condiviso in
+ * SCRITTURA (non solo lettura) con l'account che esegue la Web App.
+ */
+var IMPORT_ESTERNO_COLONNA_MARCATORE = 'Importato Web App';
 
 var PRIORITA = {
   URGENTE: 'Urgente',
