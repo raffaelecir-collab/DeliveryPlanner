@@ -1183,10 +1183,16 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
 
       var idxPerId = {};
       nodi.forEach(function (n, idx) { if (n.intervento) idxPerId[n.intervento.id] = idx; });
+      // NB: se questa squadra non ha vinto nulla nel confronto congiunto, ordineForzato resta
+      // un array vuoto (non null): deve restare "vincolante" così com'è, altrimenti
+      // costruisciEPianificaPercorso_ (ordineInizialeForzato || costruisciPercorsoInserzione_(...))
+      // ricadrebbe sulla costruzione indipendente dall'intero pool di candidati di questa
+      // squadra, ignorando l'esito del confronto congiunto e potendo così assegnarle interventi
+      // già vinti da un'altra squadra nello stesso giorno (bug: stesso intervento duplicato su
+      // più squadre).
       var ordineForzato = (ordiniCongiunti[squadra.id] || [])
         .map(function (id) { return idxPerId[id]; })
         .filter(function (idx) { return idx !== undefined; });
-      if (ordineForzato.length === 0) ordineForzato = null;
 
       var risultato = costruisciEPianificaPercorso_(squadra, nodi, stopIndices, matriceStima, partenzaIdx, rientroIdx, regole, ordineForzato);
 
