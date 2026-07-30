@@ -1258,16 +1258,28 @@
     if (typeof L !== 'undefined') return Promise.resolve();
     if (leafletCaricamento) return leafletCaricamento;
     leafletCaricamento = new Promise(function (resolve, reject) {
+      var timeout = setTimeout(function () { reject(new Error('timeout')); }, 12000);
+      // Il foglio di stile viene caricato in parallelo allo script, ma DEVE essere applicato
+      // prima di creare la mappa: senza le regole di leaflet.css (posizionamento assoluto dei
+      // pannelli interni, overflow:hidden sul contenitore) la mappa si costruisce comunque, ma
+      // visivamente "esplode" fuori dal proprio riquadro. Risolviamo solo quando ENTRAMBE le
+      // risorse sono pronte, non solo lo script.
+      var cssPronto = false, scriptPronto = false;
+      function provaRisolvere() {
+        if (cssPronto && scriptPronto) { clearTimeout(timeout); resolve(); }
+      }
+
       var link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      link.onload = function () { cssPronto = true; provaRisolvere(); };
+      link.onerror = function () { clearTimeout(timeout); reject(new Error('css load error')); };
       document.head.appendChild(link);
 
       var script = document.createElement('script');
       script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      var timeout = setTimeout(function () { reject(new Error('timeout')); }, 10000);
-      script.onload = function () { clearTimeout(timeout); resolve(); };
-      script.onerror = function () { clearTimeout(timeout); reject(new Error('load error')); };
+      script.onload = function () { scriptPronto = true; provaRisolvere(); };
+      script.onerror = function () { clearTimeout(timeout); reject(new Error('js load error')); };
       document.head.appendChild(script);
     }).catch(function (err) {
       leafletCaricamento = null; // permette di ritentare a un click successivo
@@ -1341,7 +1353,13 @@
 
   function caricaDashboard() {
     var dal = getDashDal(), al = getDashAl();
-    if (!dal || !al) return Promise.resolve();
+    if (!dal || !al) {
+      // Difensivo: se le date non sono ancora valorizzate (es. setupDashboardTab non è ancora
+      // passato di qui) non deve restare acceso lo spinner mostrato da chi ha chiamato questa
+      // funzione aspettandosi che si spenga da sé.
+      nascondiCaricamento('dash-team-list', 'dash-map', 'dash-detail');
+      return Promise.resolve();
+    }
     if (al < dal) { document.getElementById('dash-al').value = dal; al = dal; }
     var giorniRange = dateRangeArrayClient(dal, al);
     var hint = document.getElementById('dash-range-hint');
