@@ -306,6 +306,26 @@
       </div>
     </div>
 
+    <div id="dlg-nota-intervento" class="dlg-overlay hidden">
+      <div class="dlg-box">
+        <div class="dlg-head">
+          <h3 id="dlg-nota-intervento-titolo">Aggiungi nota</h3>
+          <button type="button" class="dlg-close" data-close-dlg="dlg-nota-intervento">✕</button>
+        </div>
+        <form id="form-nota-intervento">
+          <div class="field">
+            <label>Nota *</label>
+            <textarea id="nota-intervento-testo" rows="3" placeholder="Nota…"></textarea>
+          </div>
+          <p class="field-help">La data odierna viene registrata automaticamente insieme alla nota. La nota resta visibile nello storico dell'intervento, nella tab Interventi.</p>
+        </form>
+        <div class="modal-actions">
+          <button type="button" class="btn secondary" data-close-dlg="dlg-nota-intervento">Annulla</button>
+          <button type="button" class="btn" id="btn-salva-nota-intervento">Salva nota</button>
+        </div>
+      </div>
+    </div>
+
     <div id="modal-overlay" class="hidden">
       <div id="modal-box">
         <h3 id="modal-title">Modifica</h3>

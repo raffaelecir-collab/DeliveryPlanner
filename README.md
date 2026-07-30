@@ -208,7 +208,13 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    durata, telefono); con un intervallo di più giorni, le stesse tappe
    **raggruppate per giornata**, ciascuna con il proprio riepilogo e le
    proprie azioni (un giorno è comunque un percorso indipendente dagli
-   altri). Da qui:
+   altri). Accanto a ogni tappa, l'icona a foglio **"📝"** apre un piccolo
+   dialog per aggiungere una **nota** (data odierna registrata
+   automaticamente, come per la sospensione): non cambia stato né
+   programmazione, serve solo per annotazioni libere sull'intervento già
+   pianificato. Le note si accumulano nello stesso storico visibile nel tab
+   Interventi (icona a orologio, tooltip con l'elenco di tutte le voci) e
+   compaiono anche qui, sulla tappa stessa, quando presenti. Da qui:
    - **"🧩 Riempi buchi"** per una squadra/giorno: le tappe **già
      pianificate restano ferme** (stesso ordine relativo tra loro, mai
      scartate né ripianificate da zero) e vengono solo **aggiunti**

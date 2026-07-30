@@ -110,3 +110,17 @@ function terminaSospensione(id, row) {
   updateRowFields_('INTERVENTI', esistente._row, { stato: STATO_INTERVENTO.DA_PIANIFICARE, motivoNonPianificato: '' });
   return true;
 }
+
+/**
+ * Aggiunge una nota libera (data odierna) allo storico di un intervento, senza toccarne stato
+ * o programmazione: usata dalla Dashboard per annotare gli interventi già pianificati.
+ */
+function aggiungiNotaIntervento(id, row, nota) {
+  var esistente = trovaInterventoPerIdORiga_(id, row);
+  if (!esistente) throw new Error('Intervento non trovato.');
+  if (!nota) throw new Error('La nota è obbligatoria.');
+  updateRowFields_('INTERVENTI', esistente._row, {
+    storiaSospensioni: aggiungiStoriaSospensione_(esistente, '', nota)
+  });
+  return true;
+}

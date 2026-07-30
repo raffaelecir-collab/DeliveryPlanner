@@ -558,6 +558,7 @@
   var ICONA_CHECK_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>';
   var ICONA_PLAY_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l14 8-14 8V4Z"></path></svg>';
   var ICONA_STORIA_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3.5 2"></path></svg>';
+  var ICONA_NOTA_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"></path><path d="M14 3v6h6"></path><path d="M8 13h8M8 17h5"></path></svg>';
 
   var STATI_SOSPENSIONE_CLIENT_ = ['Sospeso - ys', 'Sospeso - zp', 'Sospeso - zc'];
   function isStatoSospesoClient_(stato) { return STATI_SOSPENSIONE_CLIENT_.indexOf(stato) !== -1; }
@@ -632,7 +633,7 @@
       if (!Array.isArray(storiaSospensioni)) storiaSospensioni = [];
       var storiaHtml = storiaSospensioni.length
         ? '<span class="info-icon" tabindex="0">' + ICONA_STORIA_ + '<span class="tooltip">' +
-          storiaSospensioni.map(function (s) { return escapeHtml(s.data || '') + ' — ' + escapeHtml(s.stato || '') + (s.nota ? ': ' + escapeHtml(s.nota) : ''); }).join('<br>') +
+          storiaSospensioni.map(function (s) { return escapeHtml(s.data || '') + (s.stato ? ' — ' + escapeHtml(s.stato) : '') + (s.nota ? ': ' + escapeHtml(s.nota) : ''); }).join('<br>') +
           '</span></span>'
         : '';
       var azioniHtml = '<button class="btn-icon" data-action="modifica" data-row="' + i._row + '" title="Modifica">' + ICONA_MATITA_ + '</button>';
@@ -726,6 +727,31 @@
       }
     });
     on('btn-salva-sospendi', 'click', salvaSospendiIntervento);
+    on('btn-salva-nota-intervento', 'click', salvaNotaIntervento);
+  }
+
+  // ---------- dialog: nota intervento (dalla Dashboard) ----------
+  var notaInterventoState = { id: null, row: null };
+
+  function apriNotaIntervento(obj) {
+    notaInterventoState.id = obj.id;
+    notaInterventoState.row = obj._row;
+    document.getElementById('dlg-nota-intervento-titolo').textContent = 'Aggiungi nota — ' + obj.cliente;
+    document.getElementById('nota-intervento-testo').value = '';
+    document.getElementById('dlg-nota-intervento').classList.remove('hidden');
+  }
+
+  function salvaNotaIntervento() {
+    var nota = document.getElementById('nota-intervento-testo').value.trim();
+    if (!nota) { toast('Inserisci una nota.', 'error'); return; }
+    var btn = document.getElementById('btn-salva-nota-intervento');
+    btn.disabled = true;
+    callServer('aggiungiNotaIntervento', notaInterventoState.id, notaInterventoState.row, nota).then(function () {
+      toast('Nota aggiunta.', 'success');
+      document.getElementById('dlg-nota-intervento').classList.add('hidden');
+      loadInterventi();
+      caricaDashboard();
+    }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () { btn.disabled = false; });
   }
 
   // ---------- dialog: sospendi intervento ----------
@@ -1596,13 +1622,23 @@
   }
 
   function dashRigaTappa_(t) {
+    var storia = [];
+    try { storia = JSON.parse(t.storiaSospensioni || '[]'); } catch (e) { storia = []; }
+    if (!Array.isArray(storia)) storia = [];
+    var storiaHtml = storia.length
+      ? '<span class="info-icon" tabindex="0">' + ICONA_STORIA_ + '<span class="tooltip">' +
+        storia.map(function (s) { return escapeHtml(s.data || '') + (s.stato ? ' — ' + escapeHtml(s.stato) : '') + (s.nota ? ': ' + escapeHtml(s.nota) : ''); }).join('<br>') +
+        '</span></span>'
+      : '';
     return '<div class="dash-stop-row">' +
       '<span class="dash-stop-ora">' + escapeHtml(t.oraPianificata || '') + '</span>' +
       '<span class="dash-stop-cliente">' + escapeHtml(t.cliente) + '</span>' +
       '<span class="dash-stop-indirizzo">' + escapeHtml(t.indirizzo || '') + '</span>' +
       '<span class="dash-stop-durata">' + (t.durataMinuti || 0) + ' min</span>' +
       '<span class="dash-stop-telefono">' + escapeHtml(t.telefono || '—') + '</span>' +
-      '<span class="row-actions"><button class="btn-icon danger" title="Rimuovi dal percorso" data-action="rimuovi-tappa" data-id="' + t.id + '" data-row="' + t._row + '">' + ICONA_CESTINO_ + '</button></span>' +
+      '<span class="row-actions">' + storiaHtml +
+        '<button class="btn-icon" title="Aggiungi nota" data-action="nota-tappa" data-id="' + t.id + '" data-row="' + t._row + '" data-cliente="' + escapeHtml(t.cliente) + '">' + ICONA_NOTA_ + '</button>' +
+        '<button class="btn-icon danger" title="Rimuovi dal percorso" data-action="rimuovi-tappa" data-id="' + t.id + '" data-row="' + t._row + '">' + ICONA_CESTINO_ + '</button></span>' +
     '</div>';
   }
 
@@ -1771,6 +1807,8 @@
       var squadra = state.squadre.filter(function (s) { return s.id === dashState.selezionata; })[0];
       if (action === 'rimuovi-tappa') {
         dashRimuoviTappa_(btn.dataset.id, btn.dataset.row);
+      } else if (action === 'nota-tappa') {
+        apriNotaIntervento({ id: btn.dataset.id, _row: parseInt(btn.dataset.row, 10), cliente: btn.dataset.cliente });
       } else if (action === 'riempi-buchi') {
         if (!window.confirm('Ripianificare "' + (squadra ? squadra.nome : dashState.selezionata) + '" per il ' + giornoStr + ' includendo eventuali interventi disponibili per riempire le ore libere?')) return;
         riempiBucoGiornoClick(dashState.selezionata, giornoStr);
