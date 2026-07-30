@@ -510,6 +510,14 @@
   .dlg-close { border: none; background: none; font-size: 18px; cursor: pointer; color: var(--dp-ink-faint); padding: 4px 8px; flex-shrink: 0; }
   .dlg-close:hover { color: var(--dp-ink); }
 
+  .dlg-selezione-giorno-field { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .dlg-selezione-giorno-field label { font-size: 11.5px; font-weight: 620; color: var(--dp-ink-soft); }
+  .dlg-selezione-giorno-field input[type=date] {
+    padding: 6px 8px; border: 1px solid var(--dp-line); border-radius: var(--dp-radius-sm);
+    background: var(--dp-surface-card); color: var(--dp-ink); font-size: 13px; font-family: var(--dp-mono);
+  }
+  .dlg-selezione-giorno-field input[type=date]:focus { outline: none; border-color: var(--dp-accent); box-shadow: 0 0 0 3px var(--dp-accent-wash); }
+
   @media (prefers-color-scheme: dark) {
     .dlg-box { box-shadow: 0 20px 60px rgba(0,0,0,.5); }
   }

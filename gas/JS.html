@@ -1137,16 +1137,26 @@
     }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () { btn.disabled = false; });
   }
 
-  /** Apre il dialog "Seleziona da elenco" per una squadra/giorno specifici, richiamato dalla Dashboard. */
+  /** Apre il dialog "Seleziona da elenco" per una squadra/giorno specifici, richiamato dalla Dashboard. Il giorno resta modificabile nel dialog stesso (campo "Giorno" in alto). */
   function apriSelezioneDaElenco(squadraId, giornoStr) {
     var squadra = state.squadre.filter(function (s) { return s.id === squadraId; })[0];
     var selSquadra = document.getElementById('pian-squadra');
     selSquadra.value = squadraId;
     var giornoDate = parseDateStrClient(giornoStr);
     document.getElementById('pian-giorno').value = giornoDate ? toInputDate(giornoDate) : '';
-    document.getElementById('dlg-selezione-titolo').textContent = 'Seleziona da elenco — ' + (squadra ? squadra.nome : squadraId) + ' — ' + giornoStr;
+    document.getElementById('dlg-selezione-titolo').textContent = 'Seleziona da elenco — ' + (squadra ? squadra.nome : squadraId);
+    // riparte sempre con la lista visibile, indipendentemente da come era stata lasciata l'ultima volta
+    document.getElementById('pian-selezione-corpo').classList.remove('hidden');
+    document.getElementById('btn-toggle-lista-selezione').textContent = '▲ Nascondi lista';
     document.getElementById('dlg-selezione').classList.remove('hidden');
     caricaContesto();
+  }
+
+  function toggleListaSelezione() {
+    var corpo = document.getElementById('pian-selezione-corpo');
+    var btn = document.getElementById('btn-toggle-lista-selezione');
+    var nascosta = corpo.classList.toggle('hidden');
+    btn.textContent = nascosta ? '▼ Mostra lista' : '▲ Nascondi lista';
   }
 
   function setupDialogIntervalloESelezione() {
@@ -1160,6 +1170,12 @@
     if (elDal) elDal.value = toInputDate(oggi);
     if (elAl) elAl.value = toInputDate(fra6);
 
+    // Cambiare il giorno dentro il dialog "Seleziona da elenco" ricarica subito il contesto
+    // (interventi disponibili/pianificati) per la squadra corrente su quella nuova data.
+    on('pian-giorno', 'change', function () {
+      if (!document.getElementById('dlg-selezione').classList.contains('hidden')) caricaContesto();
+    });
+
     var tbodySelezione = document.querySelector('#tabella-selezione-interventi tbody');
     if (tbodySelezione) {
       tbodySelezione.addEventListener('change', function (e) {
@@ -1170,6 +1186,7 @@
       });
     }
     on('btn-toggle-mappa-selezione', 'click', toggleMappaSelezione);
+    on('btn-toggle-lista-selezione', 'click', toggleListaSelezione);
 
     on('pian-anteprima-tappe', 'click', function (e) {
       var btn = e.target.closest('button[data-action]');
