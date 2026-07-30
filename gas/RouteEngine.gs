@@ -582,12 +582,16 @@ function riempiGiornata_(squadra, nodi, risultato, matriceStima, partenzaIdx, ri
  * compatibile con orario di lavoro/pausa pranzo/finestra oraria (es. una tappa lunga già fissata
  * che finisce esattamente all'inizio della pausa pranzo: inserire un candidato prima la fa
  * sconfinare, inserirlo dopo no). Fermarsi alla prima posizione provata farebbe scartare
- * ingiustamente candidati che in realtà entrano benissimo nella giornata. Accetta un inserimento
- * solo se il numero di tappe incluse aumenta — non elimina/sposta mai una tappa già presente.
+ * ingiustamente candidati che in realtà entrano benissimo nella giornata. Per lo stesso motivo,
+ * ogni iterazione prova TUTTI i candidati non ancora inclusi (in ordine di costo crescente, così
+ * il caso comune resta veloce) e non si ferma ai primi N: alcuni candidati "economici" per
+ * vicinanza/durata possono essere di fatto impossibili da inserire (finestra oraria, competenza)
+ * mentre uno "più costoso" secondo la stima sarebbe perfettamente pianificabile — fermarsi dopo
+ * un numero fisso di tentativi lo scarterebbe ingiustamente. Accetta un inserimento solo se il
+ * numero di tappe incluse aumenta — non elimina/sposta mai una tappa già presente.
  */
 function riempiGiornataConCandidatiEspliciti_(squadra, nodi, risultato, matriceStima, partenzaIdx, rientroIdx, regole) {
   var MAX_ITERAZIONI = 30;
-  var MAX_CANDIDATI_PER_TENTATIVO = 8;
   var corrente = risultato;
 
   var idxPerId = {};
@@ -634,8 +638,7 @@ function riempiGiornataConCandidatiEspliciti_(squadra, nodi, risultato, matriceS
         return { idx: idx, id: n.intervento.id, posizioni: posizioni, costo: posizioni[0].costoViaggio + durata - pesoRicavoEffettivo * ricavo - bonusCompetenza };
       })
       .filter(function (c) { return c !== null; })
-      .sort(function (a, b) { return a.costo - b.costo; })
-      .slice(0, MAX_CANDIDATI_PER_TENTATIVO);
+      .sort(function (a, b) { return a.costo - b.costo; });
 
     var migliorato = false;
     for (var i = 0; i < candidati.length && !migliorato; i++) {
