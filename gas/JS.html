@@ -1399,14 +1399,14 @@
       // Difensivo: se le date non sono ancora valorizzate (es. setupDashboardTab non è ancora
       // passato di qui) non deve restare acceso lo spinner mostrato da chi ha chiamato questa
       // funzione aspettandosi che si spenga da sé.
-      nascondiCaricamento('dash-team-list', 'dash-map', 'dash-detail');
+      nascondiCaricamento('dash-team-list', 'dash-map-wrap', 'dash-detail');
       return Promise.resolve();
     }
     if (al < dal) { document.getElementById('dash-al').value = dal; al = dal; }
     var giorniRange = dateRangeArrayClient(dal, al);
     var hint = document.getElementById('dash-range-hint');
     if (hint) hint.textContent = giorniRange.length === 1 ? 'Un solo giorno selezionato' : giorniRange.length + ' giorni selezionati';
-    mostraCaricamento('dash-team-list', 'dash-map', 'dash-detail');
+    mostraCaricamento('dash-team-list', 'dash-map-wrap', 'dash-detail');
     __dbg('caricaDashboard: start', 'dal=' + dal, 'al=' + al);
     __dbgSnapshot('caricaDashboard: pre-fetch');
     return callServer('getProgrammazione', fromInputDate(dal), fromInputDate(al)).then(function (righe) {
@@ -1428,7 +1428,7 @@
       __dbg('caricaDashboard ERRORE', err && (err.message || err), err && err.stack);
       toast('Errore nel caricamento della dashboard: ' + (err.message || err), 'error');
     }).finally(function () {
-      nascondiCaricamento('dash-team-list', 'dash-map', 'dash-detail');
+      nascondiCaricamento('dash-team-list', 'dash-map-wrap', 'dash-detail');
       __dbgSnapshot('caricaDashboard: finally');
     });
   }
@@ -1545,9 +1545,9 @@
     document.querySelectorAll('.map-mode-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.mapMode === mode); });
     var legenda = document.getElementById('dash-map-legenda');
     if (legenda) legenda.classList.toggle('hidden', mode !== 'stato');
-    mostraCaricamento('dash-map');
+    mostraCaricamento('dash-map-wrap');
     var caricamento = mode === 'stato' ? loadInterventi().then(renderDashMap) : renderDashMap();
-    Promise.resolve(caricamento).finally(function () { nascondiCaricamento('dash-map'); });
+    Promise.resolve(caricamento).finally(function () { nascondiCaricamento('dash-map-wrap'); });
   }
 
   function dashRigaTappa_(t) {
@@ -1766,7 +1766,7 @@
     safeRun_('squadre', setupSquadreTab);
     safeRun_('regole', setupRegoleTab);
 
-    mostraCaricamento('dash-team-list', 'dash-map', 'dash-detail');
+    mostraCaricamento('dash-team-list', 'dash-map-wrap', 'dash-detail');
     callServer('getBootstrapData').then(function (data) {
       state.schema = data.schema;
       state.squadre = data.squadre;
@@ -1778,7 +1778,7 @@
       caricaDashboard();
     }).catch(function (err) {
       toast('Errore di inizializzazione: ' + (err.message || err), 'error');
-      nascondiCaricamento('dash-team-list', 'dash-map', 'dash-detail');
+      nascondiCaricamento('dash-team-list', 'dash-map-wrap', 'dash-detail');
     });
   }
 
