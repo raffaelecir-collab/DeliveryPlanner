@@ -1323,6 +1323,14 @@
     });
   } catch (e) { console.warn('ResizeObserver non disponibile', e); }
   window.addEventListener('load', function () { __dbgSnapshot('window.load'); });
+  // Scatta uno snapshot ogni 500ms per i primi 10s: cattura l'evoluzione del layout senza
+  // bisogno di incollare comandi a mano nella console (che richiede selezionare il frame giusto).
+  var __dbgTickCount = 0;
+  var __dbgTicker = setInterval(function () {
+    __dbgTickCount++;
+    __dbgSnapshot('tick ' + __dbgTickCount);
+    if (__dbgTickCount >= 20) clearInterval(__dbgTicker);
+  }, 500);
   // ---------- FINE DEBUG TEMPORANEO ----------
   var dashMapInstance = null, dashLayerGroup = null;
 
