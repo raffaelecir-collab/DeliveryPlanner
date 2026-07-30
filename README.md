@@ -14,9 +14,11 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 - **Google Sheets come database**: un unico foglio di calcolo contiene i fogli
   `Squadre`, `Interventi`, `Regole` e `LogPianificazione`. Li crea in
   automatico lo script (non serve prepararli a mano).
-- **Web App (HtmlService)**: un'unica pagina con tab per Pianificazione,
-  Interventi, Programmazione, Squadre e Regole, che comunica col backend
-  tramite `google.script.run`.
+- **Web App (HtmlService)**: un'unica pagina con tab per Dashboard, Interventi,
+  Squadre e Regole, che comunica col backend tramite `google.script.run`. La
+  Dashboard è la schermata di atterraggio: mappa + elenco squadre + dettaglio
+  percorso su un giorno o un intervallo di date, unendo quello che prima erano
+  due tab separati (Pianificazione e Programmazione).
 - **Geocodifica automatica** (`Geocoding.gs`): quando salvi una squadra o un
   intervento, il rispettivo indirizzo viene convertito in coordinate tramite
   il servizio Maps integrato di Apps Script (nessuna chiave API da
@@ -100,7 +102,7 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 | `Setup.gs` | Inizializzazione struttura fogli, menu, dati di esempio |
 | `Teams.gs` / `Interventions.gs` / `Rules.gs` | CRUD (con geocodifica automatica su Squadre/Interventi) |
 | `Import.gs` | Import di Interventi direttamente da un foglio Google esterno (tracking) |
-| `RouteEngine.gs` | Motore di ottimizzazione percorso (inserimento più economico + 2-opt, scheduling con pausa pranzo, vista "Programmazione" e riempimento buchi) |
+| `RouteEngine.gs` | Motore di ottimizzazione percorso (inserimento più economico + 2-opt, scheduling con pausa pranzo, dati per la Dashboard e riempimento buchi) |
 | `Code.gs` | `doGet()` e funzioni esposte al client |
 | `Index.html` / `CSS.html` / `JS.html` | Interfaccia utente (SPA) |
 
@@ -177,75 +179,138 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    scritto male prima ancora di salvare. Nota: la prima volta che apri una
    mappa, Google può mostrare un banner di consenso cookie dentro il
    riquadro stesso — è normale, basta accettarlo una volta.
-3. Tab **Pianificazione** — due modalità, per la squadra scelta in alto:
-   - **Selezione manuale (singolo giorno)**: scegli il giorno, carica gli
-     interventi disponibili, seleziona quelli da includere, premi "Ottimizza
-     percorso", eventualmente affina l'ordine (frecce su/giù, rimuovi tappa)
-     e premi "Conferma e salva percorso". Oltre alla tabella, il link "🗺️
-     Mostra mappa" apre una mappa (Leaflet/OpenStreetMap) con tutti gli
-     interventi geocodificati, **inclusi quelli già pianificati per
-     un'altra squadra o un altro giorno** (per poterli spostare a mano):
-     **arancio** = da pianificare, **verde** = selezionato, **blu scuro** =
-     già pianificato altrove, **grigio** = competenza non compatibile con
-     la squadra. Cliccando un punto si apre una scheda con i dati essenziali
-     (e, se già pianificato altrove, l'indicazione di dove) e un bottone
-     "Inserisci in planner"/"Sposta qui" (o "Rimuovi dalla
-     selezione"/"Annulla spostamento" se già scelto): aggiunge/toglie
-     l'intervento dalla selezione esattamente come la checkbox corrispondente
-     nella tabella, restando sempre sincronizzata con essa. Selezionare un
-     intervento già pianificato altrove e confermare **lo sposta**,
-     sovrascrivendone squadra/giorno/orario precedenti — serve comunque
-     "Ottimizza percorso" e "Conferma e salva percorso" per scrivere davvero
-     sul foglio. Nota: lo spostamento non ricalcola automaticamente il
-     percorso lasciato "scoperto" nella squadra/giorno di provenienza; se
-     serve, usa "Riempi buco" (tab Programmazione) su quella combinazione
-     dopo lo spostamento.
-   - **Pianificazione automatica su intervallo**: seleziona una o più
-     squadre e un intervallo Dal/Al, poi premi "Pianifica intervallo": il
-     sistema genera e **scrive subito** (senza passaggio di conferma) un
-     percorso ottimizzato per ciascuna squadra in ciascun giorno
-     dell'intervallo, usando via via gli interventi "Da pianificare" ancora
-     disponibili e compatibili (qui la competenza richiesta è un filtro
-     rigido, non solo un avviso), **saltando i giorni non lavorativi**
-     impostati in Regole e i giorni in cui una squadra è specificamente non
-     disponibile (giorno di riposo o ferie). Con più squadre selezionate,
-     l'assegnazione di ciascun giorno **non segue l'ordine di selezione**:
-     per ogni intervento ancora da assegnare si confronta il costo tra
-     **tutte** le squadre disponibili quel giorno, e vince chi costa meno in
-     assoluto (vicinanza, priorità, ricavo verso il target, competenza
-     specifica) — non "a turno" nell'ordine in cui sono state selezionate.
-     Così una squadra già vicina a un gruppo di interventi tende a vincerli
-     tutti in sequenza (**concentrando il lavoro su poche squadre** invece di
-     spalmarlo su tutte), mentre un intervento genuinamente più vicino a
-     un'altra squadra va a lei anche se è più in fondo alla lista: nessuna
-     squadra monopolizza lavoro sparso su tutta l'area solo perché elencata
-     per prima, e nessuna resta priva di lavoro per settimane se c'è
-     qualcosa di più adatto a lei. Se il lavoro disponibile non basta per
-     tutte, le squadre senza nulla di adatto restano semplicemente libere.
-     Gli interventi che non trovano posto in nessun giorno/squadra
-     dell'intervallo restano "Da pianificare" con una nota sul motivo. Una
-     squadra senza interventi compatibili (o non disponibile) per un
-     determinato giorno compare comunque nel riepilogo, marcata come
-     "**Giornata libera**" con il motivo: non è necessario che tutte le
-     squadre risultino impegnate ogni giorno.
+3. Tab **Dashboard** (schermata di atterraggio): in alto un selettore
+   **Dal/Al** — un solo giorno (Dal = Al, il default all'apertura) oppure un
+   intervallo di più giorni. A sinistra l'elenco delle squadre attive, con
+   stato ("Pianificato"/"Libera"), produzione rispetto al target (se
+   impostato), km indicativi e numero di interventi nel periodo scelto; a
+   destra una mappa (Leaflet/OpenStreetMap) che disegna il percorso di ogni
+   squadra per ciascun giorno dell'intervallo, con quella selezionata in
+   evidenza e le altre attenuate. Cliccando una squadra nell'elenco la
+   selezioni e il pannello sotto la mappa mostra il dettaglio: con un solo
+   giorno selezionato, la lista piatta delle tappe (ora, cliente, indirizzo,
+   durata, telefono); con un intervallo di più giorni, le stesse tappe
+   **raggruppate per giornata**, ciascuna con il proprio riepilogo e le
+   proprie azioni (un giorno è comunque un percorso indipendente dagli
+   altri). Da qui:
+   - **"🧩 Riempi buchi"** per una squadra/giorno: le tappe **già
+     pianificate restano ferme** (stesso ordine relativo tra loro, mai
+     scartate né ripianificate da zero) e vengono solo **aggiunti**
+     interventi ancora "Da pianificare" compatibili (stessa competenza,
+     stesso rispetto di finestre orarie/pausa pranzo/orario di lavoro) nei
+     buchi residui del turno, per non lasciare ore inutilizzate. Vengono
+     valutate **tutte** le posizioni di inserimento disponibili per ciascun
+     candidato (non solo la più economica in termini di viaggio) e **tutti**
+     i candidati compatibili (non solo i primi per vicinanza), per non
+     scartare ingiustamente un intervento che in realtà entrerebbe benissimo
+     nella giornata. Un nuovo intervento può essere inserito anche "in
+     mezzo" a due tappe già ferme se conviene dal punto di vista del
+     percorso — questo può ricalcolare (quasi sempre anticipare) l'orario di
+     una o più tappe già pianificate, se il margine tra loro lo permette.
+     **Se il calcolo prevede uno spostamento di questo tipo, prima di
+     scrivere qualunque cosa compare un avviso** con l'elenco di chi
+     cambierebbe orario e da quando a quando, per scegliere se accettarlo
+     (l'orario cambia, come sopra) o mantenere fissi gli orari già salvati
+     (in questo caso i nuovi interventi vengono inseriti solo nei varchi
+     liberi che non richiedono di toccare nessun orario già fissato: prima
+     della prima tappa, tra due tappe consecutive o dopo l'ultima, usando
+     esattamente gli orari salvati come riferimento — può risultare in
+     qualche intervento in meno aggiunto rispetto a permettere lo
+     spostamento). Un intervento già confermato non viene comunque **mai**
+     rimosso o spostato su un'altra squadra/giorno da questa funzione. A
+     differenza della selezione manuale, qui **"Non Prima Del" è un vincolo
+     rigido**: un intervento non ancora disponibile per il giorno che si sta
+     riempiendo non viene proposto, ma resta comunque "Da pianificare" con
+     una nota esplicita del perché ("Nota Pianificazione") invece di sparire
+     silenziosamente dal riempimento. **"Scadenza" invece non esclude mai**:
+     un intervento con scadenza già superata resta pianificabile
+     normalmente, ma viene trattato ovunque come priorità "Urgente"
+     (indipendentemente dalla priorità realmente impostata sulla riga, che
+     non viene modificata) finché la scadenza non viene corretta o rimossa —
+     vale per "Riempi buchi", per la pianificazione automatica su intervallo
+     e per la selezione manuale.
+   - **"📋 Seleziona da elenco"** per una squadra/giorno: apre un dialog con
+     gli interventi "Da pianificare" disponibili — stessa tabella (con
+     checkbox), stessa mappa opzionale ("🗺️ Mostra mappa") e stesso flusso di
+     prima: seleziona quelli da includere, premi "Ottimizza percorso",
+     eventualmente affina l'ordine (frecce su/giù, rimuovi tappa) e premi
+     "Conferma e salva percorso". La mappa include anche gli interventi già
+     pianificati per un'altra squadra o un altro giorno (per poterli
+     spostare a mano): **arancio** = da pianificare, **verde** =
+     selezionato, **blu scuro** = già pianificato altrove, **grigio** =
+     competenza non compatibile con la squadra. Cliccando un punto si apre
+     una scheda con i dati essenziali (e, se già pianificato altrove,
+     l'indicazione di dove) e un bottone "Inserisci in planner"/"Sposta
+     qui" (o "Rimuovi dalla selezione"/"Annulla spostamento" se già
+     scelto), sincronizzato con la tabella. Selezionare un intervento già
+     pianificato altrove e confermare **lo sposta**, sovrascrivendone
+     squadra/giorno/orario precedenti. Nota: lo spostamento non ricalcola
+     automaticamente il percorso lasciato "scoperto" nella squadra/giorno di
+     provenienza; se serve, usa "Riempi buchi" su quella combinazione dopo
+     lo spostamento.
+   - **"+ Aggiungi intervento"** per una squadra/giorno: crea al volo un
+     nuovo intervento (cliente, indirizzo, competenza, priorità, durata,
+     telefono, ricavo) e lo inserisce subito nel percorso **a un orario
+     scelto a mano**, senza passare dall'ottimizzatore — pensato per un
+     intervento imprevisto durante un giro già in corso. L'intervento entra
+     nella posizione corretta dell'elenco in base all'orario indicato (non
+     necessariamente in coda).
+   - **Rimuovi** (icona cestino) su una singola tappa: l'intervento torna
+     semplicemente "Da pianificare" — **non** viene ripianificato né il buco
+     lasciato aperto viene ricoperto in automatico: è una scelta esplicita
+     successiva ("Riempi buchi" quando vuoi). In più, l'intervento rimosso
+     **non viene più riproposto dagli strumenti automatici** ("Riempi
+     buchi", pianificazione su intervallo) per quella **stessa data** da cui
+     è stato tolto — così non ricompare subito al primo riempimento
+     automatico successivo — ma resta **sempre selezionabile a mano**, anche
+     per quella stessa data ("Seleziona da elenco"), e resta pianificabile
+     automaticamente per qualsiasi altra data. Il vincolo si azzera da solo
+     non appena l'intervento viene ripianificato di nuovo (a mano o in
+     automatico, anche per un'altra data).
 
-     Se una squadra ha **competenze specifiche** impostate (non generica),
-     riceve prima gli interventi che richiedono esplicitamente una di quelle
-     competenze, usando gli interventi generici (competenza vuota, adatti a
-     qualsiasi squadra) solo come riempitivo quando non c'è (più) lavoro
-     specifico disponibile per lei.
+   Il bottone **"Pianifica automaticamente un intervallo"** in alto apre un
+   dialog separato: seleziona una o più squadre e un intervallo Dal/Al, poi
+   premi "Pianifica intervallo": il sistema genera e **scrive subito**
+   (senza passaggio di conferma) un percorso ottimizzato per ciascuna
+   squadra in ciascun giorno dell'intervallo, usando via via gli interventi
+   "Da pianificare" ancora disponibili e compatibili (qui la competenza
+   richiesta è un filtro rigido, non solo un avviso), **saltando i giorni
+   non lavorativi** impostati in Regole e i giorni in cui una squadra è
+   specificamente non disponibile (giorno di riposo o ferie). Con più
+   squadre selezionate, l'assegnazione di ciascun giorno **non segue
+   l'ordine di selezione**: per ogni intervento ancora da assegnare si
+   confronta il costo tra **tutte** le squadre disponibili quel giorno, e
+   vince chi costa meno in assoluto (vicinanza, priorità, ricavo verso il
+   target, competenza specifica) — non "a turno" nell'ordine in cui sono
+   state selezionate. Così una squadra già vicina a un gruppo di interventi
+   tende a vincerli tutti in sequenza (**concentrando il lavoro su poche
+   squadre** invece di spalmarlo su tutte), mentre un intervento
+   genuinamente più vicino a un'altra squadra va a lei anche se è più in
+   fondo alla lista: nessuna squadra monopolizza lavoro sparso su tutta
+   l'area solo perché elencata per prima, e nessuna resta priva di lavoro
+   per settimane se c'è qualcosa di più adatto a lei. Se il lavoro
+   disponibile non basta per tutte, le squadre senza nulla di adatto restano
+   semplicemente libere. Gli interventi che non trovano posto in nessun
+   giorno/squadra dell'intervallo restano "Da pianificare" con una nota sul
+   motivo. Una squadra senza interventi compatibili (o non disponibile) per
+   un determinato giorno compare comunque nel riepilogo, marcata come
+   "**Giornata libera**" con il motivo: non è necessario che tutte le
+   squadre risultino impegnate ogni giorno.
 
-     Se una combinazione squadra/giorno ha **già un percorso confermato** in
-     partenza (da un run precedente di "Pianifica intervallo", o pianificato a
-     mano), quelle tappe **restano ferme**: la funzione si limita ad
-     aggiungere nei buchi residui del turno gli interventi vinti nel
-     confronto di quel giorno, senza mai ricostruire da zero o scartare
-     quanto già confermato. Una squadra/giorno con un percorso già completo e
-     nessun nuovo candidato compatibile non compare più come "Giornata
-     libera": mostra il percorso esistente, invariato.
+   Se una squadra ha **competenze specifiche** impostate (non generica),
+   riceve prima gli interventi che richiedono esplicitamente una di quelle
+   competenze, usando gli interventi generici (competenza vuota, adatti a
+   qualsiasi squadra) solo come riempitivo quando non c'è (più) lavoro
+   specifico disponibile per lei.
 
-   In fondo alla pagina trovi il riepilogo dei percorsi già confermati per il
-   giorno selezionato, con tutte le squadre affiancate.
+   Se una combinazione squadra/giorno ha **già un percorso confermato** in
+   partenza (da un run precedente di "Pianifica intervallo", o pianificato a
+   mano), quelle tappe **restano ferme**: la funzione si limita ad
+   aggiungere nei buchi residui del turno gli interventi vinti nel
+   confronto di quel giorno, senza mai ricostruire da zero o scartare
+   quanto già confermato. Una squadra/giorno con un percorso già completo e
+   nessun nuovo candidato compatibile non compare più come "Giornata
+   libera": mostra il percorso esistente, invariato.
 
    **Produzione (ricavo) e target giornaliero**: se una squadra ha un
    "Target Produzione Giornaliera" impostato, il ricavo degli interventi
@@ -262,72 +327,10 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    come quando non c'è nessun target impostato — è pensato come un
    indicatore su cui orientare le scelte, non come un tetto. Dove il target
    è impostato, compare un riepilogo "**Produzione: X€ / target Y€**"
-   (evidenziato in verde quando raggiunto o superato) nella board della
-   pianificazione automatica su intervallo, nell'anteprima del percorso a
-   singolo giorno e nella tab Programmazione.
-4. Tab **Programmazione**: elenco di tutti gli interventi già pianificati
-   (percorsi confermati) in un intervallo di date, raggruppati per
-   giorno/squadra, con le indicazioni essenziali (ora, cliente, indirizzo,
-   **durata dell'intervento**) più il **numero di telefono** — utile per
-   contattare il cliente direttamente da questa vista. Da qui puoi:
-   - **"Rimuovi"** su una singola riga: l'intervento torna semplicemente "Da
-     pianificare" (deselezione di una tappa già programmata) — **non** viene
-     ripianificato né il buco lasciato aperto viene ricoperto in automatico:
-     è una scelta esplicita successiva (premi "Riempi buco" quando vuoi). In
-     più, l'intervento rimosso **non viene più riproposto dagli strumenti
-     automatici** ("Riempi buco", pianificazione su intervallo) per quella
-     **stessa data** da cui è stato tolto — così non ricompare subito al
-     primo riempimento automatico successivo — ma resta **sempre selezionabile
-     a mano**, anche per quella stessa data (tab Pianificazione), e resta
-     pianificabile automaticamente per qualsiasi altra data. Il vincolo si
-     azzera da solo non appena l'intervento viene ripianificato di nuovo (a
-     mano o in automatico, anche per un'altra data);
-   - **"Riempi buco"** per una squadra/giorno: le tappe **già pianificate
-     restano ferme** (stesso ordine relativo tra loro, mai scartate né
-     ripianificate da zero) e vengono solo **aggiunti** interventi ancora
-     "Da pianificare" compatibili (stessa competenza, stesso rispetto di
-     finestre orarie/pausa pranzo/orario di lavoro) nei buchi residui del
-     turno, per non lasciare ore inutilizzate. Vengono valutate **tutte** le
-     posizioni di inserimento disponibili per ciascun candidato (non solo la
-     più economica in termini di viaggio) e **tutti** i candidati compatibili
-     (non solo i primi per vicinanza), per non scartare ingiustamente un
-     intervento che in realtà entrerebbe benissimo nella giornata. Un nuovo
-     intervento può essere inserito anche "in mezzo" a due tappe già ferme se
-     conviene dal punto di vista del percorso — questo può ricalcolare (quasi
-     sempre anticipare) l'orario di una o più tappe già pianificate, se il
-     margine tra loro lo permette. **Se il calcolo prevede uno spostamento di
-     questo tipo, prima di scrivere qualunque cosa compare un avviso** con
-     l'elenco di chi cambierebbe orario e da quando a quando, per scegliere se
-     accettarlo (l'orario cambia, come sopra) o mantenere fissi gli orari già
-     salvati (in questo caso i nuovi interventi vengono inseriti solo nei
-     varchi liberi che non richiedono di toccare nessun orario già fissato:
-     prima della prima tappa, tra due tappe consecutive o dopo l'ultima,
-     usando esattamente gli orari salvati come riferimento — può risultare in
-     qualche intervento in meno aggiunto rispetto a permettere lo
-     spostamento). Un intervento già confermato non viene comunque **mai**
-     rimosso o spostato su un'altra squadra/giorno da questa funzione. A
-     differenza della
-     selezione manuale, qui **"Non Prima Del" è un vincolo rigido**: un
-     intervento non ancora disponibile per il giorno che si sta riempiendo
-     non viene proposto, ma resta comunque "Da pianificare" con una nota
-     esplicita del perché ("Nota Pianificazione") invece di sparire
-     silenziosamente dal riempimento. **"Scadenza" invece non esclude mai**:
-     un intervento con scadenza già superata resta pianificabile
-     normalmente, ma viene trattato ovunque come priorità "Urgente"
-     (indipendentemente dalla priorità realmente impostata sulla riga, che
-     non viene modificata) finché la scadenza non viene corretta o rimossa —
-     vale per "Riempi buco", per la pianificazione automatica su intervallo e
-     per la selezione manuale.
-   - **"🗺️ Vedi mappa"** per una squadra/giorno: apre una mappa (OpenStreetMap
-     via Leaflet, nessuna chiave API da configurare) con le tappe numerate
-     nell'ordine di visita e collegate da segmenti diritti — non un percorso
-     stradale reale, solo un'indicazione visiva rapida della sequenza e della
-     geografia del giro. Clicca su una tappa per vederne cliente/indirizzo/ora.
-   - **"Seleziona manualmente"** per una squadra/giorno: passa al tab
-     Pianificazione già precompilato con quella squadra e quel giorno (stesso
-     flusso descritto sopra, mappa inclusa), per scegliere a mano quali
-     interventi aggiungere invece di affidarsi al riempimento automatico.
-5. Tab **Regole**: ogni regola ha il controllo adatto al suo tipo — un
+   (evidenziato in verde quando raggiunto o superato) sia nella card di ogni
+   squadra sia nel dettaglio del percorso selezionato, sommato su tutto
+   l'intervallo di date scelto.
+4. Tab **Regole**: ogni regola ha il controllo adatto al suo tipo — un
    selettore con i giorni della settimana per "Giorni Lavorativi" (rispettato
    dalla pianificazione automatica su intervallo, che salta i giorni non
    spuntati), campi numerici per i parametri "assoluti" (buffer di
@@ -436,11 +439,11 @@ Cosa succede per ogni riga compilata (Nome Cliente + Indirizzo valorizzati):
 - **Urgente** spuntato diventa priorità "Urgente", altrimenti "Normale";
 - **"Data Disp." NON viene importata** ("Non Prima Del" resta sempre vuoto
   per le righe importate: nel tracking esterno questo campo si è rivelato
-  inaffidabile e bloccava "Riempi buco"/pianificazione automatica su
+  inaffidabile e bloccava "Riempi buchi"/pianificazione automatica su
   interventi in realtà disponibili); **"Data Scadenza" viene importata
   normalmente come "Scadenza"** — ma non è un vincolo rigido: un intervento
   che supera la scadenza resta pianificabile, semplicemente con la massima
-  priorità (vedi sopra, tab Programmazione); **Telefono** viene riportato
+  priorità (vedi sopra, tab Dashboard); **Telefono** viene riportato
   così com'è; **Importo ODS** diventa il **Ricavo (€)** dell'intervento;
 - la **durata stimata** viene dedotta da "Attività" (ed eventualmente
   dall'"Importo ODS", per le attività graduate a fasce), secondo la
@@ -474,12 +477,12 @@ Cosa succede per ogni riga compilata (Nome Cliente + Indirizzo valorizzati):
     qualunque sia la dicitura esatta, es. "Appuntamentato") → **Pianificato**,
     per quella squadra/data/ora (Ora App. se presente): da quel momento è un
     intervento pianificato a tutti gli effetti, modificabile/spostabile
-    esattamente come una pianificazione fatta dalla Web App (compare nel tab
-    Programmazione, si può rimuovere/completare/annullare, o spostare su
+    esattamente come una pianificazione fatta dalla Web App (compare nella
+    tab Dashboard, si può rimuovere/completare/annullare, o spostare su
     un'altra squadra/giorno dalla mappa di selezione) — con l'unica
     differenza che l'import **non ricalcola il percorso** di quella
     squadra/giorno, quindi vale la pena controllare (o passare da "Riempi
-    buco") che non si sovrapponga ad altre tappe già confermate;
+    buchi") che non si sovrapponga ad altre tappe già confermate;
   - in ogni altro caso (es. "Giacente") → **Da pianificare**, e sarà il
     motore a deciderne la pianificazione.
 

@@ -1262,6 +1262,44 @@ function riempiBucoGiorno(squadraId, giornoStr, consentiSpostamento) {
   return formattaAnteprima_(calcolo.squadra, calcolo.giorno, risultato);
 }
 
+/**
+ * Crea un nuovo intervento e lo pianifica subito per una squadra/giorno a un orario scelto a
+ * mano dall'utente: a differenza della selezione manuale con ottimizzazione o di "Riempi buco",
+ * qui l'orario non viene calcolato dal motore né verificato contro le altre tappe — entra nel
+ * percorso esattamente all'ora indicata. Pensata per un intervento imprevisto da aggiungere al
+ * volo durante un giro già in corso. Dopo l'inserimento, l'ordine delle tappe (ordineTappa) della
+ * squadra/giorno viene ricalcolato in base all'orario, così il nuovo intervento compare nella
+ * posizione corretta dell'elenco e non solo in coda.
+ */
+function creaEPianificaIntervento(intervento, squadraId, giornoStr, oraStr) {
+  var squadra = assicuraIdTutti_('SQUADRE').filter(function (s) { return s.id === squadraId; })[0];
+  if (!squadra) throw new Error('Squadra non trovata.');
+  var giorno = parseDateStr_(giornoStr);
+  if (!giorno) throw new Error('Data non valida.');
+  if (!/^([01]?\d|2[0-3]):[0-5]\d$/.test(oraStr || '')) throw new Error('Ora non valida (usa il formato HH:mm).');
+  if (!squadraCoprCompetenza_(squadra, intervento)) {
+    throw new Error('La squadra "' + squadra.nome + '" non ha la competenza richiesta ("' + (intervento.competenza || '') + '").');
+  }
+
+  var giornoFmt = formatDateStr_(giorno);
+  intervento.stato = STATO_INTERVENTO.PIANIFICATO;
+  intervento.squadraId = squadraId;
+  intervento.dataPianificata = giornoFmt;
+  intervento.oraPianificata = oraStr;
+  intervento.motivoNonPianificato = '';
+  intervento.nonAutomatizzabileData = '';
+  var salvato = salvaIntervento(intervento);
+
+  var tappeGiorno = readAll_('INTERVENTI').filter(function (i) {
+    return i.squadraId === squadraId && i.dataPianificata === giornoFmt && i.stato === STATO_INTERVENTO.PIANIFICATO;
+  }).sort(function (a, b) { return timeToMinutes_(a.oraPianificata) - timeToMinutes_(b.oraPianificata); });
+  tappeGiorno.forEach(function (i, idx) {
+    updateRowFields_('INTERVENTI', i._row, { ordineTappa: idx + 1 });
+  });
+
+  return salvato;
+}
+
 // ---------- pianificazione automatica su un intervallo di giorni (una squadra) ----------
 
 function addDays_(date, n) {

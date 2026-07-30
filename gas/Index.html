@@ -12,102 +12,37 @@
     </header>
 
     <nav class="tabs">
-      <button class="tab-btn active" data-view="pianificazione">Pianificazione</button>
+      <button class="tab-btn active" data-view="dashboard">Dashboard</button>
       <button class="tab-btn" data-view="interventi">Interventi</button>
-      <button class="tab-btn" data-view="programmazione">Programmazione</button>
       <button class="tab-btn" data-view="squadre">Squadre</button>
       <button class="tab-btn" data-view="impostazioni">Regole</button>
     </nav>
 
     <main>
-      <!-- VISTA PIANIFICAZIONE -->
-      <section class="view active" id="view-pianificazione">
-        <div class="card">
-          <h2>Crea il percorso di una squadra</h2>
-          <p class="sub">Scegli squadra e giorno, seleziona gli interventi da includere dall'elenco e genera il percorso ottimizzato: ordine di visita e orari calcolati rispettando l'orario di lavoro, la pausa pranzo e la finestra oraria di ciascun cliente. Il viaggio dalla partenza alla prima tappa e dall'ultima tappa al rientro non viene conteggiato nell'orario di lavoro.</p>
-          <div class="row">
-            <div class="field">
-              <label>Squadra</label>
-              <select id="pian-squadra"></select>
+      <!-- VISTA DASHBOARD -->
+      <section class="view active" id="view-dashboard">
+        <div class="dash-topbar">
+          <div>
+            <h2>Dashboard</h2>
+            <div class="date-range">
+              <input type="date" id="dash-dal">
+              <span class="sep">→</span>
+              <input type="date" id="dash-al">
             </div>
-            <div class="field">
-              <label>Giorno</label>
-              <input type="date" id="pian-giorno">
-            </div>
-            <div class="field">
-              <button class="btn secondary" id="btn-carica-contesto">Carica interventi</button>
-            </div>
+            <div class="date-range-hint" id="dash-range-hint"></div>
           </div>
+          <button class="btn-primary" id="btn-apri-pianifica-intervallo">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="m19 9-5 5-4-4-3 3"></path></svg>
+            Pianifica automaticamente un intervallo
+          </button>
         </div>
 
-        <div class="card">
-          <h2>Pianifica automaticamente un intervallo di giorni</h2>
-          <p class="sub">In alternativa alla selezione manuale: scegli una o più squadre e un intervallo di date; il sistema genera automaticamente, giorno per giorno, il percorso ottimizzato per ciascuna squadra selezionata (la prima della lista ha la precedenza nella scelta degli interventi), privilegiando le aree con più interventi vicini e gli interventi "di passaggio" per massimizzare quanti ne entrano nel tempo disponibile. Usa gli interventi "Da pianificare" compatibili (qui la competenza richiesta è un filtro rigido) e scrive subito i percorsi sul foglio, senza passaggio di conferma.</p>
-          <div class="field" style="margin-bottom:12px;">
-            <label>Squadre coinvolte (in ordine di precedenza)</label>
-            <div id="pian-intervallo-squadre" class="checklist-squadre"></div>
-          </div>
-          <div class="row">
-            <div class="field">
-              <label>Dal</label>
-              <input type="date" id="pian-intervallo-dal">
-            </div>
-            <div class="field">
-              <label>Al</label>
-              <input type="date" id="pian-intervallo-al">
-            </div>
-            <div class="field">
-              <button class="btn" id="btn-pianifica-intervallo">📅 Pianifica intervallo</button>
-            </div>
-          </div>
-          <div class="summary-cards" id="pian-intervallo-summary" style="display:none;"></div>
-          <div class="non-pianificabili-list" id="pian-intervallo-nonincluse" style="margin-top:10px;"></div>
-          <div class="board" id="pian-intervallo-board" style="margin-top:10px;"></div>
+        <div class="dash-body">
+          <div class="dash-teams" id="dash-team-list"></div>
+          <div class="dash-map-wrap"><div id="dash-map"></div></div>
         </div>
 
-        <div class="card" id="pian-selezione-card" style="display:none;">
-          <div class="row" style="justify-content: space-between; align-items: center;">
-            <h2 style="margin:0;">Interventi disponibili</h2>
-            <button type="button" class="btn secondary" id="btn-toggle-mappa-selezione">🗺️ Mostra mappa</button>
-          </div>
-          <div id="pian-selezione-mappa-wrap" class="hidden">
-            <p class="sub">Clicca un punto sulla mappa per vedere i dettagli dell'intervento e aggiungerlo (o rimuoverlo) dalla selezione — resta sincronizzata con la tabella qui sotto. Include anche gli interventi già pianificati per un'altra squadra/giorno: selezionarli equivale a spostarli qui.</p>
-            <div id="pian-selezione-mappa"></div>
-            <div class="mappa-legenda">
-              <span><span class="legenda-dot disponibile"></span> Da pianificare</span>
-              <span><span class="legenda-dot selezionato"></span> Selezionato</span>
-              <span><span class="legenda-dot altrove"></span> Pianificato altrove (spostabile)</span>
-              <span><span class="legenda-dot incompatibile"></span> Competenza non compatibile</span>
-            </div>
-          </div>
-          <div class="table-wrap">
-            <table id="tabella-selezione-interventi">
-              <thead><tr>
-                <th></th><th>Cliente</th><th>Indirizzo</th><th>Competenza</th><th>Priorità</th><th>Durata</th><th>Finestra</th><th>Pianificato altrove</th>
-              </tr></thead>
-              <tbody></tbody>
-            </table>
-          </div>
-          <div class="row" style="margin-top:14px;">
-            <button class="btn" id="btn-ottimizza-percorso">🧭 Ottimizza percorso</button>
-            <span id="pian-selezione-count" class="sub" style="margin:0;"></span>
-          </div>
-        </div>
-
-        <div class="card" id="pian-anteprima-card" style="display:none;">
-          <h2>Percorso proposto</h2>
-          <div class="summary-cards" id="pian-anteprima-summary"></div>
-          <div class="non-pianificabili-list" id="pian-anteprima-nonincluse" style="margin-bottom:14px;"></div>
-          <div id="pian-anteprima-tappe"></div>
-          <div class="row" style="margin-top:6px;">
-            <button class="btn" id="btn-conferma-percorso">✔ Conferma e salva percorso</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <h2>Percorsi confermati per il giorno selezionato</h2>
-          <div class="board" id="pian-board"><div class="empty-hint">Nessun percorso confermato per il giorno selezionato.</div></div>
-        </div>
+        <div class="dash-detail" id="dash-detail"></div>
       </section>
 
       <!-- VISTA INTERVENTI -->
@@ -160,28 +95,6 @@
         </div>
       </section>
 
-      <!-- VISTA PROGRAMMAZIONE -->
-      <section class="view" id="view-programmazione">
-        <div class="card">
-          <h2>Programmazione confermata</h2>
-          <p class="sub">Elenco degli interventi già pianificati (percorsi confermati) in un intervallo di date, con i dati essenziali e il telefono per contattare il cliente sul campo. "Rimuovi" riporta l'intervento a "Da pianificare"; "Riempi buco" ripianifica subito quella squadra/giorno usando gli interventi ancora disponibili, per non lasciare ore di lavoro inutilizzate.</p>
-          <div class="row">
-            <div class="field">
-              <label>Dal</label>
-              <input type="date" id="prog-dal">
-            </div>
-            <div class="field">
-              <label>Al</label>
-              <input type="date" id="prog-al">
-            </div>
-            <div class="field">
-              <button class="btn secondary" id="btn-carica-programmazione">Carica</button>
-            </div>
-          </div>
-          <div id="prog-risultato" style="margin-top:14px;"><div class="empty-hint">Seleziona un intervallo di date e premi "Carica".</div></div>
-        </div>
-      </section>
-
       <!-- VISTA SQUADRE -->
       <section class="view" id="view-squadre">
         <div class="screen-toolbar">
@@ -230,6 +143,119 @@
       </section>
     </main>
 
+    <!-- DIALOG: pianifica automaticamente un intervallo di giorni (multi-squadra) -->
+    <div id="dlg-intervallo" class="dlg-overlay hidden">
+      <div class="dlg-box">
+        <div class="dlg-head">
+          <h3>Pianifica automaticamente un intervallo di giorni</h3>
+          <button type="button" class="dlg-close" data-close-dlg="dlg-intervallo">✕</button>
+        </div>
+        <p class="sub">Scegli una o più squadre e un intervallo di date; il sistema genera automaticamente, giorno per giorno, il percorso ottimizzato per ciascuna squadra selezionata (la prima della lista ha la precedenza nella scelta degli interventi), privilegiando le aree con più interventi vicini e gli interventi "di passaggio" per massimizzare quanti ne entrano nel tempo disponibile. Usa gli interventi "Da pianificare" compatibili (qui la competenza richiesta è un filtro rigido) e scrive subito i percorsi sul foglio, senza passaggio di conferma.</p>
+        <div class="field" style="margin-bottom:12px;">
+          <label>Squadre coinvolte (in ordine di precedenza)</label>
+          <div id="pian-intervallo-squadre" class="checklist-squadre"></div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Dal</label>
+            <input type="date" id="pian-intervallo-dal">
+          </div>
+          <div class="field">
+            <label>Al</label>
+            <input type="date" id="pian-intervallo-al">
+          </div>
+          <div class="field">
+            <button class="btn" id="btn-pianifica-intervallo">📅 Pianifica intervallo</button>
+          </div>
+        </div>
+        <div class="summary-cards" id="pian-intervallo-summary" style="display:none;"></div>
+        <div class="non-pianificabili-list" id="pian-intervallo-nonincluse" style="margin-top:10px;"></div>
+        <div class="board" id="pian-intervallo-board" style="margin-top:10px;"></div>
+      </div>
+    </div>
+
+    <!-- DIALOG: seleziona da elenco (selezione manuale con ottimizzazione, per una squadra/giorno) -->
+    <div id="dlg-selezione" class="dlg-overlay hidden">
+      <div class="dlg-box wide">
+        <div class="dlg-head">
+          <h3 id="dlg-selezione-titolo">Seleziona da elenco</h3>
+          <button type="button" class="dlg-close" data-close-dlg="dlg-selezione">✕</button>
+        </div>
+        <div class="hidden"><select id="pian-squadra"></select><input type="date" id="pian-giorno"></div>
+
+        <div id="pian-selezione-card">
+          <div class="row" style="justify-content: space-between; align-items: center;">
+            <h2 style="margin:0;font-size:15px;">Interventi disponibili</h2>
+            <button type="button" class="btn secondary" id="btn-toggle-mappa-selezione">🗺️ Mostra mappa</button>
+          </div>
+          <div id="pian-selezione-mappa-wrap" class="hidden">
+            <p class="sub">Clicca un punto sulla mappa per vedere i dettagli dell'intervento e aggiungerlo (o rimuoverlo) dalla selezione — resta sincronizzata con la tabella qui sotto. Include anche gli interventi già pianificati per un'altra squadra/giorno: selezionarli equivale a spostarli qui.</p>
+            <div id="pian-selezione-mappa"></div>
+            <div class="mappa-legenda">
+              <span><span class="legenda-dot disponibile"></span> Da pianificare</span>
+              <span><span class="legenda-dot selezionato"></span> Selezionato</span>
+              <span><span class="legenda-dot altrove"></span> Pianificato altrove (spostabile)</span>
+              <span><span class="legenda-dot incompatibile"></span> Competenza non compatibile</span>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="tabella-selezione-interventi">
+              <thead><tr>
+                <th></th><th>Cliente</th><th>Indirizzo</th><th>Competenza</th><th>Priorità</th><th>Durata</th><th>Finestra</th><th>Pianificato altrove</th>
+              </tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="row" style="margin-top:14px;">
+            <button class="btn" id="btn-ottimizza-percorso">🧭 Ottimizza percorso</button>
+            <span id="pian-selezione-count" class="sub" style="margin:0;"></span>
+          </div>
+        </div>
+
+        <div class="card" id="pian-anteprima-card" style="display:none;box-shadow:none;border:1px solid var(--dp-line);margin-top:16px;">
+          <h2>Percorso proposto</h2>
+          <div class="summary-cards" id="pian-anteprima-summary"></div>
+          <div class="non-pianificabili-list" id="pian-anteprima-nonincluse" style="margin-bottom:14px;"></div>
+          <div id="pian-anteprima-tappe"></div>
+          <div class="row" style="margin-top:6px;">
+            <button class="btn" id="btn-conferma-percorso">✔ Conferma e salva percorso</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DIALOG: aggiungi intervento con orario fisso scelto a mano -->
+    <div id="dlg-aggiungi" class="dlg-overlay hidden">
+      <div class="dlg-box">
+        <div class="dlg-head">
+          <h3 id="dlg-aggiungi-titolo">Aggiungi intervento</h3>
+          <button type="button" class="dlg-close" data-close-dlg="dlg-aggiungi">✕</button>
+        </div>
+        <form id="form-aggiungi-intervento">
+          <div class="field"><label>Cliente *</label><input type="text" id="agg-cliente" required></div>
+          <div class="field"><label>Indirizzo *</label><input type="text" id="agg-indirizzo" required></div>
+          <div class="row">
+            <div class="field"><label>Competenza richiesta</label><input type="text" id="agg-competenza" placeholder="vuoto = qualsiasi"></div>
+            <div class="field">
+              <label>Priorità</label>
+              <select id="agg-priorita"><option>Urgente</option><option>Alta</option><option selected>Normale</option><option>Bassa</option></select>
+            </div>
+          </div>
+          <div class="row">
+            <div class="field"><label>Durata stimata (min)</label><input type="number" id="agg-durata" value="60"></div>
+            <div class="field"><label>Ora (fissa, scelta a mano)</label><input type="time" id="agg-ora" required></div>
+            <div class="field"><label>Ricavo (€)</label><input type="number" id="agg-ricavo" value="0"></div>
+          </div>
+          <div class="field"><label>Telefono</label><input type="text" id="agg-telefono"></div>
+          <p class="field-help">L'intervento viene creato e inserito subito nel percorso di questa squadra e giorno, esattamente all'ora indicata (non ottimizzata): utile per un intervento imprevisto da aggiungere al volo durante un giro già in corso.</p>
+        </form>
+        <div class="modal-actions">
+          <button type="button" class="btn secondary" data-close-dlg="dlg-aggiungi">Annulla</button>
+          <button type="button" class="btn" id="btn-salva-aggiungi-intervento">Salva e pianifica</button>
+        </div>
+      </div>
+    </div>
+
     <div id="modal-overlay" class="hidden">
       <div id="modal-box">
         <h3 id="modal-title">Modifica</h3>
@@ -238,16 +264,6 @@
           <button type="button" class="btn secondary" id="modal-cancel">Annulla</button>
           <button type="button" class="btn" id="modal-save">Salva</button>
         </div>
-      </div>
-    </div>
-
-    <div id="mappa-percorso-overlay" class="hidden">
-      <div id="mappa-percorso-box">
-        <div class="mappa-percorso-header">
-          <h3 id="mappa-percorso-titolo">Percorso</h3>
-          <button type="button" id="mappa-percorso-close">✕</button>
-        </div>
-        <div id="mappa-percorso-map"></div>
       </div>
     </div>
 

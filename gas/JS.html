@@ -185,11 +185,10 @@
   }
 
   function onShowView(view) {
+    if (view === 'dashboard') caricaDashboard();
     if (view === 'interventi') loadInterventi();
     if (view === 'squadre') loadSquadre();
     if (view === 'impostazioni') { loadRegole(); loadLog(); }
-    if (view === 'pianificazione' && pianState.giorno) aggiornaBoardGiorno();
-    if (view === 'programmazione') caricaProgrammazione();
   }
 
   // ---------- modale generico basato su schema ----------
@@ -437,8 +436,8 @@
   }
 
   function reloadAfterSave(schemaKey) {
-    if (schemaKey === 'SQUADRE') loadSquadre().then(populaSelectSquadra);
-    if (schemaKey === 'INTERVENTI') loadInterventi();
+    if (schemaKey === 'SQUADRE') loadSquadre().then(populaSelectSquadra).then(caricaDashboard);
+    if (schemaKey === 'INTERVENTI') { loadInterventi(); caricaDashboard(); }
   }
 
   // ---------- Squadre ----------
@@ -516,7 +515,7 @@
       if (btn.dataset.action === 'modifica') openModal('SQUADRE', obj);
       if (btn.dataset.action === 'elimina') {
         if (!window.confirm('Eliminare definitivamente la squadra "' + obj.nome + '"?')) return;
-        callServer('eliminaSquadra', obj.id, obj._row).then(function () { toast('Squadra eliminata.', 'success'); loadSquadre().then(populaSelectSquadra); })
+        callServer('eliminaSquadra', obj.id, obj._row).then(function () { toast('Squadra eliminata.', 'success'); loadSquadre().then(populaSelectSquadra).then(caricaDashboard); })
           .catch(function (err) { toast(err.message || String(err), 'error'); });
       }
     });
@@ -530,7 +529,7 @@
       cb.disabled = true;
       callServer('salvaSquadra', Object.assign({}, obj, { attiva: nuovoStato })).then(function () {
         toast(nuovoStato ? 'Squadra attivata.' : 'Squadra disattivata.', 'success');
-        return loadSquadre().then(populaSelectSquadra);
+        return loadSquadre().then(populaSelectSquadra).then(caricaDashboard);
       }).catch(function (err) {
         cb.checked = !nuovoStato;
         toast(err.message || String(err), 'error');
@@ -659,7 +658,8 @@
         var totale = r.creati + r.aggiornati;
         toast(totale > 0 ? 'Import completato: ' + r.creati + ' creati, ' + r.aggiornati + ' aggiornati.' : 'Nessuna riga da creare o aggiornare (' + r.giaImportati + ' già importate senza Ods).',
           haProblemi ? 'error' : 'success');
-        return loadInterventi();
+        loadInterventi();
+        return caricaDashboard();
       }).catch(function (err) {
         toast(err.message || String(err), 'error');
       }).then(function () { btn.disabled = false; });
@@ -676,18 +676,18 @@
       if (action === 'modifica') { openModal('INTERVENTI', obj); return; }
       if (action === 'elimina') {
         if (!window.confirm('Eliminare definitivamente l\'intervento per "' + obj.cliente + '"?')) return;
-        callServer('eliminaIntervento', obj.id, obj._row).then(function () { toast('Intervento eliminato.', 'success'); loadInterventi(); })
+        callServer('eliminaIntervento', obj.id, obj._row).then(function () { toast('Intervento eliminato.', 'success'); loadInterventi(); caricaDashboard(); })
           .catch(function (err) { toast(err.message || String(err), 'error'); });
         return;
       }
       if (action === 'completa') {
-        callServer('segnaCompletato', obj.id, obj._row).then(function () { toast('Intervento segnato come completato.', 'success'); loadInterventi(); })
+        callServer('segnaCompletato', obj.id, obj._row).then(function () { toast('Intervento segnato come completato.', 'success'); loadInterventi(); caricaDashboard(); })
           .catch(function (err) { toast(err.message || String(err), 'error'); });
         return;
       }
       if (action === 'annulla') {
         if (!window.confirm('Annullare l\'intervento per "' + obj.cliente + '"?')) return;
-        callServer('annullaIntervento', obj.id, obj._row).then(function () { toast('Intervento annullato.', 'success'); loadInterventi(); })
+        callServer('annullaIntervento', obj.id, obj._row).then(function () { toast('Intervento annullato.', 'success'); loadInterventi(); caricaDashboard(); })
           .catch(function (err) { toast(err.message || String(err), 'error'); });
       }
     });
@@ -757,7 +757,7 @@
     });
   }
 
-  // ---------- Pianificazione ----------
+  // ---------- dialog: pianifica automaticamente un intervallo (multi-squadra) ----------
   function populaSelectSquadra() {
     var sel = document.getElementById('pian-squadra');
     var valorePrecedente = sel.value;
@@ -839,7 +839,7 @@
     aggiornaMarkerMappaSelezione_();
   }
 
-  // ---------- mappa di selezione interventi (Pianificazione, giorno singolo) ----------
+  // ---------- mappa di selezione interventi (dialog "Seleziona da elenco", giorno singolo) ----------
   var mappaSelezioneInstance = null;
   var mappaSelezioneMarkers = [];
 
@@ -993,13 +993,13 @@
       renderIntervalloResult(risultato);
       var totaleTappe = totaleTappeIntervallo(risultato);
       toast('Intervallo pianificato: ' + totaleTappe + ' tappe su ' + risultato.giorni.length + ' giorni.', 'success');
-      aggiornaBoardGiorno();
-      if (pianState.giorno) caricaContesto();
+      caricaDashboard();
     }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () {
       btn.disabled = false; btn.textContent = '📅 Pianifica intervallo';
     });
   }
 
+  // ---------- dialog: seleziona da elenco (selezione manuale + ottimizzazione, una squadra/giorno) ----------
   function caricaContesto() {
     var squadraId = document.getElementById('pian-squadra').value;
     var giornoInput = document.getElementById('pian-giorno').value;
@@ -1013,7 +1013,6 @@
       pianState.pianificati = ctx.pianificati;
       pianState.pianificatiAltrove = ctx.pianificatiAltrove || [];
       renderSelezioneInterventi();
-      document.getElementById('pian-selezione-card').style.display = 'block';
       if (ctx.pianificati.length > 0) {
         pianState.ordineCorrente = ctx.pianificati.map(function (i) { return i.id; });
         ricalcolaConOrdineCorrente();
@@ -1022,7 +1021,6 @@
         pianState.anteprima = null;
         document.getElementById('pian-anteprima-card').style.display = 'none';
       }
-      aggiornaBoardGiorno();
     }).catch(function (err) { toast(err.message || String(err), 'error'); });
   }
 
@@ -1134,43 +1132,33 @@
       pianState.anteprima = anteprima;
       pianState.ordineCorrente = anteprima.tappe.map(function (t) { return t.interventoId; });
       renderAnteprima(anteprima);
-      aggiornaBoardGiorno();
+      caricaDashboard();
       caricaContesto();
     }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () { btn.disabled = false; });
   }
 
-  function aggiornaBoardGiorno() {
-    if (!pianState.giorno) return;
-    callServer('getPercorsiGiorno', pianState.giorno).then(renderBoardPercorsi);
+  /** Apre il dialog "Seleziona da elenco" per una squadra/giorno specifici, richiamato dalla Dashboard. */
+  function apriSelezioneDaElenco(squadraId, giornoStr) {
+    var squadra = state.squadre.filter(function (s) { return s.id === squadraId; })[0];
+    var selSquadra = document.getElementById('pian-squadra');
+    selSquadra.value = squadraId;
+    var giornoDate = parseDateStrClient(giornoStr);
+    document.getElementById('pian-giorno').value = giornoDate ? toInputDate(giornoDate) : '';
+    document.getElementById('dlg-selezione-titolo').textContent = 'Seleziona da elenco — ' + (squadra ? squadra.nome : squadraId) + ' — ' + giornoStr;
+    document.getElementById('dlg-selezione').classList.remove('hidden');
+    caricaContesto();
   }
 
-  function renderBoardPercorsi(gruppi) {
-    var boardEl = document.getElementById('pian-board');
-    if (!gruppi.length) { boardEl.innerHTML = '<div class="empty-hint">Nessun percorso confermato per il giorno selezionato.</div>'; return; }
-    var teamsHtml = gruppi.map(function (g) {
-      var stopsHtml = g.tappe.map(function (i) {
-        var fine = minutesToTimeClient(timeToMinutesClient(i.oraPianificata) + (i.durataMinuti || 0));
-        return '<div class="stop"><span class="ora">' + i.oraPianificata + '-' + fine + '</span> <span class="cliente">' + escapeHtml(i.cliente) + '</span>' +
-          '<div class="meta">' + escapeHtml(i.indirizzo || '') + ' · ' + i.durataMinuti + ' min</div></div>';
-      }).join('');
-      return '<div class="board-team"><div class="team-head"><span class="team-dot" style="background:' + g.colore + '"></span>' + escapeHtml(g.squadraNome) + '</div>' + stopsHtml + '</div>';
-    }).join('');
-    boardEl.innerHTML = '<div class="board-day"><div class="day-title">' + pianState.giorno + '</div><div class="board-teams">' + teamsHtml + '</div></div>';
-  }
-
-  function setupPianificazioneTab() {
-    var oggi = new Date();
-    var fra6 = new Date(oggi.getTime() + 6 * 24 * 3600 * 1000);
-    var elGiorno = document.getElementById('pian-giorno');
-    if (elGiorno) elGiorno.value = toInputDate(oggi);
-    var elDal = document.getElementById('pian-intervallo-dal');
-    if (elDal) elDal.value = toInputDate(oggi);
-    var elAl = document.getElementById('pian-intervallo-al');
-    if (elAl) elAl.value = toInputDate(fra6);
-    on('btn-carica-contesto', 'click', caricaContesto);
+  function setupDialogIntervalloESelezione() {
     on('btn-ottimizza-percorso', 'click', ottimizzaPercorso);
     on('btn-conferma-percorso', 'click', confermaPercorsoClick);
     on('btn-pianifica-intervallo', 'click', pianificaIntervalloClick);
+    var elDal = document.getElementById('pian-intervallo-dal');
+    var elAl = document.getElementById('pian-intervallo-al');
+    var oggi = new Date();
+    var fra6 = new Date(oggi.getTime() + 6 * 24 * 3600 * 1000);
+    if (elDal) elDal.value = toInputDate(oggi);
+    if (elAl) elAl.value = toInputDate(fra6);
 
     var tbodySelezione = document.querySelector('#tabella-selezione-interventi tbody');
     if (tbodySelezione) {
@@ -1209,73 +1197,256 @@
     });
   }
 
-  // ---------- vista Programmazione (elenco confermato + deseleziona + riempi buco) ----------
-  var progState = { righe: [] };
+  // ---------- mappa (Leaflet/OpenStreetMap, nessuna chiave API) ----------
+  //
+  // Leaflet viene caricato da CDN in modo pigro (solo al primo utilizzo di una mappa, non
+  // all'avvio dell'app): un <script> esterno messo in testa alla pagina bloccherebbe l'intero
+  // rendering finché non risponde, e se quella rete non riesce a raggiungere il CDN (proxy
+  // aziendale, filtro di rete) l'intera web app resterebbe con una schermata bianca. Caricandolo
+  // così, un eventuale problema di rete limita l'errore alla sola funzione mappa.
+  var leafletCaricamento = null;
 
-  function raggruppaProgrammazione(righe) {
-    var giorniMap = {};
-    righe.forEach(function (r) {
-      if (!giorniMap[r.dataPianificata]) giorniMap[r.dataPianificata] = {};
-      var squadre = giorniMap[r.dataPianificata];
-      if (!squadre[r.squadraId]) {
-        squadre[r.squadraId] = { squadraId: r.squadraId, squadraNome: r.squadraNome, colore: r.colore, righe: [] };
-      }
-      squadre[r.squadraId].righe.push(r);
+  function caricaLeaflet_() {
+    if (typeof L !== 'undefined') return Promise.resolve();
+    if (leafletCaricamento) return leafletCaricamento;
+    leafletCaricamento = new Promise(function (resolve, reject) {
+      var link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+
+      var script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      var timeout = setTimeout(function () { reject(new Error('timeout')); }, 10000);
+      script.onload = function () { clearTimeout(timeout); resolve(); };
+      script.onerror = function () { clearTimeout(timeout); reject(new Error('load error')); };
+      document.head.appendChild(script);
+    }).catch(function (err) {
+      leafletCaricamento = null; // permette di ritentare a un click successivo
+      throw err;
     });
-    return Object.keys(giorniMap).sort(function (a, b) {
-      var pa = a.split('/'), pb = b.split('/');
-      return new Date(pa[2], pa[1] - 1, pa[0]) - new Date(pb[2], pb[1] - 1, pb[0]);
-    }).map(function (giorno) {
-      var squadre = Object.keys(giorniMap[giorno]).map(function (k) { return giorniMap[giorno][k]; });
-      squadre.forEach(function (sq) {
-        sq.produzioneTotale = sq.righe.reduce(function (sum, r) { return sum + (r.ricavo || 0); }, 0);
-        sq.produzioneTarget = sq.righe[0].produzioneTarget || 0;
+    return leafletCaricamento;
+  }
+
+  // ---------- Dashboard (Screen A): mappa + squadre + dettaglio, su un giorno o un intervallo ----------
+  var dashState = { dal: null, al: null, selezionata: null, righe: [] };
+  var dashMapInstance = null, dashLayerGroup = null;
+
+  function getDashDal() { return document.getElementById('dash-dal').value; }
+  function getDashAl() { return document.getElementById('dash-al').value; }
+
+  function dateRangeArrayClient(dal, al) {
+    var out = [], cur = new Date(dal + 'T00:00:00'), fine = new Date(al + 'T00:00:00');
+    while (cur <= fine) { out.push(toInputDate(cur)); cur.setDate(cur.getDate() + 1); }
+    return out;
+  }
+
+  function giornoLabelBreveClient(inputDateStr) {
+    var giorni = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
+    var mesi = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+    var d = new Date(inputDateStr + 'T00:00:00');
+    return giorni[d.getDay()] + ' ' + d.getDate() + ' ' + mesi[d.getMonth()];
+  }
+
+  function haversineClient(a, b) {
+    var R = 6371, dLat = (b[0] - a[0]) * Math.PI / 180, dLng = (b[1] - a[1]) * Math.PI / 180;
+    var lat1 = a[0] * Math.PI / 180, lat2 = b[0] * Math.PI / 180;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  }
+
+  /** Tappe di una squadra in un giorno (yyyy-mm-dd), ordinate per ordineTappa — dai dati già caricati per l'intervallo corrente. */
+  function datiSquadraGiorno_(squadraId, giornoInput) {
+    var giornoStr = fromInputDate(giornoInput);
+    return dashState.righe.filter(function (r) { return r.squadraId === squadraId && r.dataPianificata === giornoStr; })
+      .sort(function (a, b) { return (a.ordineTappa || 0) - (b.ordineTappa || 0); });
+  }
+
+  /** Km indicativi del giro di un giorno (partenza → tappe in ordine → rientro), a scopo di stima rapida in lista/mappa — non è l'esito del motore di ottimizzazione. */
+  function kmGiornoSquadra_(squadra, tappe) {
+    var puntiValidi = tappe.filter(function (t) { return isNumClient(t.lat) && isNumClient(t.lng); });
+    if (!puntiValidi.length || !isNumClient(squadra.latPartenza) || !isNumClient(squadra.lngPartenza)) return 0;
+    var partenza = [squadra.latPartenza, squadra.lngPartenza];
+    var rientro = isNumClient(squadra.latRientro) ? [squadra.latRientro, squadra.lngRientro] : partenza;
+    var punti = [partenza].concat(puntiValidi.map(function (t) { return [t.lat, t.lng]; })).concat([rientro]);
+    var tot = 0;
+    for (var i = 1; i < punti.length; i++) tot += haversineClient(punti[i - 1], punti[i]);
+    return tot;
+  }
+
+  function aggregatoSquadraDash_(squadra, giorniRange) {
+    var giorniConDati = [], produzione = 0, km = 0, interventi = 0;
+    giorniRange.forEach(function (gInput) {
+      var tappe = datiSquadraGiorno_(squadra.id, gInput);
+      if (tappe.length) {
+        giorniConDati.push(gInput);
+        tappe.forEach(function (t) { produzione += (t.ricavo || 0); interventi++; });
+        km += kmGiornoSquadra_(squadra, tappe);
+      }
+    });
+    return {
+      giorniRange: giorniRange, giorniConDati: giorniConDati, produzione: produzione,
+      produzioneTarget: (squadra.produzioneTarget || 0) * giorniRange.length,
+      km: Math.round(km), interventi: interventi, multiGiorno: giorniRange.length > 1
+    };
+  }
+
+  function caricaDashboard() {
+    var dal = getDashDal(), al = getDashAl();
+    if (!dal || !al) return Promise.resolve();
+    if (al < dal) { document.getElementById('dash-al').value = dal; al = dal; }
+    var giorniRange = dateRangeArrayClient(dal, al);
+    var hint = document.getElementById('dash-range-hint');
+    if (hint) hint.textContent = giorniRange.length === 1 ? 'Un solo giorno selezionato' : giorniRange.length + ' giorni selezionati';
+    return callServer('getProgrammazione', fromInputDate(dal), fromInputDate(al)).then(function (righe) {
+      dashState.dal = dal; dashState.al = al; dashState.righe = righe;
+      if (!dashState.selezionata || !state.squadre.some(function (s) { return s.id === dashState.selezionata && s.attiva; })) {
+        var primaAttiva = state.squadre.filter(function (s) { return s.attiva; })[0];
+        dashState.selezionata = primaAttiva ? primaAttiva.id : null;
+      }
+      renderDashTeamList();
+      renderDashMap();
+      renderDashDetail();
+    }).catch(function (err) { toast('Errore nel caricamento della dashboard: ' + (err.message || err), 'error'); });
+  }
+
+  function renderDashTeamList() {
+    var el = document.getElementById('dash-team-list');
+    var giorniRange = dateRangeArrayClient(dashState.dal, dashState.al);
+    var squadreAttive = state.squadre.filter(function (s) { return s.attiva; });
+    if (!squadreAttive.length) { el.innerHTML = '<div class="empty-hint">Nessuna squadra attiva. Aggiungine una nel tab Squadre.</div>'; return; }
+    el.innerHTML = squadreAttive.map(function (sq) {
+      var agg = aggregatoSquadraDash_(sq, giorniRange);
+      var pianificato = agg.giorniConDati.length > 0;
+      var pct = agg.produzioneTarget ? Math.min(100, Math.round(agg.produzione / agg.produzioneTarget * 100)) : 0;
+      var okTarget = agg.produzione >= agg.produzioneTarget;
+      var etichettaVuota = agg.multiGiorno ? 'Nessun intervento pianificato nel periodo' : 'Nessun intervento pianificato oggi';
+      return '<div class="dash-team-card' + (sq.id === dashState.selezionata ? ' selected' : '') + '" data-squadra="' + sq.id + '">' +
+        '<div class="dash-team-card-top"><span class="team-dot" style="background:' + (sq.colore || '#999') + '"></span>' +
+        '<span class="dash-team-card-name">' + escapeHtml(sq.nome) + '</span>' +
+        '<span class="badge ' + (pianificato ? 'badge-stato-pianificato' : 'badge-stato-dapianificare') + '">' + (pianificato ? 'Pianificato' : 'Libera') + '</span></div>' +
+        (pianificato ? (
+          (agg.produzioneTarget ? '<div class="dash-team-produzione-row"><span>Produzione</span><strong>' + formatEuroClient(agg.produzione) + ' / ' + formatEuroClient(agg.produzioneTarget) + '</strong></div>' +
+            '<div class="dash-progress-track"><div class="dash-progress-fill ' + (okTarget ? 'good' : '') + '" style="width:' + pct + '%"></div></div>' : '') +
+          '<div class="dash-team-meta-row"><span>📍 ' + agg.km + ' km</span><span>' + agg.interventi + ' interventi' + (agg.multiGiorno ? (' · ' + agg.giorniConDati.length + '/' + agg.giorniRange.length + ' giorni') : '') + '</span></div>'
+        ) : '<div class="dash-team-meta-row" style="margin-top:2px;">' + etichettaVuota + '</div>')
+        + '</div>';
+    }).join('');
+  }
+
+  function renderDashMap() {
+    caricaLeaflet_().then(function () {
+      if (!dashMapInstance) {
+        dashMapInstance = L.map('dash-map').setView([45.46, 9.19], 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(dashMapInstance);
+        dashLayerGroup = L.layerGroup().addTo(dashMapInstance);
+      }
+      dashLayerGroup.clearLayers();
+      var giorniRange = dateRangeArrayClient(dashState.dal, dashState.al);
+      var multiGiorno = giorniRange.length > 1;
+      var tuttiPunti = [];
+      state.squadre.filter(function (s) { return s.attiva; }).forEach(function (sq) {
+        if (!isNumClient(sq.latPartenza) || !isNumClient(sq.lngPartenza)) return;
+        var attenuata = sq.id !== dashState.selezionata;
+        giorniRange.forEach(function (gInput) {
+          var tappe = datiSquadraGiorno_(sq.id, gInput).filter(function (t) { return isNumClient(t.lat) && isNumClient(t.lng); });
+          if (!tappe.length) return;
+          var partenza = [sq.latPartenza, sq.lngPartenza];
+          var rientro = isNumClient(sq.latRientro) ? [sq.latRientro, sq.lngRientro] : partenza;
+          var punti = [partenza].concat(tappe.map(function (t) { return [t.lat, t.lng]; })).concat([rientro]);
+          L.polyline(punti, { color: sq.colore || '#999', weight: attenuata ? 2 : 4, opacity: attenuata ? .3 : .9 }).addTo(dashLayerGroup);
+          tappe.forEach(function (t, idx) {
+            var icon = L.divIcon({
+              className: '',
+              html: '<div style="background:' + (sq.colore || '#999') + ';opacity:' + (attenuata ? 0.35 : 1) + ';color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.35);">' + (idx + 1) + '</div>',
+              iconSize: [22, 22], iconAnchor: [11, 11]
+            });
+            L.marker([t.lat, t.lng], { icon: icon }).addTo(dashLayerGroup)
+              .bindPopup('<b>' + escapeHtml(t.cliente) + '</b><br>' + escapeHtml(t.indirizzo || '') + (multiGiorno ? '<br><small>' + giornoLabelBreveClient(gInput) + '</small>' : ''));
+            tuttiPunti.push([t.lat, t.lng]);
+          });
+        });
       });
-      squadre.sort(function (a, b) { return a.squadraNome < b.squadraNome ? -1 : 1; });
-      return { giorno: giorno, squadre: squadre };
+      if (tuttiPunti.length) dashMapInstance.fitBounds(tuttiPunti, { padding: [30, 30] });
+      setTimeout(function () { if (dashMapInstance) dashMapInstance.invalidateSize(); }, 60);
+    }).catch(function () {
+      toast('Impossibile caricare la mappa (verifica la connessione a internet o la rete/proxy in uso).', 'error');
     });
   }
 
-  function renderProgrammazione() {
-    var el = document.getElementById('prog-risultato');
-    if (!progState.righe.length) {
-      el.innerHTML = '<div class="empty-hint">Nessun intervento pianificato nell\'intervallo selezionato.</div>';
+  function dashRigaTappa_(t) {
+    return '<div class="dash-stop-row">' +
+      '<span class="dash-stop-ora">' + escapeHtml(t.oraPianificata || '') + '</span>' +
+      '<span class="dash-stop-cliente">' + escapeHtml(t.cliente) + '</span>' +
+      '<span class="dash-stop-indirizzo">' + escapeHtml(t.indirizzo || '') + '</span>' +
+      '<span class="dash-stop-durata">' + (t.durataMinuti || 0) + ' min</span>' +
+      '<span class="dash-stop-telefono">' + escapeHtml(t.telefono || '—') + '</span>' +
+      '<span class="row-actions"><button class="btn-icon danger" title="Rimuovi dal percorso" data-action="rimuovi-tappa" data-id="' + t.id + '" data-row="' + t._row + '">' + ICONA_CESTINO_ + '</button></span>' +
+    '</div>';
+  }
+
+  function renderDashDetail() {
+    var el = document.getElementById('dash-detail');
+    var sq = state.squadre.filter(function (s) { return s.id === dashState.selezionata; })[0];
+    if (!sq) { el.innerHTML = '<div class="empty-hint">Nessuna squadra attiva selezionata.</div>'; return; }
+    var giorniRange = dateRangeArrayClient(dashState.dal, dashState.al);
+    var agg = aggregatoSquadraDash_(sq, giorniRange);
+    var giornoUnico = giorniRange[0];
+
+    if (!agg.giorniConDati.length) {
+      el.innerHTML = '<div class="dash-empty-detail">' +
+        '<div><span class="team-dot" style="background:' + (sq.colore || '#999') + ';display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;"></span><strong>' + escapeHtml(sq.nome) + '</strong></div>' +
+        '<p style="margin:10px 0 0;">' + (agg.multiGiorno ? 'Nessun intervento pianificato nel periodo selezionato.' : 'Nessun intervento pianificato per questo giorno.') + '</p>' +
+        (agg.multiGiorno ? '' : '<button class="btn-primary" data-action="aggiungi-intervento" data-giorno="' + giornoUnico + '">+ Aggiungi intervento</button>') +
+        '</div>';
       return;
     }
-    var giorni = raggruppaProgrammazione(progState.righe);
-    el.innerHTML = '<div class="board">' + giorni.map(function (g) {
-      var teamsHtml = g.squadre.map(function (sq) {
-        var righeHtml = sq.righe.map(function (r) {
-          return '<tr>' +
-            '<td>' + (r.oraPianificata || '') + '</td>' +
-            '<td>' + escapeHtml(r.cliente) + '</td>' +
-            '<td>' + escapeHtml(r.indirizzo || '') + '</td>' +
-            '<td>' + (r.durataMinuti || 0) + ' min</td>' +
-            '<td>' + escapeHtml(r.telefono || '-') + '</td>' +
-            '<td><button type="button" class="btn secondary" data-action="rimuovi" data-id="' + r.id + '" data-row="' + r._row + '" data-squadra="' + sq.squadraId + '" data-giorno="' + g.giorno + '">Rimuovi</button></td>' +
-          '</tr>';
-        }).join('');
-        return '<div class="prog-team">' +
-          '<div class="team-head"><span class="team-dot" style="background:' + (sq.colore || '#999') + '"></span>' + escapeHtml(sq.squadraNome) +
-          '<button type="button" class="btn secondary" data-action="vedi-mappa" data-squadra="' + sq.squadraId + '" data-giorno="' + g.giorno + '" style="margin-left:auto;">🗺️ Vedi mappa</button>' +
-          '<button type="button" class="btn secondary" data-action="pianifica-qui" data-squadra="' + sq.squadraId + '" data-giorno="' + g.giorno + '">Seleziona manualmente</button>' +
-          '<button type="button" class="btn secondary btn-riempi-buco" data-action="riempi-buco" data-squadra="' + sq.squadraId + '" data-giorno="' + g.giorno + '">Riempi buco</button></div>' +
-          formattaProduzioneClient(sq.produzioneTotale, sq.produzioneTarget) +
-          '<table class="prog-table"><thead><tr><th>Ora</th><th>Cliente</th><th>Indirizzo</th><th>Durata</th><th>Telefono</th><th></th></tr></thead><tbody>' + righeHtml + '</tbody></table>' +
+
+    var corpo;
+    if (!agg.multiGiorno) {
+      var tappeUnico = datiSquadraGiorno_(sq.id, giornoUnico);
+      corpo = '<div class="dash-stop-list">' +
+        '<div class="dash-stop-row dash-stop-row-head"><span>Ora</span><span>Cliente</span><span>Indirizzo</span><span>Durata</span><span>Telefono</span><span></span></div>' +
+        tappeUnico.map(dashRigaTappa_).join('') +
+      '</div>';
+    } else {
+      corpo = agg.giorniConDati.map(function (gInput) {
+        var tappe = datiSquadraGiorno_(sq.id, gInput);
+        return '<div class="dash-day-group">' +
+          '<div class="dash-day-group-head"><span>' + giornoLabelBreveClient(gInput) + ' — ' + tappe.length + ' interventi</span>' +
+          '<button class="btn-icon" title="Riempi buchi per questo giorno" data-action="riempi-buchi" data-giorno="' + gInput + '">' +
+            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"></path></svg></button></div>' +
+          '<div class="dash-stop-list">' +
+            '<div class="dash-stop-row dash-stop-row-head"><span>Ora</span><span>Cliente</span><span>Indirizzo</span><span>Durata</span><span>Telefono</span><span></span></div>' +
+            tappe.map(dashRigaTappa_).join('') +
+          '</div>' +
         '</div>';
       }).join('');
-      return '<div class="board-day"><div class="day-title">' + g.giorno + '</div>' + teamsHtml + '</div>';
-    }).join('') + '</div>';
+    }
+
+    el.innerHTML =
+      '<div class="dash-detail-head">' +
+        '<div class="dash-detail-head-left"><span class="team-dot" style="background:' + (sq.colore || '#999') + '"></span><h3>' + escapeHtml(sq.nome) + '</h3></div>' +
+        '<div class="dash-detail-summary">' +
+          (agg.produzioneTarget ? '<span>Produzione <strong>' + formatEuroClient(agg.produzione) + ' / ' + formatEuroClient(agg.produzioneTarget) + '</strong></span>' : '') +
+          '<span>Percorso <strong>' + agg.km + ' km</strong></span>' +
+        '</div>' +
+        '<div class="dash-detail-actions">' +
+          (agg.multiGiorno ? '' : '<button class="btn-secondary" data-action="riempi-buchi" data-giorno="' + giornoUnico + '">🧩 Riempi buchi</button>') +
+          '<button class="btn-secondary" data-action="seleziona-elenco" data-giorno="' + giornoUnico + '">📋 Seleziona da elenco</button>' +
+          '<button class="btn-secondary" data-action="aggiungi-intervento" data-giorno="' + giornoUnico + '">+ Aggiungi intervento</button>' +
+        '</div>' +
+      '</div>' + corpo;
   }
 
-  function caricaProgrammazione() {
-    var dal = document.getElementById('prog-dal').value;
-    var al = document.getElementById('prog-al').value;
-    if (!dal || !al) { toast('Seleziona l\'intervallo di date.', 'error'); return; }
-    return callServer('getProgrammazione', fromInputDate(dal), fromInputDate(al)).then(function (righe) {
-      progState.righe = righe;
-      renderProgrammazione();
-    }).catch(function (err) { toast('Errore nel caricamento: ' + (err.message || err), 'error'); });
+  function dashRimuoviTappa_(id, row) {
+    if (!window.confirm('Rimuovere questo intervento dal percorso? Tornerà "Da pianificare" e non sarà più riproposto automaticamente per questa data (resta comunque selezionabile a mano).')) return;
+    callServer('ripianificaIntervento', id, row).then(function () {
+      toast('Intervento rimosso: torna "Da pianificare".', 'success');
+      caricaDashboard();
+    }).catch(function (err) { toast('Errore nella rimozione: ' + (err.message || err), 'error'); });
   }
 
   /**
@@ -1302,144 +1473,93 @@
         ? 'Buco riempito: ' + anteprima.tappe.length + ' tappe pianificate per ' + anteprima.squadraNome + ' il ' + giornoStr + '.'
         : 'Nessun intervento disponibile da inserire per ' + anteprima.squadraNome + ' il ' + giornoStr + '.';
       toast(msg, 'success');
-      return caricaProgrammazione();
+      return caricaDashboard();
     }).catch(function (err) { toast('Errore nel riempimento: ' + (err.message || err), 'error'); });
   }
 
-  /**
-   * Rimuove un intervento dal percorso: torna "Da pianificare" e basta, senza ripianificare né
-   * riempire subito il buco lasciato aperto — quello resta una scelta esplicita dell'utente (col
-   * pulsante "Riempi buco"). L'intervento rimosso non viene più riproposto dagli strumenti
-   * automatici per questa stessa data (resta comunque selezionabile a mano, anche per la stessa
-   * data), finché non viene ripianificato di nuovo.
-   */
-  function rimuoviProgrammatoClick(id, row, squadraId, giornoStr) {
-    if (!window.confirm('Rimuovere questo intervento dal percorso? Tornerà "Da pianificare" e non sarà più riproposto automaticamente per questa data (resta comunque selezionabile a mano).')) return;
-    callServer('ripianificaIntervento', id, row).then(function () {
-      toast('Intervento rimosso: torna "Da pianificare".', 'success');
-      return caricaProgrammazione();
-    }).catch(function (err) { toast('Errore nella rimozione: ' + (err.message || err), 'error'); });
+  // ---------- dialog: aggiungi intervento con orario fisso ----------
+  var aggiungiState = { squadraId: null, giorno: null };
+
+  function apriAggiungiIntervento(squadraId, giornoStr) {
+    var squadra = state.squadre.filter(function (s) { return s.id === squadraId; })[0];
+    aggiungiState.squadraId = squadraId;
+    aggiungiState.giorno = giornoStr;
+    document.getElementById('dlg-aggiungi-titolo').textContent = 'Aggiungi intervento — ' + (squadra ? squadra.nome : squadraId) + ' — ' + giornoStr;
+    document.getElementById('form-aggiungi-intervento').reset();
+    document.getElementById('agg-priorita').value = 'Normale';
+    document.getElementById('agg-durata').value = 60;
+    document.getElementById('agg-ricavo').value = 0;
+    document.getElementById('dlg-aggiungi').classList.remove('hidden');
   }
 
-  // ---------- mappa del percorso (Leaflet/OpenStreetMap, nessuna chiave API) ----------
-  //
-  // Leaflet viene caricato da CDN in modo pigro (solo al primo utilizzo della mappa, non
-  // all'avvio dell'app): un <script> esterno messo in testa alla pagina bloccherebbe l'intero
-  // rendering finché non risponde, e se quella rete non riesce a raggiungere il CDN (proxy
-  // aziendale, filtro di rete) l'intera web app resterebbe con una schermata bianca. Caricandolo
-  // così, un eventuale problema di rete limita l'errore alla sola funzione mappa.
-  var mappaPercorsoInstance = null;
-  var leafletCaricamento = null;
-
-  function caricaLeaflet_() {
-    if (typeof L !== 'undefined') return Promise.resolve();
-    if (leafletCaricamento) return leafletCaricamento;
-    leafletCaricamento = new Promise(function (resolve, reject) {
-      var link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(link);
-
-      var script = document.createElement('script');
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      var timeout = setTimeout(function () { reject(new Error('timeout')); }, 10000);
-      script.onload = function () { clearTimeout(timeout); resolve(); };
-      script.onerror = function () { clearTimeout(timeout); reject(new Error('load error')); };
-      document.head.appendChild(script);
-    }).catch(function (err) {
-      leafletCaricamento = null; // permette di ritentare a un click successivo
-      throw err;
-    });
-    return leafletCaricamento;
+  function salvaAggiungiIntervento() {
+    var cliente = document.getElementById('agg-cliente').value.trim();
+    var indirizzo = document.getElementById('agg-indirizzo').value.trim();
+    var ora = document.getElementById('agg-ora').value;
+    if (!cliente || !indirizzo) { toast('Cliente e indirizzo sono obbligatori.', 'error'); return; }
+    if (!ora) { toast('Indica l\'ora.', 'error'); return; }
+    var intervento = {
+      cliente: cliente,
+      indirizzo: indirizzo,
+      competenza: document.getElementById('agg-competenza').value.trim(),
+      priorita: document.getElementById('agg-priorita').value,
+      durataMinuti: parseFloat(document.getElementById('agg-durata').value) || 60,
+      telefono: document.getElementById('agg-telefono').value.trim(),
+      ricavo: parseFloat(document.getElementById('agg-ricavo').value) || 0
+    };
+    var btn = document.getElementById('btn-salva-aggiungi-intervento');
+    btn.disabled = true;
+    callServer('creaEPianificaIntervento', intervento, aggiungiState.squadraId, aggiungiState.giorno, ora).then(function () {
+      toast('Intervento creato e pianificato.', 'success');
+      document.getElementById('dlg-aggiungi').classList.add('hidden');
+      caricaDashboard();
+    }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () { btn.disabled = false; });
   }
 
-  function apriMappaPercorso(squadraId, giornoStr) {
-    var righeSquadra = progState.righe.filter(function (r) { return r.squadraId === squadraId && r.dataPianificata === giornoStr; });
-    righeSquadra.sort(function (a, b) { return (a.ordineTappa || 0) - (b.ordineTappa || 0); });
-    var punti = righeSquadra.filter(function (r) { return isNumClient(r.lat) && isNumClient(r.lng); });
-    if (!punti.length) { toast('Nessuna coordinata disponibile per disegnare la mappa di questo percorso.', 'error'); return; }
-
-    caricaLeaflet_().then(function () {
-      disegnaMappaPercorso_(righeSquadra, punti, squadraId, giornoStr);
-    }).catch(function () {
-      toast('Impossibile caricare la mappa (verifica la connessione a internet o la rete/proxy in uso).', 'error');
-    });
-  }
-
-  function disegnaMappaPercorso_(righeSquadra, punti, squadraId, giornoStr) {
-    var squadraNome = righeSquadra[0].squadraNome || squadraId;
-    document.getElementById('mappa-percorso-titolo').textContent = 'Percorso — ' + squadraNome + ' — ' + giornoStr;
-    document.getElementById('mappa-percorso-overlay').classList.remove('hidden');
-
-    if (mappaPercorsoInstance) { mappaPercorsoInstance.remove(); mappaPercorsoInstance = null; }
-    mappaPercorsoInstance = L.map('mappa-percorso-map');
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(mappaPercorsoInstance);
-
-    var latlngs = punti.map(function (p) { return [p.lat, p.lng]; });
-    // Collega le tappe nell'ordine di visita con segmenti diritti (non un percorso stradale
-    // reale): è pensata come indicazione visiva rapida della sequenza/geografia del giro, non
-    // come navigazione turn-by-turn.
-    L.polyline(latlngs, { color: '#4285F4', weight: 3, opacity: .8 }).addTo(mappaPercorsoInstance);
-    punti.forEach(function (p, idx) {
-      var icon = L.divIcon({ className: '', html: '<div class="marker-tappa">' + (idx + 1) + '</div>', iconSize: [26, 26], iconAnchor: [13, 13] });
-      L.marker([p.lat, p.lng], { icon: icon }).addTo(mappaPercorsoInstance)
-        .bindPopup('<strong>' + (idx + 1) + '. ' + escapeHtml(p.cliente) + '</strong><br>' + escapeHtml(p.indirizzo || '') +
-          (p.oraPianificata ? '<br>Ore ' + escapeHtml(p.oraPianificata) : ''));
-    });
-    mappaPercorsoInstance.fitBounds(latlngs, { padding: [30, 30] });
-
-    // Il contenitore passa da hidden a visibile proprio ora: Leaflet calcola le dimensioni al
-    // momento della creazione, quando potrebbero non essere ancora quelle reali, quindi si forza
-    // un ricalcolo subito dopo che il browser ha applicato il nuovo layout.
-    setTimeout(function () { if (mappaPercorsoInstance) mappaPercorsoInstance.invalidateSize(); }, 60);
-  }
-
-  function chiudiMappaPercorso() {
-    document.getElementById('mappa-percorso-overlay').classList.add('hidden');
-    if (mappaPercorsoInstance) { mappaPercorsoInstance.remove(); mappaPercorsoInstance = null; }
-  }
-
-  /** Passa al tab Pianificazione precompilato con squadra/giorno, per selezionare manualmente (anche dalla mappa) come per un giorno singolo qualsiasi. */
-  function pianificaQuiClick(squadraId, giornoStr) {
-    var selSquadra = document.getElementById('pian-squadra');
-    var elGiorno = document.getElementById('pian-giorno');
-    if (selSquadra) selSquadra.value = squadraId;
-    var giornoDate = parseDateStrClient(giornoStr);
-    if (elGiorno && giornoDate) elGiorno.value = toInputDate(giornoDate);
-    mostraTab('pianificazione');
-    caricaContesto();
-  }
-
-  function setupProgrammazioneTab() {
+  function setupDashboardTab() {
     var oggi = new Date();
-    var fra6 = new Date(oggi.getTime() + 6 * 24 * 3600 * 1000);
-    var elDal = document.getElementById('prog-dal');
+    var elDal = document.getElementById('dash-dal');
+    var elAl = document.getElementById('dash-al');
     if (elDal) elDal.value = toInputDate(oggi);
-    var elAl = document.getElementById('prog-al');
-    if (elAl) elAl.value = toInputDate(fra6);
-    on('btn-carica-programmazione', 'click', caricaProgrammazione);
-    onQuery('#prog-risultato', 'click', function (e) {
+    if (elAl) elAl.value = toInputDate(oggi);
+    on('dash-dal', 'change', caricaDashboard);
+    on('dash-al', 'change', caricaDashboard);
+
+    onQuery('#dash-team-list', 'click', function (e) {
+      var card = e.target.closest('[data-squadra]');
+      if (!card) return;
+      dashState.selezionata = card.dataset.squadra;
+      renderDashTeamList();
+      renderDashMap();
+      renderDashDetail();
+    });
+
+    onQuery('#dash-detail', 'click', function (e) {
       var btn = e.target.closest('button[data-action]');
       if (!btn) return;
-      var squadraId = btn.dataset.squadra, giornoStr = btn.dataset.giorno;
-      if (btn.dataset.action === 'rimuovi') {
-        rimuoviProgrammatoClick(btn.dataset.id, btn.dataset.row, squadraId, giornoStr);
-      } else if (btn.dataset.action === 'riempi-buco') {
-        if (!window.confirm('Ripianificare "' + squadraId + '" per il ' + giornoStr + ' includendo eventuali interventi disponibili per riempire le ore libere?')) return;
-        riempiBucoGiornoClick(squadraId, giornoStr);
-      } else if (btn.dataset.action === 'vedi-mappa') {
-        apriMappaPercorso(squadraId, giornoStr);
-      } else if (btn.dataset.action === 'pianifica-qui') {
-        pianificaQuiClick(squadraId, giornoStr);
+      var giornoInput = btn.dataset.giorno;
+      var giornoStr = giornoInput ? fromInputDate(giornoInput) : null;
+      var action = btn.dataset.action;
+      var squadra = state.squadre.filter(function (s) { return s.id === dashState.selezionata; })[0];
+      if (action === 'rimuovi-tappa') {
+        dashRimuoviTappa_(btn.dataset.id, btn.dataset.row);
+      } else if (action === 'riempi-buchi') {
+        if (!window.confirm('Ripianificare "' + (squadra ? squadra.nome : dashState.selezionata) + '" per il ' + giornoStr + ' includendo eventuali interventi disponibili per riempire le ore libere?')) return;
+        riempiBucoGiornoClick(dashState.selezionata, giornoStr);
+      } else if (action === 'seleziona-elenco') {
+        apriSelezioneDaElenco(dashState.selezionata, giornoStr);
+      } else if (action === 'aggiungi-intervento') {
+        apriAggiungiIntervento(dashState.selezionata, giornoStr);
       }
     });
-    on('mappa-percorso-close', 'click', chiudiMappaPercorso);
-    on('mappa-percorso-overlay', 'click', function (e) {
-      if (e.target.id === 'mappa-percorso-overlay') chiudiMappaPercorso();
+
+    on('btn-apri-pianifica-intervallo', 'click', function () { document.getElementById('dlg-intervallo').classList.remove('hidden'); });
+    on('btn-salva-aggiungi-intervento', 'click', salvaAggiungiIntervento);
+    document.querySelectorAll('[data-close-dlg]').forEach(function (btn) {
+      btn.addEventListener('click', function () { document.getElementById(btn.dataset.closeDlg).classList.add('hidden'); });
     });
+
+    setupDialogIntervalloESelezione();
   }
 
   // ---------- bootstrap ----------
@@ -1458,9 +1578,8 @@
   function init() {
     safeRun_('tabs', setupTabs);
     safeRun_('modal', setupModal);
-    safeRun_('pianificazione', setupPianificazioneTab);
+    safeRun_('dashboard', setupDashboardTab);
     safeRun_('interventi', setupInterventiTab);
-    safeRun_('programmazione', setupProgrammazioneTab);
     safeRun_('squadre', setupSquadreTab);
     safeRun_('regole', setupRegoleTab);
 
@@ -1472,6 +1591,7 @@
       popolaSelectFiltri();
       populaSelectSquadra();
       renderSquadre();
+      caricaDashboard();
     }).catch(function (err) { toast('Errore di inizializzazione: ' + (err.message || err), 'error'); });
   }
 
