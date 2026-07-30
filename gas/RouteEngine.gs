@@ -358,7 +358,11 @@ function pianificaOrarioPercorso_(squadra, nodi, ordine, matrice, partenzaIdx, r
     if (!isFirst && tempoViaggioMassimo > 0 && (tempoViaggioTotale + viaggio.minuti) > tempoViaggioMassimo) {
       nonIncluse.push({
         intervento: intervento,
-        motivo: 'Supererebbe il tempo massimo di viaggio tra le tappe impostato per la giornata (' + Math.round(tempoViaggioMassimo) + ' min)'
+        motivo: 'Supererebbe il tempo massimo di viaggio tra le tappe impostato per la giornata (' + Math.round(tempoViaggioMassimo) + ' min)',
+        // Codice macchina-leggibile (oltre al testo): usato lato client per riconoscere proprio
+        // questo motivo ed eventualmente proporre un avviso "pianifica comunque / annulla",
+        // invece di dover interpretare la stringa del motivo.
+        codice: 'TETTO_VIAGGIO'
       });
       return;
     }
@@ -782,7 +786,7 @@ function formattaAnteprima_(squadra, giorno, risultato) {
       };
     }),
     nonIncluse: risultato.nonIncluse.map(function (n) {
-      return { interventoId: n.intervento.id, cliente: n.intervento.cliente, motivo: n.motivo };
+      return { interventoId: n.intervento.id, cliente: n.intervento.cliente, motivo: n.motivo, codice: n.codice || null };
     }),
     partenzaStimata: risultato.partenzaStimata,
     rientroStimato: risultato.rientroStimato,
@@ -797,10 +801,14 @@ function formattaAnteprima_(squadra, giorno, risultato) {
  * Calcola l'anteprima del percorso per una squadra/giorno dato un elenco di interventi selezionati.
  * Se `ordineManuale` (array di id intervento, stesso insieme di interventoIds) è fornito, salta
  * l'ottimizzazione automatica e programma esattamente in quell'ordine (usato dopo un riordino manuale).
+ * Se `ignoraTettoViaggio` è true, il limite di tempo di viaggio massimo giornaliero (regola
+ * tempoViaggioMassimoMinuti) viene disattivato per questo calcolo: usato quando l'utente, avvisato
+ * che una tappa supera il limite, sceglie esplicitamente di pianificarla comunque.
  */
-function anteprimaPercorso(squadraId, giornoStr, interventoIds, ordineManuale) {
+function anteprimaPercorso(squadraId, giornoStr, interventoIds, ordineManuale, ignoraTettoViaggio) {
   if (!interventoIds || interventoIds.length === 0) throw new Error('Seleziona almeno un intervento.');
   var regole = getRegoleMappa_();
+  if (ignoraTettoViaggio) regole.tempoViaggioMassimoMinuti = 0;
   var squadra = assicuraIdTutti_('SQUADRE').filter(function (s) { return s.id === squadraId; })[0];
   if (!squadra) throw new Error('Squadra non trovata.');
   if (!isNum_(squadra.latPartenza) || !isNum_(squadra.lngPartenza)) {
@@ -854,10 +862,13 @@ function anteprimaPercorso(squadraId, giornoStr, interventoIds, ordineManuale) {
  * Conferma e salva un percorso: ricalcola l'anteprima nell'ordine indicato (fonte di verità
  * unica lato server) e scrive stato/assegnazione/orario sugli interventi coinvolti. Eventuali
  * interventi già pianificati per questa squadra/giorno ma non più presenti nella selezione
- * tornano automaticamente "Da pianificare".
+ * tornano automaticamente "Da pianificare". `ignoraTettoViaggio` va passato coerente con
+ * l'anteprima che l'utente ha effettivamente approvato (vedi anteprimaPercorso), altrimenti una
+ * tappa accettata "ugualmente" nonostante superasse il tempo di viaggio massimo sparirebbe di
+ * nuovo silenziosamente proprio al salvataggio.
  */
-function confermaPercorso(squadraId, giornoStr, interventoIdsOrdinati) {
-  var anteprima = anteprimaPercorso(squadraId, giornoStr, interventoIdsOrdinati, interventoIdsOrdinati);
+function confermaPercorso(squadraId, giornoStr, interventoIdsOrdinati, ignoraTettoViaggio) {
+  var anteprima = anteprimaPercorso(squadraId, giornoStr, interventoIdsOrdinati, interventoIdsOrdinati, ignoraTettoViaggio);
   var tuttiInterventi = readAll_('INTERVENTI');
 
   var precedentementePianificati = tuttiInterventi.filter(function (i) {

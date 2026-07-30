@@ -4,7 +4,7 @@
 
   var state = { schema: {}, squadre: [], utente: '' };
   var modalState = { schemaKey: null, editObj: null };
-  var pianState = { squadraId: null, giorno: null, disponibili: [], pianificati: [], pianificatiAltrove: [], ordineCorrente: [], anteprima: null };
+  var pianState = { squadraId: null, giorno: null, disponibili: [], pianificati: [], pianificatiAltrove: [], ordineCorrente: [], anteprima: null, ignoraTettoViaggio: false };
 
   var SAVE_FN = { SQUADRE: 'salvaSquadra', INTERVENTI: 'salvaIntervento' };
   var DELETE_FN = { SQUADRE: 'eliminaSquadra', INTERVENTI: 'eliminaIntervento' };
@@ -890,12 +890,38 @@
     }).catch(function (err) { toast(err.message || String(err), 'error'); });
   }
 
+  /**
+   * Chiama anteprimaPercorso e, se il risultato esclude qualche tappa perché supera il tempo di
+   * viaggio massimo impostato in Regole, chiede all'utente se pianificarla comunque (ignorando il
+   * limite per questo percorso) o annullare (rispettando il limite, resta "Non inclusa" come al
+   * solito) — invece di lasciare che la tappa sparisca in silenzio nell'elenco "Non incluse".
+   * Ricorda la scelta in pianState.ignoraTettoViaggio: "Conferma e salva percorso" la userà per
+   * ricalcolare allo stesso modo, così un intervento approvato in anteprima non sparisce di nuovo
+   * silenziosamente al salvataggio.
+   */
+  function chiamaAnteprimaConAvvisoTetto_(squadraId, giornoStr, interventoIds, ordineManuale) {
+    pianState.ignoraTettoViaggio = false;
+    return callServer('anteprimaPercorso', squadraId, giornoStr, interventoIds, ordineManuale).then(function (anteprima) {
+      var esclusiPerTetto = anteprima.nonIncluse.filter(function (n) { return n.codice === 'TETTO_VIAGGIO'; });
+      if (!esclusiPerTetto.length) return anteprima;
+      var nomi = esclusiPerTetto.map(function (n) { return n.cliente; }).join(', ');
+      var messaggio = (esclusiPerTetto.length === 1
+        ? 'L\'intervento "' + nomi + '" supera'
+        : esclusiPerTetto.length + ' interventi (' + nomi + ') superano') +
+        ' il tempo massimo di viaggio tra le tappe impostato in Regole.\n\n' +
+        'Premi OK per pianificarlo/i ugualmente (ignorando il limite per questo percorso), oppure Annulla per rispettare il limite (resta/restano "Non incluse").';
+      if (!window.confirm(messaggio)) return anteprima;
+      pianState.ignoraTettoViaggio = true;
+      return callServer('anteprimaPercorso', squadraId, giornoStr, interventoIds, ordineManuale, true);
+    });
+  }
+
   function ottimizzaPercorso() {
     var ids = idsSelezionatiCorrenti();
     if (!ids.length) { toast('Seleziona almeno un intervento.', 'error'); return; }
     var btn = document.getElementById('btn-ottimizza-percorso');
     btn.disabled = true; btn.textContent = 'Calcolo in corso…';
-    callServer('anteprimaPercorso', pianState.squadraId, pianState.giorno, ids).then(function (anteprima) {
+    chiamaAnteprimaConAvvisoTetto_(pianState.squadraId, pianState.giorno, ids).then(function (anteprima) {
       pianState.anteprima = anteprima;
       pianState.ordineCorrente = anteprima.tappe.map(function (t) { return t.interventoId; });
       renderAnteprima(anteprima);
@@ -910,7 +936,7 @@
       document.getElementById('pian-anteprima-card').style.display = 'none';
       return Promise.resolve();
     }
-    return callServer('anteprimaPercorso', pianState.squadraId, pianState.giorno, pianState.ordineCorrente, pianState.ordineCorrente).then(function (anteprima) {
+    return chiamaAnteprimaConAvvisoTetto_(pianState.squadraId, pianState.giorno, pianState.ordineCorrente, pianState.ordineCorrente).then(function (anteprima) {
       pianState.anteprima = anteprima;
       pianState.ordineCorrente = anteprima.tappe.map(function (t) { return t.interventoId; });
       renderAnteprima(anteprima);
@@ -967,7 +993,7 @@
     if (!pianState.ordineCorrente.length) { toast('Nessuna tappa da confermare.', 'error'); return; }
     var btn = document.getElementById('btn-conferma-percorso');
     btn.disabled = true;
-    callServer('confermaPercorso', pianState.squadraId, pianState.giorno, pianState.ordineCorrente).then(function (anteprima) {
+    callServer('confermaPercorso', pianState.squadraId, pianState.giorno, pianState.ordineCorrente, pianState.ignoraTettoViaggio).then(function (anteprima) {
       toast('Percorso confermato: ' + anteprima.tappe.length + ' tappe salvate.', 'success');
       pianState.anteprima = anteprima;
       pianState.ordineCorrente = anteprima.tappe.map(function (t) { return t.interventoId; });
@@ -1088,6 +1114,7 @@
             '<td>' + (r.oraPianificata || '') + '</td>' +
             '<td>' + escapeHtml(r.cliente) + '</td>' +
             '<td>' + escapeHtml(r.indirizzo || '') + '</td>' +
+            '<td>' + (r.durataMinuti || 0) + ' min</td>' +
             '<td>' + escapeHtml(r.telefono || '-') + '</td>' +
             '<td><button type="button" class="btn secondary" data-action="rimuovi" data-id="' + r.id + '" data-row="' + r._row + '" data-squadra="' + sq.squadraId + '" data-giorno="' + g.giorno + '">Rimuovi</button></td>' +
           '</tr>';
@@ -1098,7 +1125,7 @@
           '<button type="button" class="btn secondary" data-action="pianifica-qui" data-squadra="' + sq.squadraId + '" data-giorno="' + g.giorno + '">Seleziona manualmente</button>' +
           '<button type="button" class="btn secondary btn-riempi-buco" data-action="riempi-buco" data-squadra="' + sq.squadraId + '" data-giorno="' + g.giorno + '">Riempi buco</button></div>' +
           formattaProduzioneClient(sq.produzioneTotale, sq.produzioneTarget) +
-          '<table class="prog-table"><thead><tr><th>Ora</th><th>Cliente</th><th>Indirizzo</th><th>Telefono</th><th></th></tr></thead><tbody>' + righeHtml + '</tbody></table>' +
+          '<table class="prog-table"><thead><tr><th>Ora</th><th>Cliente</th><th>Indirizzo</th><th>Durata</th><th>Telefono</th><th></th></tr></thead><tbody>' + righeHtml + '</tbody></table>' +
         '</div>';
       }).join('');
       return '<div class="board-day"><div class="day-title">' + g.giorno + '</div>' + teamsHtml + '</div>';

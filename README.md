@@ -65,10 +65,19 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
        ferie/assenza impostati sulla scheda della squadra: nei giorni
        coperti da questi non le viene assegnato alcun intervento (la
        selezione manuale su quel giorno viene bloccata con un errore
-       esplicito).
+       esplicito);
+     - **il tempo massimo di viaggio tra le tappe** (regola
+       `tempoViaggioMassimoMinuti`, 0 = nessun limite): qui, a differenza
+       della pianificazione automatica, se una tappa lo supera non viene
+       semplicemente esclusa in silenzio — compare un **avviso** con la
+       scelta di pianificarla comunque (ignorando il limite solo per questo
+       percorso) oppure annullare, rispettando il limite come al solito. La
+       scelta fatta in anteprima resta valida anche premendo "Conferma e
+       salva percorso" subito dopo, senza dover rispondere due volte.
   4. Puoi affinare manualmente il percorso proposto (sposta su/giù una tappa,
      rimuovine una) prima di confermarlo: ogni modifica ricalcola subito gli
-     orari.
+     orari (e, se necessario, ripropone l'avviso sul tempo massimo di
+     viaggio).
   5. **"Conferma e salva percorso"**: scrive stato/squadra/orario sugli
      interventi coinvolti. Gli interventi che non entrano nel giro restano
      "Da pianificare" con una nota sul motivo, così restano visibili e
@@ -258,9 +267,9 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    singolo giorno e nella tab Programmazione.
 4. Tab **Programmazione**: elenco di tutti gli interventi già pianificati
    (percorsi confermati) in un intervallo di date, raggruppati per
-   giorno/squadra, con le indicazioni essenziali (ora, cliente, indirizzo) più
-   il **numero di telefono** — utile per contattare il cliente direttamente
-   da questa vista. Da qui puoi:
+   giorno/squadra, con le indicazioni essenziali (ora, cliente, indirizzo,
+   **durata dell'intervento**) più il **numero di telefono** — utile per
+   contattare il cliente direttamente da questa vista. Da qui puoi:
    - **"Rimuovi"** su una singola riga: l'intervento torna "Da pianificare"
      (deselezione di una tappa già programmata);
    - **"Riempi buco"** per una squadra/giorno: le tappe **già pianificate
