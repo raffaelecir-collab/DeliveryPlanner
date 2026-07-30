@@ -112,43 +112,51 @@
 
       <!-- VISTA INTERVENTI -->
       <section class="view" id="view-interventi">
-        <div class="card">
-          <h2>Importa da tracking esterno</h2>
-          <p class="sub">Premi Importa per leggere direttamente la prima tab del foglio Google esterno configurato nella regola <b>foglioImportEsternoId</b> (tab Regole — di default punta al foglio di tracking del cliente; deve essere condiviso in scrittura). Ogni riga compilata (Nome Cliente + Indirizzo, "Ods" facoltativo) diventa un Intervento (indirizzo geocodificato automaticamente da Indirizzo + Comune + Provincia, Importo ODS riportato su Ricavo €); l'elaborazione si ferma alla prima riga vuota. Se "Tecnico" corrisponde al nome di una squadra e "Data App." è compilata, l'intervento entra già "Pianificato" per quella squadra/data/ora (verifica poi a mano che non si sovrapponga ad altri percorsi già confermati). Una riga con Ods già importato viene riconciliata con l'intervento esistente: eventuali modifiche (stato, telefono, ecc.) vengono aggiornate senza mai creare un duplicato; solo le righe senza Ods, prive di ogni chiave, restano "congelate" dopo il primo import. Se un Ods sparisce dal foglio esterno, l'intervento corrispondente passa automaticamente ad "Annullato" (torna disponibile se l'Ods ricompare in futuro).</p>
-          <div class="row">
-            <div class="field">
-              <button class="btn" id="btn-importa-esterno">📥 Importa da tracking esterno</button>
-            </div>
+        <div class="import-banner">
+          <span class="import-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M4 19h16"></path></svg>
+          </span>
+          <div class="import-copy">
+            <p>Importa i nuovi interventi dal sistema di tracking del cliente. Quelli già importati vengono aggiornati, mai duplicati.</p>
+            <details>
+              <summary>Come funziona l'importazione</summary>
+              <p class="tecnico">Legge la prima scheda del foglio Google esterno configurato nella regola <b>foglioImportEsternoId</b> (tab Regole; deve essere condiviso in scrittura). Ogni riga con Nome Cliente e Indirizzo compilati diventa un intervento (indirizzo geocodificato automaticamente, Importo ODS riportato su Ricavo €); l'elaborazione si ferma alla prima riga vuota. Se Tecnico corrisponde al nome di una squadra e Data App. è compilata, l'intervento entra già "Pianificato" per quella squadra/data/ora — verifica poi a mano che non si sovrapponga ad altri percorsi già confermati. Una riga con Ods già importato viene riconciliata con l'intervento esistente (mai duplicata); le righe senza Ods restano congelate dopo il primo import. Se un Ods sparisce dal tracking esterno, l'intervento corrispondente viene annullato automaticamente (torna disponibile se l'Ods ricompare).</p>
+            </details>
+            <div class="import-result" id="import-esterno-risultato"></div>
           </div>
-          <div id="import-esterno-risultato" style="margin-top:12px;"></div>
+          <button class="btn-secondary-sm" id="btn-importa-esterno">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path></svg>
+            Importa interventi
+          </button>
         </div>
 
-        <div class="card">
-          <div class="row filters">
-            <div class="field">
-              <label>Stato</label>
-              <select id="filtro-stato"><option value="">Tutti</option></select>
-            </div>
-            <div class="field">
-              <label>Squadra</label>
-              <select id="filtro-squadra"><option value="">Tutte</option></select>
-            </div>
-            <div class="field">
-              <button class="btn secondary" id="btn-filtra-interventi">Filtra</button>
-            </div>
-            <div class="field" style="margin-left:auto;">
-              <button class="btn" id="btn-nuovo-intervento">+ Nuovo Intervento</button>
+        <div class="screen-toolbar">
+          <div class="filter-bar">
+            <select id="filtro-stato">
+              <option value="">Tutti gli stati</option>
+            </select>
+            <select id="filtro-squadra">
+              <option value="">Tutte le squadre</option>
+            </select>
+            <div class="search-field">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+              <input type="text" id="interventi-search" placeholder="Cerca cliente o indirizzo…" autocomplete="off">
             </div>
           </div>
-          <div class="table-wrap">
-            <table id="tabella-interventi">
-              <thead><tr>
-                <th>Cliente</th><th>Competenza</th><th>Priorità</th><th>Durata</th>
-                <th>Finestra</th><th>Stato</th><th>Squadra</th><th>Data/Ora</th><th>Azioni</th>
-              </tr></thead>
-              <tbody></tbody>
-            </table>
+          <button class="btn-primary" id="btn-nuovo-intervento">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+            Nuovo intervento
+          </button>
+        </div>
+
+        <div class="result-count" id="interventi-count"></div>
+
+        <div class="int-list">
+          <div class="int-list-head">
+            <span>Cliente</span><span>Competenza</span><span>Priorità</span><span>Durata</span>
+            <span>Finestra</span><span>Stato</span><span>Squadra</span><span>Data/ora</span><span></span>
           </div>
+          <div id="int-rows"></div>
         </div>
       </section>
 

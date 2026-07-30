@@ -539,6 +539,16 @@
   }
 
   // ---------- Interventi ----------
+  var ICONA_INFO_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5"></path><circle cx="12" cy="8.3" r=".4" fill="currentColor" stroke="none"></circle></svg>';
+  var ICONA_PAUSA_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M10 9v6M14 9v6"></path></svg>';
+  var ICONA_CHECK_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>';
+
+  var CLASSE_BADGE_PRIORITA_ = { Urgente: 'badge-urgente', Alta: 'badge-alta', Normale: 'badge-normale', Bassa: 'badge-bassa' };
+  var CLASSE_BADGE_STATO_ = {
+    'Da pianificare': 'badge-stato-dapianificare', 'Pianificato': 'badge-stato-pianificato',
+    'Completato': 'badge-stato-completato', 'Annullato': 'badge-stato-annullato'
+  };
+
   function popolaSelectFiltri() {
     var selStato = document.getElementById('filtro-stato');
     ['Da pianificare', 'Pianificato', 'Completato', 'Annullato'].forEach(function (s) {
@@ -551,73 +561,97 @@
   }
 
   function loadInterventi() {
-    var filtri = {
-      stato: document.getElementById('filtro-stato').value,
-      squadraId: document.getElementById('filtro-squadra').value
-    };
-    return callServer('listaInterventi', filtri).then(function (list) {
+    return callServer('listaInterventi').then(function (list) {
       state.interventi = list;
-      renderInterventi(list);
+      renderInterventi();
+      return list;
     });
   }
 
-  function renderInterventi(list) {
-    var tbody = document.querySelector('#tabella-interventi tbody');
-    if (!list.length) { tbody.innerHTML = '<tr><td colspan="9"><div class="empty-hint">Nessun intervento trovato.</div></td></tr>'; return; }
-    tbody.innerHTML = list.map(function (i) {
+  /** Interventi visibili nella lista, filtrati da stato/squadra/ricerca correnti — tutto istantaneo, senza round-trip al server. */
+  function interventiFiltrati_() {
+    var stato = document.getElementById('filtro-stato').value;
+    var squadraId = document.getElementById('filtro-squadra').value;
+    var q = document.getElementById('interventi-search').value.trim().toLowerCase();
+    return state.interventi.filter(function (i) {
+      if (stato && i.stato !== stato) return false;
+      if (squadraId && i.squadraId !== squadraId) return false;
+      if (q && (i.cliente || '').toLowerCase().indexOf(q) === -1 && (i.indirizzo || '').toLowerCase().indexOf(q) === -1) return false;
+      return true;
+    });
+  }
+
+  function renderInterventi() {
+    var container = document.getElementById('int-rows');
+    var contatore = document.getElementById('interventi-count');
+    if (!state.interventi.length) {
+      container.innerHTML = '<div class="empty-hint">Nessun intervento. Aggiungine uno o importa dal tracking esterno.</div>';
+      contatore.innerHTML = '';
+      return;
+    }
+    var list = interventiFiltrati_();
+    contatore.innerHTML = '<strong>' + list.length + '</strong> di <strong>' + state.interventi.length + '</strong> interventi';
+    if (!list.length) { container.innerHTML = '<div class="empty-hint">Nessun intervento corrisponde ai filtri.</div>'; return; }
+    container.innerHTML = list.map(function (i) {
       var squadra = state.squadre.filter(function (s) { return s.id === i.squadraId; })[0];
-      var statoClass = 'stato-' + String(i.stato || '').replace(/\s+/g, '-');
-      var azioni = '<button class="btn small secondary" data-action="modifica" data-row="' + i._row + '">Modifica</button>';
+      var finestraTuttoIlGiorno = (!i.finestraInizio || i.finestraInizio === '00:00') && (!i.finestraFine || i.finestraFine === '23:59');
+      var finestraHtml = finestraTuttoIlGiorno
+        ? '<span class="int-finestra tutto-giorno">Tutto il giorno</span>'
+        : '<span class="int-finestra">' + escapeHtml(i.finestraInizio || '') + '–' + escapeHtml(i.finestraFine || '') + '</span>';
+      var squadraHtml = squadra
+        ? '<span class="int-squadra"><span class="dot" style="background:' + (squadra.colore || '#999') + '"></span>' + escapeHtml(squadra.nome) + '</span>'
+        : '<span class="int-squadra none">—</span>';
+      var dataOraHtml = i.dataPianificata
+        ? '<span class="int-dataora">' + i.dataPianificata + ' · ' + (i.oraPianificata || '') + '</span>'
+        : '<span class="int-dataora none">—</span>';
+      var infoHtml = i.motivoNonPianificato
+        ? '<span class="info-icon" tabindex="0">' + ICONA_INFO_ + '<span class="tooltip">' + escapeHtml(i.motivoNonPianificato) + '</span></span>'
+        : '';
+      var azioniHtml = '<button class="btn-icon" data-action="modifica" data-row="' + i._row + '" title="Modifica">' + ICONA_MATITA_ + '</button>';
       if (i.stato === 'Pianificato') {
-        azioni += '<button class="btn small secondary" data-action="completa" data-row="' + i._row + '">Completa</button>' +
-          '<button class="btn small secondary" data-action="sblocca" data-row="' + i._row + '">Sblocca</button>';
+        azioniHtml += '<button class="btn-icon good" data-action="completa" data-row="' + i._row + '" title="Segna come completato">' + ICONA_CHECK_ + '</button>';
       }
       if (i.stato !== 'Annullato' && i.stato !== 'Completato') {
-        azioni += '<button class="btn small secondary" data-action="annulla" data-row="' + i._row + '">Annulla</button>';
+        azioniHtml += '<button class="btn-icon warn" data-action="annulla" data-row="' + i._row + '" title="Annulla">' + ICONA_PAUSA_ + '</button>';
       }
-      azioni += '<button class="btn small danger" data-action="elimina" data-row="' + i._row + '">Elimina</button>';
-      return '<tr>' +
-        '<td>' + escapeHtml(i.cliente) + '<div style="color:#888;font-size:11px;">' + escapeHtml(i.indirizzo || '') + '</div></td>' +
-        '<td>' + escapeHtml(i.competenza || '-') + '</td>' +
-        '<td><span class="badge ' + i.priorita + '">' + i.priorita + '</span></td>' +
-        '<td>' + (i.durataMinuti || '') + ' min</td>' +
-        '<td>' + (i.finestraInizio || '') + ' - ' + (i.finestraFine || '') + '</td>' +
-        '<td><span class="badge ' + statoClass + '">' + i.stato + '</span>' +
-          (i.motivoNonPianificato ? '<div style="color:#c5221f;font-size:11px;margin-top:3px;">' + escapeHtml(i.motivoNonPianificato) + '</div>' : '') + '</td>' +
-        '<td>' + (squadra ? escapeHtml(squadra.nome) : '-') + '</td>' +
-        '<td>' + (i.dataPianificata ? i.dataPianificata + ' ' + (i.oraPianificata || '') : '-') + '</td>' +
-        '<td><div class="actions-cell">' + azioni + '</div></td>' +
-      '</tr>';
+      azioniHtml += '<button class="btn-icon danger" data-action="elimina" data-row="' + i._row + '" title="Elimina">' + ICONA_CESTINO_ + '</button>';
+      return '<div class="int-row' + (i.stato === 'Annullato' ? ' is-annullato' : '') + '">' +
+        '<div><div class="int-cliente">' + escapeHtml(i.cliente) + '</div><div class="int-indirizzo">' + escapeHtml(i.indirizzo || '') + '</div></div>' +
+        '<div class="int-competenza' + (i.competenza ? '' : ' any') + '">' + escapeHtml(i.competenza || 'Qualsiasi') + '</div>' +
+        '<div><span class="badge ' + (CLASSE_BADGE_PRIORITA_[i.priorita] || 'badge-normale') + '">' + escapeHtml(i.priorita || '') + '</span></div>' +
+        '<div class="int-durata">' + (i.durataMinuti || 0) + ' min</div>' +
+        '<div>' + finestraHtml + '</div>' +
+        '<div class="stato-cell"><span class="badge ' + (CLASSE_BADGE_STATO_[i.stato] || 'badge-stato-dapianificare') + '">' + escapeHtml(i.stato || '') + '</span>' + infoHtml + '</div>' +
+        '<div>' + squadraHtml + '</div>' +
+        '<div>' + dataOraHtml + '</div>' +
+        '<div class="row-actions">' + azioniHtml + '</div>' +
+      '</div>';
     }).join('');
   }
 
   function renderRisultatoImportEsterno_(r) {
-    var righe = [
-      r.creati + ' creati',
-      r.aggiornati + ' aggiornati',
-      r.giaImportati + ' già importati in precedenza (senza Ods, invariati)',
-      r.annullatiRimossi + ' annullati (Ods non più presente nel tracking esterno)',
-      r.saltati + ' saltati (dati obbligatori mancanti)',
-      r.falliti + ' falliti (es. indirizzo non geocodificabile)'
-    ];
-    var html = '<div class="summary-cards"><div class="summary-card">' + righe.join(' · ') + '</div></div>';
-    if (r.tempoScaduto) {
-      html += '<div class="non-pianificabili-list" style="margin-top:8px;"><div>Tempo di elaborazione esaurito prima di finire tutte le righe: le righe già lette restano importate, premi di nuovo "Importa" per completare il resto.</div></div>';
-    }
-    var dettagli = (r.dettagliSaltati || []).concat(r.dettagliFalliti || []);
-    if (dettagli.length) {
-      html += '<div class="non-pianificabili-list" style="margin-top:8px;">' +
-        dettagli.map(function (d) { return '<div>' + escapeHtml(d) + '</div>'; }).join('') +
-        '</div>';
-    }
-    document.getElementById('import-esterno-risultato').innerHTML = html;
+    var el = document.getElementById('import-esterno-risultato');
+    var righe = [];
+    if (r.creati) righe.push(r.creati + ' creati');
+    if (r.aggiornati) righe.push(r.aggiornati + ' aggiornati');
+    if (r.giaImportati) righe.push(r.giaImportati + ' già importati in precedenza');
+    if (r.annullatiRimossi) righe.push(r.annullatiRimossi + ' annullati automaticamente (non più nel tracking esterno)');
+    if (r.saltati) righe.push(r.saltati + ' saltati (dati obbligatori mancanti)');
+    if (r.falliti) righe.push(r.falliti + ' falliti (es. indirizzo non trovato)');
+    var haProblemi = r.saltati > 0 || r.falliti > 0 || r.tempoScaduto;
+    var testo = righe.length ? righe.join(' · ') : 'Nessuna riga nuova o aggiornata da importare.';
+    if (r.tempoScaduto) testo += ' — tempo esaurito prima di finire tutte le righe: premi di nuovo "Importa" per completare il resto.';
+    el.textContent = (haProblemi ? '⚠ ' : '✓ ') + testo;
+    el.className = 'import-result show' + (haProblemi ? ' warn' : '');
   }
 
   function setupInterventiTab() {
     on('btn-nuovo-intervento', 'click', function () { openModal('INTERVENTI', null); });
-    on('btn-filtra-interventi', 'click', loadInterventi);
+    on('filtro-stato', 'change', renderInterventi);
+    on('filtro-squadra', 'change', renderInterventi);
+    on('interventi-search', 'input', renderInterventi);
     on('btn-importa-esterno', 'click', function (e) {
-      var btn = e.target;
+      var btn = e.currentTarget;
       btn.disabled = true;
       callServer('importaInterventiEsterni').then(function (r) {
         renderRisultatoImportEsterno_(r);
@@ -630,7 +664,7 @@
         toast(err.message || String(err), 'error');
       }).then(function () { btn.disabled = false; });
     });
-    onQuery('#tabella-interventi tbody', 'click', function (e) {
+    onQuery('#int-rows', 'click', function (e) {
       var btn = e.target.closest('button[data-action]');
       if (!btn) return;
       // Identifica la riga per numero di riga fisica (sempre univoco), non per id:
@@ -647,12 +681,7 @@
         return;
       }
       if (action === 'completa') {
-        callServer('segnaCompletato', obj.id, obj._row).then(function () { toast('Intervento completato.', 'success'); loadInterventi(); })
-          .catch(function (err) { toast(err.message || String(err), 'error'); });
-        return;
-      }
-      if (action === 'sblocca') {
-        callServer('ripianificaIntervento', obj.id, obj._row).then(function () { toast('Intervento riportato a "Da pianificare".', 'success'); loadInterventi(); })
+        callServer('segnaCompletato', obj.id, obj._row).then(function () { toast('Intervento segnato come completato.', 'success'); loadInterventi(); })
           .catch(function (err) { toast(err.message || String(err), 'error'); });
         return;
       }
