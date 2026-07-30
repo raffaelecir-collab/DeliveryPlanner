@@ -691,6 +691,13 @@ function riempiGiornataConCandidatiEspliciti_(squadra, nodi, risultato, matriceS
  * percorso confermato (tab Programmazione → "Riempi buco", o pianificazione automatica su un
  * intervallo che ricade su un giorno già pianificato in precedenza): evita che una ricostruzione
  * da zero possa riordinare o scartare interventi già pianificati per far posto ad altri.
+ *
+ * NB: la ricostruzione via pianificaConUpgradeReale_ ricalcola l'orario anche delle tappe fisse a
+ * partire dall'inizio turno — se l'orario originariamente salvato lasciava un margine (es. tra
+ * due appuntamenti presi in momenti diversi, o con una durata/velocità di viaggio nel frattempo
+ * cambiata), il ricalcolo può "comprimere" quel margine e produrre un orario diverso da quello
+ * salvato pur mantenendo lo stesso ORDINE e la stessa ASSEGNAZIONE. Per un vincolo più severo, che
+ * blocchi anche l'orario esatto delle tappe già pianificate, vedi riempiBucoSenzaSpostare_.
  */
 function estendiPercorsoEsistente_(squadra, nodi, ordineFissato, indiciCandidati, matriceStima, partenzaIdx, rientroIdx, regole) {
   var risultato = pianificaConUpgradeReale_(squadra, nodi, ordineFissato, matriceStima, partenzaIdx, rientroIdx, regole);
@@ -698,6 +705,145 @@ function estendiPercorsoEsistente_(squadra, nodi, ordineFissato, indiciCandidati
     return { intervento: nodi[idx].intervento, motivo: 'Non è entrato nel tempo residuo della giornata' };
   });
   return riempiGiornataConCandidatiEspliciti_(squadra, nodi, risultato, matriceStima, partenzaIdx, rientroIdx, regole);
+}
+
+/**
+ * Riempie i buchi residui di una giornata SENZA MAI ricalcolare l'orario delle tappe già
+ * pianificate: usa esattamente l'orario salvato (oraPianificata) di ciascuna come ancora fissa
+ * (mai ricalcolata, a differenza di estendiPercorsoEsistente_) e cerca, in ciascun varco libero
+ * (prima della prima tappa fissa, tra due tappe fisse consecutive, dopo l'ultima), quali candidati
+ * "Da pianificare" ci entrano per intero rispettando finestra oraria propria, pausa pranzo e il
+ * tempo di viaggio necessario per raggiungere le tappe fisse adiacenti. Il prezzo di questa
+ * garanzia più severa è che può riempire un po' meno la giornata rispetto a
+ * estendiPercorsoEsistente_ (che può "comprimere" un margine esistente per far entrare più roba).
+ */
+function riempiBucoSenzaSpostare_(squadra, giaPianificati, disponibili, regole) {
+  var bufferSetup = regole.bufferSetupMinuti || 10;
+  var pausaInizioMin = squadra.pausaPranzoInizio ? timeToMinutes_(squadra.pausaPranzoInizio) : null;
+  var pausaFineMin = squadra.pausaPranzoFine ? timeToMinutes_(squadra.pausaPranzoFine) : null;
+  var tolleranzaPausaMinuti = regole.pausaTolleranzaMinuti || 0;
+  var oraInizioTurno = timeToMinutes_(squadra.oraInizio);
+  var oraFineTurno = timeToMinutes_(squadra.oraFine);
+  var tempoViaggioMassimo = regole.tempoViaggioMassimoMinuti || 0;
+
+  // Ancore fisse: l'orario di inizio è quello salvato (mai ricalcolato); l'orario di fine si
+  // ricava da trovaSlotValido_ passando quell'inizio come vincolo, così l'eventuale sconfinamento
+  // nella pausa pranzo viene ricostruito in modo coerente con come fu calcolato originariamente.
+  var ancore = giaPianificati.map(function (i) {
+    var inizio = timeToMinutes_(i.oraPianificata);
+    var slot = trovaSlotValido_(inizio, i.durataMinuti || 60, inizio, 24 * 60, pausaInizioMin, pausaFineMin, tolleranzaPausaMinuti);
+    return { intervento: i, inizio: inizio, fine: slot ? slot.fine : inizio + (i.durataMinuti || 60) };
+  });
+
+  var restanti = disponibili.slice();
+  var aggiunti = [];
+
+  // Un varco per ciascuno spazio tra due ancore consecutive, più uno prima della prima e uno dopo
+  // l'ultima (dopo: null = inizio turno; prima: null = fine turno).
+  var varchi = [];
+  for (var i = -1; i < ancore.length; i++) {
+    varchi.push({ dopo: i === -1 ? null : ancore[i], prima: i + 1 < ancore.length ? ancore[i + 1] : null });
+  }
+
+  varchi.forEach(function (varco) {
+    var cursore = varco.dopo ? varco.dopo.fine : oraInizioTurno;
+    var puntoPrecedente = varco.dopo ? varco.dopo.intervento : { lat: squadra.latPartenza, lng: squadra.lngPartenza };
+    var limiteMax = varco.prima ? varco.prima.inizio : oraFineTurno;
+    var tempoViaggioAccumulato = 0; // ai fini del tetto di viaggio massimo, se impostato
+
+    var trovatoQualcosa = true;
+    while (trovatoQualcosa) {
+      trovatoQualcosa = false;
+      var migliore = null;
+      restanti.forEach(function (cand) {
+        // Il tragitto dalla partenza alla prima tappa del giorno non conta come tempo di viaggio
+        // (stessa regola di pianificaOrarioPercorso_): si applica solo quando questo varco è
+        // davvero il primo della giornata (dopo === null) E non c'è già stato altro inserito
+        // prima nello stesso varco (cursore ancora all'inizio turno).
+        var isPrimoDelGiorno = !varco.dopo && cursore === oraInizioTurno;
+        var viaggio = isPrimoDelGiorno ? 0 : ottieniViaggio_(puntoPrecedente, cand, regole).minuti;
+        if (!isPrimoDelGiorno && tempoViaggioMassimo > 0 && (tempoViaggioAccumulato + viaggio) > tempoViaggioMassimo) return;
+
+        var finestraInizioInt = timeToMinutes_(cand.finestraInizio || '00:00');
+        var finestraFineInt = timeToMinutes_(cand.finestraFine || '23:59');
+        var candidateStart = Math.max(isPrimoDelGiorno ? cursore : cursore + viaggio + bufferSetup, finestraInizioInt);
+        var slot = trovaSlotValido_(candidateStart, cand.durataMinuti || 60, oraInizioTurno, oraFineTurno, pausaInizioMin, pausaFineMin, tolleranzaPausaMinuti);
+        if (!slot || slot.fine > finestraFineInt) return;
+
+        // Deve lasciare il tempo di raggiungere la prossima ancora fissa (se il varco non è
+        // l'ultimo della giornata) entro il suo orario di inizio già salvato.
+        if (varco.prima) {
+          var viaggioVersoProssimo = ottieniViaggio_(cand, varco.prima.intervento, regole).minuti;
+          if (slot.fine + viaggioVersoProssimo + bufferSetup > limiteMax) return;
+        } else if (slot.fine > limiteMax) {
+          return;
+        }
+
+        if (!migliore || viaggio < migliore.viaggio) migliore = { cand: cand, slot: slot, viaggio: viaggio };
+      });
+      if (migliore) {
+        aggiunti.push({
+          intervento: migliore.cand,
+          oraInizio: minutesToTime_(migliore.slot.start),
+          oraFine: minutesToTime_(migliore.slot.fine),
+          viaggioMinutiDallaPrecedente: Math.round(migliore.viaggio),
+          distanzaKmDallaPrecedente: ottieniViaggio_(puntoPrecedente, migliore.cand, regole).km,
+          stimato: ottieniViaggio_(puntoPrecedente, migliore.cand, regole).stimato
+        });
+        cursore = migliore.slot.fine;
+        puntoPrecedente = migliore.cand;
+        tempoViaggioAccumulato += migliore.viaggio;
+        restanti = restanti.filter(function (c) { return c.id !== migliore.cand.id; });
+        trovatoQualcosa = true; // riprova a riempire ulteriormente lo stesso varco
+      }
+    }
+  });
+
+  // Unisce ancore fisse e nuovi inserimenti in ordine cronologico (le ancore mantengono
+  // l'interventi originale identico; i nuovi hanno l'orario appena calcolato nel loro varco).
+  var tutteLeTappe = ancore.map(function (a) {
+    return { intervento: a.intervento, oraInizio: minutesToTime_(a.inizio), oraFine: minutesToTime_(a.fine), _fisso: true };
+  }).concat(aggiunti).sort(function (x, y) { return timeToMinutes_(x.oraInizio) - timeToMinutes_(y.oraInizio); });
+
+  var partenza = { lat: squadra.latPartenza, lng: squadra.lngPartenza };
+  var rientroPunto = { lat: isNum_(squadra.latRientro) ? squadra.latRientro : squadra.latPartenza, lng: isNum_(squadra.lngRientro) ? squadra.lngRientro : squadra.lngPartenza };
+  var distanzaTotale = 0, tempoViaggioTotale = 0, partenzaStimata = null, rientroStimato = null;
+  var tappeFinali = tutteLeTappe.map(function (t, idx) {
+    if (idx === 0) {
+      var viaggioIniziale = ottieniViaggio_(partenza, t.intervento, regole);
+      partenzaStimata = {
+        orario: minutesToTime_(Math.max(0, timeToMinutes_(t.oraInizio) - viaggioIniziale.minuti)),
+        viaggioMinuti: Math.round(viaggioIniziale.minuti), distanzaKm: viaggioIniziale.km, stimato: viaggioIniziale.stimato
+      };
+      distanzaTotale += viaggioIniziale.km; tempoViaggioTotale += viaggioIniziale.minuti;
+      return { intervento: t.intervento, oraInizio: t.oraInizio, oraFine: t.oraFine, viaggioMinutiDallaPrecedente: 0, distanzaKmDallaPrecedente: 0, stimato: false };
+    }
+    var precedente = tutteLeTappe[idx - 1].intervento;
+    var viaggio = t._fisso ? ottieniViaggio_(precedente, t.intervento, regole) : { minuti: t.viaggioMinutiDallaPrecedente, km: t.distanzaKmDallaPrecedente, stimato: t.stimato };
+    distanzaTotale += viaggio.km; tempoViaggioTotale += viaggio.minuti;
+    return {
+      intervento: t.intervento, oraInizio: t.oraInizio, oraFine: t.oraFine,
+      viaggioMinutiDallaPrecedente: Math.round(viaggio.minuti), distanzaKmDallaPrecedente: Math.round(viaggio.km * 10) / 10, stimato: viaggio.stimato
+    };
+  });
+  if (tappeFinali.length > 0) {
+    var ultimo = tutteLeTappe[tutteLeTappe.length - 1].intervento;
+    var viaggioFinale = ottieniViaggio_(ultimo, rientroPunto, regole);
+    rientroStimato = {
+      orario: minutesToTime_(timeToMinutes_(tutteLeTappe[tutteLeTappe.length - 1].oraFine) + viaggioFinale.minuti),
+      viaggioMinuti: Math.round(viaggioFinale.minuti), distanzaKm: viaggioFinale.km, stimato: viaggioFinale.stimato
+    };
+    distanzaTotale += viaggioFinale.km; tempoViaggioTotale += viaggioFinale.minuti;
+  }
+
+  return {
+    tappe: tappeFinali,
+    nonIncluse: restanti.map(function (i) { return { intervento: i, motivo: 'Non è entrato in nessun varco libero senza spostare gli orari già fissati' }; }),
+    partenzaStimata: partenzaStimata,
+    rientroStimato: rientroStimato,
+    distanzaTotaleKm: Math.round(distanzaTotale * 10) / 10,
+    tempoViaggioTotaleMinuti: Math.round(tempoViaggioTotale)
+  };
 }
 
 // ---------- API esposte al client ----------
@@ -970,15 +1116,13 @@ function getProgrammazione(dataInizioStr, dataFineStr) {
 }
 
 /**
- * Aggiunge, senza mai toccarli, interventi al percorso già confermato di una squadra/giorno: gli
- * interventi già pianificati restano fissi (stesso ordine; l'orario può solo spostarsi se un
- * nuovo intervento viene inserito prima di loro nel percorso, mai perderli né farli assegnare
- * altrove), e si prova ad aggiungere il pool di interventi ancora "Da pianificare" compatibili
- * con quel giorno e quella squadra nei buchi residui del turno (anche "di passaggio", tra due
- * tappe già fissate). Solo i nuovi candidati che non trovano posto restano "Da pianificare";
- * quelli già pianificati non vengono mai retrocessi da questa funzione.
+ * Calcola (senza scrivere nulla sul foglio) l'esito di "Riempi buco" per una squadra/giorno: nucleo
+ * condiviso da anteprimaRiempiBucoGiorno (sola lettura, per rilevare eventuali spostamenti
+ * d'orario) e riempiBucoGiorno (che scrive davvero il risultato). Se `vincolaOrariFissati` è true,
+ * i nuovi candidati possono essere inseriti solo dopo l'ultima tappa già pianificata, mai prima o
+ * in mezzo, così l'orario calcolato delle tappe già pianificate non cambia mai.
  */
-function riempiBucoGiorno(squadraId, giornoStr) {
+function calcolaRiempimentoBuco_(squadraId, giornoStr, vincolaOrariFissati) {
   var regole = getRegoleMappa_();
   var squadra = assicuraIdTutti_('SQUADRE').filter(function (s) { return s.id === squadraId; })[0];
   if (!squadra) throw new Error('Squadra non trovata.');
@@ -1013,13 +1157,13 @@ function riempiBucoGiorno(squadraId, giornoStr) {
     if (dr && giorno < dr) { esclusiPerData.push({ intervento: i, motivo: 'Non incluso nel riempimento del ' + giornoFmt + ': non disponibile prima del ' + i.dataRichiesta }); return false; }
     return true;
   });
-  esclusiPerData.forEach(function (n) {
-    updateRowFields_('INTERVENTI', n.intervento._row, { motivoNonPianificato: n.motivo });
-  });
 
   var selezionati = giaPianificati.concat(disponibiliCompatibili);
   if (selezionati.length === 0) {
-    return formattaAnteprima_(squadra, giorno, { tappe: [], nonIncluse: [], partenzaStimata: null, rientroStimato: null, distanzaTotaleKm: 0, tempoViaggioTotaleMinuti: 0 });
+    return {
+      squadra: squadra, giorno: giorno, giornoFmt: giornoFmt, giaPianificati: giaPianificati, esclusiPerData: esclusiPerData,
+      risultato: { tappe: [], nonIncluse: [], partenzaStimata: null, rientroStimato: null, distanzaTotaleKm: 0, tempoViaggioTotaleMinuti: 0 }
+    };
   }
 
   var nodi = costruisciNodi_(squadra, selezionati);
@@ -1035,14 +1179,65 @@ function riempiBucoGiorno(squadraId, giornoStr) {
   var indiciCandidati = [];
   for (var k = giaPianificati.length + 1; k < nodi.length - 1; k++) indiciCandidati.push(k);
 
-  var risultato = ordineFissato.length === 0
-    ? costruisciEPianificaPercorso_(squadra, nodi, indiciCandidati, matriceStima, partenzaIdx, rientroIdx, regole)
-    : estendiPercorsoEsistente_(squadra, nodi, ordineFissato, indiciCandidati, matriceStima, partenzaIdx, rientroIdx, regole);
+  var risultato;
+  if (ordineFissato.length === 0) {
+    risultato = costruisciEPianificaPercorso_(squadra, nodi, indiciCandidati, matriceStima, partenzaIdx, rientroIdx, regole);
+  } else if (vincolaOrariFissati) {
+    // Garanzia più severa: l'orario salvato delle tappe già pianificate non viene nemmeno
+    // ricalcolato (vedi riempiBucoSenzaSpostare_), non solo "protetto" nell'ordine/assegnazione.
+    risultato = riempiBucoSenzaSpostare_(squadra, giaPianificati, disponibiliCompatibili, regole);
+  } else {
+    risultato = estendiPercorsoEsistente_(squadra, nodi, ordineFissato, indiciCandidati, matriceStima, partenzaIdx, rientroIdx, regole);
+  }
 
+  return { squadra: squadra, giorno: giorno, giornoFmt: giornoFmt, giaPianificati: giaPianificati, esclusiPerData: esclusiPerData, risultato: risultato };
+}
+
+/**
+ * Calcola in anteprima (senza scrivere nulla) l'esito di "Riempi buco", segnalando in
+ * `spostamenti` ogni intervento già pianificato in precedenza il cui orario calcolato
+ * cambierebbe per far posto ai nuovi candidati. Usata dal client per chiedere conferma prima di
+ * scrivere davvero il risultato (vedi riempiBucoGiorno).
+ */
+function anteprimaRiempiBucoGiorno(squadraId, giornoStr) {
+  var calcolo = calcolaRiempimentoBuco_(squadraId, giornoStr, false);
+  var oraOriginalePerId = {};
+  calcolo.giaPianificati.forEach(function (i) { oraOriginalePerId[i.id] = i.oraPianificata; });
+  var spostamenti = calcolo.risultato.tappe
+    .filter(function (t) { return oraOriginalePerId.hasOwnProperty(t.intervento.id) && oraOriginalePerId[t.intervento.id] !== t.oraInizio; })
+    .map(function (t) {
+      return { interventoId: t.intervento.id, cliente: t.intervento.cliente, oraOriginale: oraOriginalePerId[t.intervento.id], oraNuova: t.oraInizio };
+    });
+  return { anteprima: formattaAnteprima_(calcolo.squadra, calcolo.giorno, calcolo.risultato), spostamenti: spostamenti };
+}
+
+/**
+ * Aggiunge, senza mai toccarli, interventi al percorso già confermato di una squadra/giorno: gli
+ * interventi già pianificati restano fissi (stesso ordine), e si prova ad aggiungere il pool di
+ * interventi ancora "Da pianificare" compatibili con quel giorno e quella squadra nei buchi
+ * residui del turno (anche "di passaggio", tra due tappe già fissate). Solo i nuovi candidati che
+ * non trovano posto restano "Da pianificare"; quelli già pianificati non vengono mai retrocessi da
+ * questa funzione.
+ *
+ * `consentiSpostamento` (default true): se false, un nuovo candidato non può mai essere inserito
+ * prima o in mezzo alle tappe già pianificate — solo dopo l'ultima — così il loro orario calcolato
+ * non cambia mai. Pensato per essere chiamata dopo anteprimaRiempiBucoGiorno: se questa segnala
+ * `spostamenti`, il client chiede all'utente se accettarli (consentiSpostamento=true, valore di
+ * default) o mantenere gli orari già fissati (consentiSpostamento=false).
+ */
+function riempiBucoGiorno(squadraId, giornoStr, consentiSpostamento) {
+  var calcolo = calcolaRiempimentoBuco_(squadraId, giornoStr, consentiSpostamento === false);
+  var giornoFmt = calcolo.giornoFmt;
+
+  calcolo.esclusiPerData.forEach(function (n) {
+    updateRowFields_('INTERVENTI', n.intervento._row, { motivoNonPianificato: n.motivo });
+  });
+
+  var risultato = calcolo.risultato;
   risultato.tappe.forEach(function (t, idx) {
     updateRowFields_('INTERVENTI', t.intervento._row, {
       stato: STATO_INTERVENTO.PIANIFICATO,
-      squadraId: squadra.id,
+      squadraId: calcolo.squadra.id,
       dataPianificata: giornoFmt,
       oraPianificata: t.oraInizio,
       ordineTappa: idx + 1,
@@ -1055,7 +1250,7 @@ function riempiBucoGiorno(squadraId, giornoStr) {
     });
   });
 
-  return formattaAnteprima_(squadra, giorno, risultato);
+  return formattaAnteprima_(calcolo.squadra, calcolo.giorno, risultato);
 }
 
 // ---------- pianificazione automatica su un intervallo di giorni (una squadra) ----------

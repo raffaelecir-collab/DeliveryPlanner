@@ -1142,9 +1142,26 @@
     }).catch(function (err) { toast('Errore nel caricamento: ' + (err.message || err), 'error'); });
   }
 
-  /** Ripianifica squadra/giorno usando i pianificati rimasti + il pool disponibile, per riempire il buco lasciato da una deselezione (o semplicemente per massimizzare l'utilizzo del turno). */
+  /**
+   * Ripianifica squadra/giorno usando i pianificati rimasti + il pool disponibile, per riempire il
+   * buco lasciato da una deselezione (o semplicemente per massimizzare l'utilizzo del turno).
+   * Prima chiede in anteprima (senza scrivere nulla) se il riempimento sposterebbe l'orario di
+   * qualche intervento già pianificato: se sì, chiede all'utente se accettare lo spostamento o
+   * mantenere gli orari già fissati (riempiendo di conseguenza, magari con meno tappe aggiunte).
+   */
   function riempiBucoGiornoClick(squadraId, giornoStr) {
-    return callServer('riempiBucoGiorno', squadraId, giornoStr).then(function (anteprima) {
+    return callServer('anteprimaRiempiBucoGiorno', squadraId, giornoStr).then(function (esito) {
+      var consentiSpostamento = true;
+      if (esito.spostamenti.length) {
+        var elenco = esito.spostamenti.map(function (s) {
+          return '- ' + s.cliente + ': ' + s.oraOriginale + ' → ' + s.oraNuova;
+        }).join('\n');
+        var messaggio = 'Riempiendo il buco, l\'orario di ' + (esito.spostamenti.length === 1 ? 'un intervento già pianificato cambierebbe' : esito.spostamenti.length + ' interventi già pianificati cambierebbe') + ':\n\n' + elenco +
+          '\n\nPremi OK per accettare lo spostamento, oppure Annulla per mantenere gli orari già fissati (il riempimento si limiterà ad aggiungere tappe dopo l\'ultima già pianificata).';
+        consentiSpostamento = window.confirm(messaggio);
+      }
+      return callServer('riempiBucoGiorno', squadraId, giornoStr, consentiSpostamento);
+    }).then(function (anteprima) {
       var msg = anteprima.tappe.length
         ? 'Buco riempito: ' + anteprima.tappe.length + ' tappe pianificate per ' + anteprima.squadraNome + ' il ' + giornoStr + '.'
         : 'Nessun intervento disponibile da inserire per ' + anteprima.squadraNome + ' il ' + giornoStr + '.';

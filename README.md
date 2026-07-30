@@ -283,9 +283,20 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      (non solo i primi per vicinanza), per non scartare ingiustamente un
      intervento che in realtà entrerebbe benissimo nella giornata. Un nuovo
      intervento può essere inserito anche "in mezzo" a due tappe già ferme se
-     conviene dal punto di vista del percorso (i loro orari si aggiornano di
-     conseguenza), ma non viene mai rimosso o spostato su un'altra
-     squadra/giorno un intervento già confermato. A differenza della
+     conviene dal punto di vista del percorso — questo può ricalcolare (quasi
+     sempre anticipare) l'orario di una o più tappe già pianificate, se il
+     margine tra loro lo permette. **Se il calcolo prevede uno spostamento di
+     questo tipo, prima di scrivere qualunque cosa compare un avviso** con
+     l'elenco di chi cambierebbe orario e da quando a quando, per scegliere se
+     accettarlo (l'orario cambia, come sopra) o mantenere fissi gli orari già
+     salvati (in questo caso i nuovi interventi vengono inseriti solo nei
+     varchi liberi che non richiedono di toccare nessun orario già fissato:
+     prima della prima tappa, tra due tappe consecutive o dopo l'ultima,
+     usando esattamente gli orari salvati come riferimento — può risultare in
+     qualche intervento in meno aggiunto rispetto a permettere lo
+     spostamento). Un intervento già confermato non viene comunque **mai**
+     rimosso o spostato su un'altra squadra/giorno da questa funzione. A
+     differenza della
      selezione manuale, qui **"Non Prima Del" è un vincolo rigido**: un
      intervento non ancora disponibile per il giorno che si sta riempiendo
      non viene proposto, ma resta comunque "Da pianificare" con una nota
