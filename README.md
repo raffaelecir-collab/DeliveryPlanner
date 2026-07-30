@@ -169,7 +169,18 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    priorità, durata stimata, finestra oraria, **telefono** del cliente per
    contattarlo sul campo, **ricavo (€)** dell'intervento (usato per
    calcolare la produzione della squadra), eventuale non-prima-del/scadenza
-   informativi).
+   informativi). Il pulsante **"⏸ Sospendi"** su una riga apre un dialog che
+   chiede una **nota di motivazione** (obbligatoria) e uno dei tre **stati di
+   sospensione** ("Sospeso - ys", "Sospeso - zp", "Sospeso - zc"): la data
+   odierna viene registrata automaticamente insieme alla nota nello **storico
+   sospensioni** dell'intervento (icona a orologio accanto allo stato, con
+   tooltip che elenca ogni voce data/stato/nota inserita nel tempo, anche da
+   import). Un intervento sospeso **non entra mai nella programmazione**
+   (né automatica né tramite selezione manuale — i filtri della
+   pianificazione candidano solo "Da pianificare") e, se era già pianificato
+   su un percorso, ne viene tolto (come "Rimuovi"). Il pulsante diventa **"▶
+   Fine sospensione"** quando l'intervento è già sospeso: lo riporta
+   direttamente a "Da pianificare" (lo storico resta, non viene cancellato).
 
    Sotto ogni campo indirizzo (Squadre e Interventi) c'è un link **"🗺️
    Mostra mappa"**: apre un'anteprima piccola e ridimensionabile (trascina
@@ -472,9 +483,19 @@ Cosa succede per ogni riga compilata (Nome Cliente + Indirizzo valorizzati):
   vengono uniti in un unico campo "Note", per non perdere nessuna
   informazione anche se non hanno una colonna dedicata;
 - lo **Stato** del tracking esterno (testo libero, non standardizzato) viene
-  comunque mappato sui 4 stati dell'Intervento **per parola contenuta**, così
+  comunque mappato sui 7 stati dell'Intervento **per parola contenuta**, così
   regge qualunque dicitura usata dal tuo sistema senza doverne conoscere
   l'elenco esatto:
+  - contiene "sospes" → uno dei tre stati di sospensione, scelto cercando
+    nello stesso testo le sigle "ys"/"zp"/"zc" (es. "Sospeso YS" →
+    **Sospeso - ys**); se "sospes" compare senza nessuna delle tre sigle
+    riconoscibili, ricade su **Sospeso - ys** come sospensione generica —
+    **da verificare/correggere se il tuo tracking esterno usa una dicitura
+    diversa per distinguere le tre**, dato che questa corrispondenza è stata
+    implementata come ipotesi ragionevole, non confermata. In ogni caso
+    l'import registra la sospensione anche nello storico sospensioni
+    dell'intervento (non solo nel campo Note), con nota "Importato dal
+    tracking esterno (Stato: ...)";
   - contiene "annullat"/"revocat"/"disdett"/"cancellat" → **Annullato**;
   - contiene "complet"/"chius"/"eseguit"/"risolt" → **Completato**;
   - altrimenti, se **Tecnico** corrisponde al nome di una Squadra esistente

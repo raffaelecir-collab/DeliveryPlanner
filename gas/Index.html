@@ -277,6 +277,35 @@
       </div>
     </div>
 
+    <!-- DIALOG: sospendi intervento -->
+    <div id="dlg-sospendi" class="dlg-overlay hidden">
+      <div class="dlg-box">
+        <div class="dlg-head">
+          <h3 id="dlg-sospendi-titolo">Sospendi intervento</h3>
+          <button type="button" class="dlg-close" data-close-dlg="dlg-sospendi">✕</button>
+        </div>
+        <form id="form-sospendi-intervento">
+          <div class="field">
+            <label>Stato di sospensione *</label>
+            <select id="sosp-stato">
+              <option value="Sospeso - ys">Sospeso - ys</option>
+              <option value="Sospeso - zp">Sospeso - zp</option>
+              <option value="Sospeso - zc">Sospeso - zc</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Nota di motivazione *</label>
+            <textarea id="sosp-nota" rows="3" placeholder="Motivo della sospensione…"></textarea>
+          </div>
+          <p class="field-help">La data odierna viene registrata automaticamente insieme alla nota nello storico sospensioni dell'intervento. Finché resta sospeso, l'intervento non entra nella programmazione (né automatica né manuale).</p>
+        </form>
+        <div class="modal-actions">
+          <button type="button" class="btn secondary" data-close-dlg="dlg-sospendi">Annulla</button>
+          <button type="button" class="btn" id="btn-salva-sospendi">Sospendi</button>
+        </div>
+      </div>
+    </div>
+
     <div id="modal-overlay" class="hidden">
       <div id="modal-box">
         <h3 id="modal-title">Modifica</h3>

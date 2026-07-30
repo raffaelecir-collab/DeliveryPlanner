@@ -52,8 +52,16 @@ var STATO_INTERVENTO = {
   DA_PIANIFICARE: 'Da pianificare',
   PIANIFICATO: 'Pianificato',
   COMPLETATO: 'Completato',
-  ANNULLATO: 'Annullato'
+  ANNULLATO: 'Annullato',
+  SOSPESO_YS: 'Sospeso - ys',
+  SOSPESO_ZP: 'Sospeso - zp',
+  SOSPESO_ZC: 'Sospeso - zc'
 };
+
+/** I tre stati di sospensione: un intervento in uno di questi non viene mai proposto dalla
+ *  pianificazione automatica né dalla selezione manuale (solo "Da pianificare" è candidabile). */
+var STATI_SOSPENSIONE = [STATO_INTERVENTO.SOSPESO_YS, STATO_INTERVENTO.SOSPESO_ZP, STATO_INTERVENTO.SOSPESO_ZC];
+function isStatoSospeso_(stato) { return STATI_SOSPENSIONE.indexOf(stato) !== -1; }
 
 /** Abbreviazioni giorno della settimana indicizzate come Date.getDay() (0 = Domenica). */
 var GIORNI_SETTIMANA = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
@@ -107,7 +115,7 @@ var SCHEMA = {
       { key: 'finestraFine', label: 'Finestra Oraria - Fine (HH:mm)', type: 'text', default: '23:59' },
       { key: 'dataRichiesta', label: 'Non Prima Del (gg/mm/aaaa)', type: 'date' },
       { key: 'scadenza', label: 'Scadenza (gg/mm/aaaa)', type: 'date' },
-      { key: 'stato', label: 'Stato', type: 'select', options: [STATO_INTERVENTO.DA_PIANIFICARE, STATO_INTERVENTO.PIANIFICATO, STATO_INTERVENTO.COMPLETATO, STATO_INTERVENTO.ANNULLATO], default: STATO_INTERVENTO.DA_PIANIFICARE, readonly: true },
+      { key: 'stato', label: 'Stato', type: 'select', options: [STATO_INTERVENTO.DA_PIANIFICARE, STATO_INTERVENTO.PIANIFICATO, STATO_INTERVENTO.COMPLETATO, STATO_INTERVENTO.ANNULLATO, STATO_INTERVENTO.SOSPESO_YS, STATO_INTERVENTO.SOSPESO_ZP, STATO_INTERVENTO.SOSPESO_ZC], default: STATO_INTERVENTO.DA_PIANIFICARE, readonly: true },
       { key: 'squadraId', label: 'Squadra Assegnata', type: 'select', optionsFrom: 'SQUADRE', readonly: true },
       { key: 'dataPianificata', label: 'Data Pianificata', type: 'date', readonly: true },
       { key: 'oraPianificata', label: 'Ora Pianificata', type: 'text', readonly: true },
@@ -117,7 +125,8 @@ var SCHEMA = {
       { key: 'telefono', label: 'Telefono', type: 'text' },
       { key: 'ricavo', label: 'Ricavo (€)', type: 'number', default: 0, help: 'Usato per calcolare la produzione (ricavo totale) di ciascuna squadra rispetto al proprio target di produzione giornaliera.' },
       { key: 'codiceEsterno', label: 'Codice Esterno (Ods)', type: 'text', readonly: true, help: 'Identificativo dell\'intervento nel sistema di tracking esterno da cui è stato importato (tab ImportInterventi): re-importando lo stesso Ods, questo intervento viene aggiornato invece di duplicato.' },
-      { key: 'nonAutomatizzabileData', label: 'Escluso da pianificazione automatica per il', type: 'date', readonly: true, help: 'Impostato automaticamente da "Rimuovi" (tab Programmazione): per questa data, l\'intervento non viene riproposto da "Riempi buco" o dalla pianificazione automatica su intervallo — resta comunque pianificabile a mano, anche per la stessa data. Si azzera da solo non appena l\'intervento viene ripianificato (a mano o in automatico).' }
+      { key: 'nonAutomatizzabileData', label: 'Escluso da pianificazione automatica per il', type: 'date', readonly: true, help: 'Impostato automaticamente da "Rimuovi" (tab Programmazione): per questa data, l\'intervento non viene riproposto da "Riempi buco" o dalla pianificazione automatica su intervallo — resta comunque pianificabile a mano, anche per la stessa data. Si azzera da solo non appena l\'intervento viene ripianificato (a mano o in automatico).' },
+      { key: 'storiaSospensioni', label: 'Storico Sospensioni', type: 'text', readonly: true, help: 'Cronologia (data, stato, nota di motivazione) di ogni sospensione registrata su questo intervento, a mano o da import. Gestita dai pulsanti "Sospendi"/"Fine sospensione".' }
     ]
   },
   REGOLE: {

@@ -50,9 +50,13 @@ var NOTA_ANNULLATO_AUTOMATICO_ = 'Annullato automaticamente: Ods non più presen
 
 /**
  * Mappa lo stato testuale del tracking esterno (libero, non standardizzato: es. "Appuntamentato
- * - yn", "Giacente - nessun blocco") sui 4 stati dell'Intervento, per parola contenuta invece che
+ * - yn", "Giacente - nessun blocco") sui 7 stati dell'Intervento, per parola contenuta invece che
  * per corrispondenza esatta — così regge anche valori non ancora visti, senza dover conoscere
  * l'elenco completo usato nel foglio esterno:
+ * - contiene "sospes" -> uno dei 3 stati di sospensione, scelto cercando le sigle "ys"/"zp"/"zc"
+ *   nello stesso testo (es. "Sospeso YS"); se "sospes" compare senza nessuna delle tre sigle
+ *   riconoscibili, ricade su "Sospeso - ys" come sospensione generica (verificare/correggere a
+ *   mano se il tracking esterno usa una dicitura diversa per distinguerle);
  * - contiene "annullat"/"revocat"/"disdett"/"cancellat" -> Annullato;
  * - contiene "complet"/"chius"/"eseguit"/"risolt" -> Completato;
  * - altrimenti, se "Tecnico" corrisponde a una squadra e "Data App." è valorizzata (un
@@ -62,6 +66,12 @@ var NOTA_ANNULLATO_AUTOMATICO_ = 'Annullato automaticamente: Ods non più presen
  */
 function classificaStatoEsterno_(statoEsternoRaw, squadraMatch, dataApp) {
   var s = String(statoEsternoRaw || '').trim().toLowerCase();
+  if (/sospes/.test(s)) {
+    if (/\bys\b/.test(s)) return STATO_INTERVENTO.SOSPESO_YS;
+    if (/\bzp\b/.test(s)) return STATO_INTERVENTO.SOSPESO_ZP;
+    if (/\bzc\b/.test(s)) return STATO_INTERVENTO.SOSPESO_ZC;
+    return STATO_INTERVENTO.SOSPESO_YS;
+  }
   if (/annullat|revocat|disdett|cancellat/.test(s)) return STATO_INTERVENTO.ANNULLATO;
   if (/complet|chius|eseguit|risolt/.test(s)) return STATO_INTERVENTO.COMPLETATO;
   if (squadraMatch && dataApp) return STATO_INTERVENTO.PIANIFICATO;
@@ -340,6 +350,12 @@ function importaInterventiEsterni() {
         payload.squadraId = squadraMatch.id;
         payload.dataPianificata = dataApp;
         payload.oraPianificata = normalizzaOraImport_(valoreColonnaImport_(row, idx, 'Ora App.'));
+      }
+      // Registra anche nello storico sospensioni (visibile nel tab Interventi), non solo nel
+      // campo Note generico, così è distinguibile da eventuali sospensioni inserite a mano.
+      if (isStatoSospeso_(payload.stato)) {
+        payload.storiaSospensioni = aggiungiStoriaSospensione_(esistente, payload.stato,
+          'Importato dal tracking esterno (Stato: ' + statoEsterno + ')');
       }
     }
 

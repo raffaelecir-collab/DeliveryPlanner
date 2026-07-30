@@ -74,9 +74,39 @@ function segnaCompletato(id, row) {
   return true;
 }
 
-function annullaIntervento(id, row) {
+/** Aggiunge una voce (data odierna, stato, nota) allo storico sospensioni esistente di un intervento. */
+function aggiungiStoriaSospensione_(esistente, stato, nota) {
+  var storia = [];
+  try { storia = JSON.parse((esistente && esistente.storiaSospensioni) || '[]'); } catch (e) { storia = []; }
+  if (!Array.isArray(storia)) storia = [];
+  storia.push({ data: formatDateStr_(dataOggi_()), stato: stato, nota: nota || '' });
+  return JSON.stringify(storia);
+}
+
+/**
+ * Sospende un intervento: registra nota + data odierna nello storico sospensioni e imposta lo
+ * stato su uno dei tre stati di sospensione. Se l'intervento era già pianificato su un percorso,
+ * lo libera (come "Rimuovi") perché un intervento sospeso non deve comparire nella
+ * programmazione né essere ripreso dalla pianificazione automatica finché resta in questo stato
+ * (i filtri della pianificazione candidano solo "Da pianificare").
+ */
+function sospendiIntervento(id, row, statoSospensione, nota) {
   var esistente = trovaInterventoPerIdORiga_(id, row);
   if (!esistente) throw new Error('Intervento non trovato.');
-  updateRowFields_('INTERVENTI', esistente._row, { stato: STATO_INTERVENTO.ANNULLATO });
+  if (!isStatoSospeso_(statoSospensione)) throw new Error('Stato di sospensione non valido.');
+  if (!nota) throw new Error('La nota di motivazione è obbligatoria.');
+  updateRowFields_('INTERVENTI', esistente._row, {
+    stato: statoSospensione,
+    storiaSospensioni: aggiungiStoriaSospensione_(esistente, statoSospensione, nota),
+    squadraId: '', dataPianificata: '', oraPianificata: '', ordineTappa: '', motivoNonPianificato: ''
+  });
+  return true;
+}
+
+/** Termina la sospensione di un intervento: torna "Da pianificare" (lo storico resta). */
+function terminaSospensione(id, row) {
+  var esistente = trovaInterventoPerIdORiga_(id, row);
+  if (!esistente) throw new Error('Intervento non trovato.');
+  updateRowFields_('INTERVENTI', esistente._row, { stato: STATO_INTERVENTO.DA_PIANIFICARE, motivoNonPianificato: '' });
   return true;
 }

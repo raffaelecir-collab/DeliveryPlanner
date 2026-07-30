@@ -556,16 +556,22 @@
   var ICONA_INFO_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-5"></path><circle cx="12" cy="8.3" r=".4" fill="currentColor" stroke="none"></circle></svg>';
   var ICONA_PAUSA_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M10 9v6M14 9v6"></path></svg>';
   var ICONA_CHECK_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>';
+  var ICONA_PLAY_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l14 8-14 8V4Z"></path></svg>';
+  var ICONA_STORIA_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3.5 2"></path></svg>';
+
+  var STATI_SOSPENSIONE_CLIENT_ = ['Sospeso - ys', 'Sospeso - zp', 'Sospeso - zc'];
+  function isStatoSospesoClient_(stato) { return STATI_SOSPENSIONE_CLIENT_.indexOf(stato) !== -1; }
 
   var CLASSE_BADGE_PRIORITA_ = { Urgente: 'badge-urgente', Alta: 'badge-alta', Normale: 'badge-normale', Bassa: 'badge-bassa' };
   var CLASSE_BADGE_STATO_ = {
     'Da pianificare': 'badge-stato-dapianificare', 'Pianificato': 'badge-stato-pianificato',
-    'Completato': 'badge-stato-completato', 'Annullato': 'badge-stato-annullato'
+    'Completato': 'badge-stato-completato', 'Annullato': 'badge-stato-annullato',
+    'Sospeso - ys': 'badge-stato-sospeso', 'Sospeso - zp': 'badge-stato-sospeso', 'Sospeso - zc': 'badge-stato-sospeso'
   };
 
   function popolaSelectFiltri() {
     var selStato = document.getElementById('filtro-stato');
-    ['Da pianificare', 'Pianificato', 'Completato', 'Annullato'].forEach(function (s) {
+    ['Da pianificare', 'Pianificato', 'Completato', 'Annullato', 'Sospeso - ys', 'Sospeso - zp', 'Sospeso - zc'].forEach(function (s) {
       var opt = document.createElement('option'); opt.value = s; opt.textContent = s; selStato.appendChild(opt);
     });
     var selSquadra = document.getElementById('filtro-squadra');
@@ -621,12 +627,24 @@
       var infoHtml = i.motivoNonPianificato
         ? '<span class="info-icon" tabindex="0">' + ICONA_INFO_ + '<span class="tooltip">' + escapeHtml(i.motivoNonPianificato) + '</span></span>'
         : '';
+      var storiaSospensioni = [];
+      try { storiaSospensioni = JSON.parse(i.storiaSospensioni || '[]'); } catch (e) { storiaSospensioni = []; }
+      if (!Array.isArray(storiaSospensioni)) storiaSospensioni = [];
+      var storiaHtml = storiaSospensioni.length
+        ? '<span class="info-icon" tabindex="0">' + ICONA_STORIA_ + '<span class="tooltip">' +
+          storiaSospensioni.map(function (s) { return escapeHtml(s.data || '') + ' — ' + escapeHtml(s.stato || '') + (s.nota ? ': ' + escapeHtml(s.nota) : ''); }).join('<br>') +
+          '</span></span>'
+        : '';
       var azioniHtml = '<button class="btn-icon" data-action="modifica" data-row="' + i._row + '" title="Modifica">' + ICONA_MATITA_ + '</button>';
       if (i.stato === 'Pianificato') {
         azioniHtml += '<button class="btn-icon good" data-action="completa" data-row="' + i._row + '" title="Segna come completato">' + ICONA_CHECK_ + '</button>';
       }
       if (i.stato !== 'Annullato' && i.stato !== 'Completato') {
-        azioniHtml += '<button class="btn-icon warn" data-action="annulla" data-row="' + i._row + '" title="Annulla">' + ICONA_PAUSA_ + '</button>';
+        if (isStatoSospesoClient_(i.stato)) {
+          azioniHtml += '<button class="btn-icon good" data-action="fine-sospensione" data-row="' + i._row + '" title="Fine sospensione (torna Da pianificare)">' + ICONA_PLAY_ + '</button>';
+        } else {
+          azioniHtml += '<button class="btn-icon warn" data-action="sospendi" data-row="' + i._row + '" title="Sospendi">' + ICONA_PAUSA_ + '</button>';
+        }
       }
       azioniHtml += '<button class="btn-icon danger" data-action="elimina" data-row="' + i._row + '" title="Elimina">' + ICONA_CESTINO_ + '</button>';
       return '<div class="int-row' + (i.stato === 'Annullato' ? ' is-annullato' : '') + '">' +
@@ -635,7 +653,7 @@
         '<div><span class="badge ' + (CLASSE_BADGE_PRIORITA_[i.priorita] || 'badge-normale') + '">' + escapeHtml(i.priorita || '') + '</span></div>' +
         '<div class="int-durata">' + (i.durataMinuti || 0) + ' min</div>' +
         '<div>' + finestraHtml + '</div>' +
-        '<div class="stato-cell"><span class="badge ' + (CLASSE_BADGE_STATO_[i.stato] || 'badge-stato-dapianificare') + '">' + escapeHtml(i.stato || '') + '</span>' + infoHtml + '</div>' +
+        '<div class="stato-cell"><span class="badge ' + (CLASSE_BADGE_STATO_[i.stato] || 'badge-stato-dapianificare') + '">' + escapeHtml(i.stato || '') + '</span>' + infoHtml + storiaHtml + '</div>' +
         '<div>' + squadraHtml + '</div>' +
         '<div>' + dataOraHtml + '</div>' +
         '<div class="row-actions">' + azioniHtml + '</div>' +
@@ -700,12 +718,40 @@
           .catch(function (err) { toast(err.message || String(err), 'error'); });
         return;
       }
-      if (action === 'annulla') {
-        if (!window.confirm('Annullare l\'intervento per "' + obj.cliente + '"?')) return;
-        callServer('annullaIntervento', obj.id, obj._row).then(function () { toast('Intervento annullato.', 'success'); loadInterventi(); caricaDashboard(); })
+      if (action === 'sospendi') { apriSospendiIntervento(obj); return; }
+      if (action === 'fine-sospensione') {
+        if (!window.confirm('Terminare la sospensione dell\'intervento per "' + obj.cliente + '"? Tornerà "Da pianificare".')) return;
+        callServer('terminaSospensione', obj.id, obj._row).then(function () { toast('Sospensione terminata: torna "Da pianificare".', 'success'); loadInterventi(); caricaDashboard(); })
           .catch(function (err) { toast(err.message || String(err), 'error'); });
       }
     });
+    on('btn-salva-sospendi', 'click', salvaSospendiIntervento);
+  }
+
+  // ---------- dialog: sospendi intervento ----------
+  var sospendiState = { id: null, row: null };
+
+  function apriSospendiIntervento(obj) {
+    sospendiState.id = obj.id;
+    sospendiState.row = obj._row;
+    document.getElementById('dlg-sospendi-titolo').textContent = 'Sospendi intervento — ' + obj.cliente;
+    document.getElementById('sosp-stato').value = 'Sospeso - ys';
+    document.getElementById('sosp-nota').value = '';
+    document.getElementById('dlg-sospendi').classList.remove('hidden');
+  }
+
+  function salvaSospendiIntervento() {
+    var stato = document.getElementById('sosp-stato').value;
+    var nota = document.getElementById('sosp-nota').value.trim();
+    if (!nota) { toast('Inserisci una nota di motivazione.', 'error'); return; }
+    var btn = document.getElementById('btn-salva-sospendi');
+    btn.disabled = true;
+    callServer('sospendiIntervento', sospendiState.id, sospendiState.row, stato, nota).then(function () {
+      toast('Intervento sospeso.', 'success');
+      document.getElementById('dlg-sospendi').classList.add('hidden');
+      loadInterventi();
+      caricaDashboard();
+    }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () { btn.disabled = false; });
   }
 
   // ---------- Regole ----------
