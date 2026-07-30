@@ -521,4 +521,16 @@
   @media (prefers-color-scheme: dark) {
     .dlg-box { box-shadow: 0 20px 60px rgba(0,0,0,.5); }
   }
+
+  /* Indicatore di caricamento generico: applicato a un container mentre attende una risposta dal
+     server (che su Apps Script/Sheets può richiedere qualche secondo) — attenua il contenuto e
+     mostra uno spinner sopra, così l'utente capisce che qualcosa sta succedendo invece di pensare
+     che l'interfaccia sia bloccata. */
+  .is-loading { position: relative; pointer-events: none; opacity: .5; min-height: 60px; transition: opacity .1s ease; }
+  .is-loading::after {
+    content: ""; position: absolute; top: 50%; left: 50%; width: 30px; height: 30px;
+    margin: -15px 0 0 -15px; border: 3px solid var(--dp-line); border-top-color: var(--dp-accent);
+    border-radius: 50%; animation: dp-spin .7s linear infinite; z-index: 5;
+  }
+  @keyframes dp-spin { to { transform: rotate(360deg); } }
 </style>

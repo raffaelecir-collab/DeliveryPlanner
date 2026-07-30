@@ -146,6 +146,21 @@
     window.__toastTimer = setTimeout(function () { el.classList.add('hidden'); }, 3800);
   }
 
+  /** Mostra/nasconde uno spinner sopra un container mentre attende una risposta dal server (le
+   *  chiamate ad Apps Script/Sheets possono richiedere qualche secondo). Accetta uno o più ID. */
+  function mostraCaricamento() {
+    Array.prototype.forEach.call(arguments, function (id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.add('is-loading');
+    });
+  }
+  function nascondiCaricamento() {
+    Array.prototype.forEach.call(arguments, function (id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.remove('is-loading');
+    });
+  }
+
   function toInputDate(date) {
     var y = date.getFullYear(), m = ('0' + (date.getMonth() + 1)).slice(-2), d = ('0' + date.getDate()).slice(-2);
     return y + '-' + m + '-' + d;
@@ -852,9 +867,10 @@
       btn.textContent = '🗺️ Mostra mappa';
       return;
     }
+    btn.disabled = true; btn.textContent = 'Caricamento mappa…';
     caricaLeaflet_().then(function () {
       wrap.classList.remove('hidden');
-      btn.textContent = '🗺️ Nascondi mappa';
+      btn.disabled = false; btn.textContent = '🗺️ Nascondi mappa';
       if (!mappaSelezioneInstance) {
         mappaSelezioneInstance = L.map('pian-selezione-mappa');
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -881,6 +897,7 @@
       aggiornaMarkerMappaSelezione_();
       setTimeout(function () { if (mappaSelezioneInstance) mappaSelezioneInstance.invalidateSize(); }, 60);
     }).catch(function () {
+      btn.disabled = false; btn.textContent = '🗺️ Mostra mappa';
       toast('Impossibile caricare la mappa (verifica la connessione a internet o la rete/proxy in uso).', 'error');
     });
   }
@@ -989,6 +1006,7 @@
       ', tra il ' + fromInputDate(dal) + ' e il ' + fromInputDate(al) + '? Verranno scritti subito sul foglio.')) return;
     var btn = document.getElementById('btn-pianifica-intervallo');
     btn.disabled = true; btn.textContent = 'Calcolo in corso…';
+    mostraCaricamento('pian-intervallo-board');
     callServer('pianificaIntervallo', squadraIds, fromInputDate(dal), fromInputDate(al)).then(function (risultato) {
       renderIntervalloResult(risultato);
       var totaleTappe = totaleTappeIntervallo(risultato);
@@ -996,6 +1014,7 @@
       caricaDashboard();
     }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () {
       btn.disabled = false; btn.textContent = '📅 Pianifica intervallo';
+      nascondiCaricamento('pian-intervallo-board');
     });
   }
 
@@ -1008,20 +1027,23 @@
     var giornoStr = fromInputDate(giornoInput);
     pianState.squadraId = squadraId;
     pianState.giorno = giornoStr;
-    callServer('getContestoPianificazione', squadraId, giornoStr).then(function (ctx) {
+    mostraCaricamento('pian-selezione-corpo');
+    return callServer('getContestoPianificazione', squadraId, giornoStr).then(function (ctx) {
       pianState.disponibili = ctx.disponibili;
       pianState.pianificati = ctx.pianificati;
       pianState.pianificatiAltrove = ctx.pianificatiAltrove || [];
       renderSelezioneInterventi();
       if (ctx.pianificati.length > 0) {
         pianState.ordineCorrente = ctx.pianificati.map(function (i) { return i.id; });
-        ricalcolaConOrdineCorrente();
+        return ricalcolaConOrdineCorrente();
       } else {
         pianState.ordineCorrente = [];
         pianState.anteprima = null;
         document.getElementById('pian-anteprima-card').style.display = 'none';
       }
-    }).catch(function (err) { toast(err.message || String(err), 'error'); });
+    }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () {
+      nascondiCaricamento('pian-selezione-corpo');
+    });
   }
 
   /**
@@ -1055,12 +1077,14 @@
     if (!ids.length) { toast('Seleziona almeno un intervento.', 'error'); return; }
     var btn = document.getElementById('btn-ottimizza-percorso');
     btn.disabled = true; btn.textContent = 'Calcolo in corso…';
+    mostraCaricamento('pian-anteprima-card');
     chiamaAnteprimaConAvvisoTetto_(pianState.squadraId, pianState.giorno, ids).then(function (anteprima) {
       pianState.anteprima = anteprima;
       pianState.ordineCorrente = anteprima.tappe.map(function (t) { return t.interventoId; });
       renderAnteprima(anteprima);
     }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () {
       btn.disabled = false; btn.textContent = '🧭 Ottimizza percorso';
+      nascondiCaricamento('pian-anteprima-card');
     });
   }
 
@@ -1070,11 +1094,14 @@
       document.getElementById('pian-anteprima-card').style.display = 'none';
       return Promise.resolve();
     }
+    mostraCaricamento('pian-anteprima-card');
     return chiamaAnteprimaConAvvisoTetto_(pianState.squadraId, pianState.giorno, pianState.ordineCorrente, pianState.ordineCorrente).then(function (anteprima) {
       pianState.anteprima = anteprima;
       pianState.ordineCorrente = anteprima.tappe.map(function (t) { return t.interventoId; });
       renderAnteprima(anteprima);
-    }).catch(function (err) { toast(err.message || String(err), 'error'); });
+    }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () {
+      nascondiCaricamento('pian-anteprima-card');
+    });
   }
 
   function renderAnteprima(anteprima) {
@@ -1127,6 +1154,7 @@
     if (!pianState.ordineCorrente.length) { toast('Nessuna tappa da confermare.', 'error'); return; }
     var btn = document.getElementById('btn-conferma-percorso');
     btn.disabled = true;
+    mostraCaricamento('pian-anteprima-card');
     callServer('confermaPercorso', pianState.squadraId, pianState.giorno, pianState.ordineCorrente, pianState.ignoraTettoViaggio).then(function (anteprima) {
       toast('Percorso confermato: ' + anteprima.tappe.length + ' tappe salvate.', 'success');
       pianState.anteprima = anteprima;
@@ -1134,7 +1162,10 @@
       renderAnteprima(anteprima);
       caricaDashboard();
       caricaContesto();
-    }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () { btn.disabled = false; });
+    }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () {
+      btn.disabled = false;
+      nascondiCaricamento('pian-anteprima-card');
+    });
   }
 
   /** Apre il dialog "Seleziona da elenco" per una squadra/giorno specifici, richiamato dalla Dashboard. Il giorno resta modificabile nel dialog stesso (campo "Giorno" in alto). */
@@ -1315,6 +1346,7 @@
     var giorniRange = dateRangeArrayClient(dal, al);
     var hint = document.getElementById('dash-range-hint');
     if (hint) hint.textContent = giorniRange.length === 1 ? 'Un solo giorno selezionato' : giorniRange.length + ' giorni selezionati';
+    mostraCaricamento('dash-team-list', 'dash-map', 'dash-detail');
     return callServer('getProgrammazione', fromInputDate(dal), fromInputDate(al)).then(function (righe) {
       dashState.dal = dal; dashState.al = al; dashState.righe = righe;
       if (!dashState.selezionata || !state.squadre.some(function (s) { return s.id === dashState.selezionata && s.attiva; })) {
@@ -1326,9 +1358,10 @@
       // In vista "stato" la mappa mostra tutti gli interventi indipendentemente dal Dal/Al: la
       // ricarica qui tiene quella vista aggiornata dopo un'azione (conferma percorso, riempi
       // buchi, ecc.) senza dover disattivarla e riattivarla a mano.
-      if (dashState.mapMode === 'stato') loadInterventi().then(renderDashMap);
-      else renderDashMap();
-    }).catch(function (err) { toast('Errore nel caricamento della dashboard: ' + (err.message || err), 'error'); });
+      return dashState.mapMode === 'stato' ? loadInterventi().then(renderDashMap) : renderDashMap();
+    }).catch(function (err) { toast('Errore nel caricamento della dashboard: ' + (err.message || err), 'error'); }).finally(function () {
+      nascondiCaricamento('dash-team-list', 'dash-map', 'dash-detail');
+    });
   }
 
   function renderDashTeamList() {
@@ -1363,7 +1396,7 @@
   };
 
   function renderDashMap() {
-    caricaLeaflet_().then(function () {
+    return caricaLeaflet_().then(function () {
       if (!dashMapInstance) {
         dashMapInstance = L.map('dash-map').setView([45.46, 9.19], 11);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -1435,11 +1468,9 @@
     document.querySelectorAll('.map-mode-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.mapMode === mode); });
     var legenda = document.getElementById('dash-map-legenda');
     if (legenda) legenda.classList.toggle('hidden', mode !== 'stato');
-    if (mode === 'stato') {
-      loadInterventi().then(renderDashMap);
-    } else {
-      renderDashMap();
-    }
+    mostraCaricamento('dash-map');
+    var caricamento = mode === 'stato' ? loadInterventi().then(renderDashMap) : renderDashMap();
+    Promise.resolve(caricamento).finally(function () { nascondiCaricamento('dash-map'); });
   }
 
   function dashRigaTappa_(t) {
@@ -1523,6 +1554,7 @@
    * mantenere gli orari già fissati (riempiendo di conseguenza, magari con meno tappe aggiunte).
    */
   function riempiBucoGiornoClick(squadraId, giornoStr) {
+    mostraCaricamento('dash-detail');
     return callServer('anteprimaRiempiBucoGiorno', squadraId, giornoStr).then(function (esito) {
       var consentiSpostamento = true;
       if (esito.spostamenti.length) {
@@ -1540,7 +1572,9 @@
         : 'Nessun intervento disponibile da inserire per ' + anteprima.squadraNome + ' il ' + giornoStr + '.';
       toast(msg, 'success');
       return caricaDashboard();
-    }).catch(function (err) { toast('Errore nel riempimento: ' + (err.message || err), 'error'); });
+    }).catch(function (err) { toast('Errore nel riempimento: ' + (err.message || err), 'error'); }).finally(function () {
+      nascondiCaricamento('dash-detail');
+    });
   }
 
   // ---------- dialog: aggiungi intervento con orario fisso ----------
@@ -1574,12 +1608,14 @@
       ricavo: parseFloat(document.getElementById('agg-ricavo').value) || 0
     };
     var btn = document.getElementById('btn-salva-aggiungi-intervento');
-    btn.disabled = true;
+    btn.disabled = true; btn.textContent = 'Salvataggio…';
     callServer('creaEPianificaIntervento', intervento, aggiungiState.squadraId, aggiungiState.giorno, ora).then(function () {
       toast('Intervento creato e pianificato.', 'success');
       document.getElementById('dlg-aggiungi').classList.add('hidden');
       caricaDashboard();
-    }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () { btn.disabled = false; });
+    }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () {
+      btn.disabled = false; btn.textContent = 'Salva e pianifica';
+    });
   }
 
   function setupDashboardTab() {
@@ -1653,6 +1689,7 @@
     safeRun_('squadre', setupSquadreTab);
     safeRun_('regole', setupRegoleTab);
 
+    mostraCaricamento('dash-team-list', 'dash-map', 'dash-detail');
     callServer('getBootstrapData').then(function (data) {
       state.schema = data.schema;
       state.squadre = data.squadre;
@@ -1662,7 +1699,10 @@
       populaSelectSquadra();
       renderSquadre();
       caricaDashboard();
-    }).catch(function (err) { toast('Errore di inizializzazione: ' + (err.message || err), 'error'); });
+    }).catch(function (err) {
+      toast('Errore di inizializzazione: ' + (err.message || err), 'error');
+      nascondiCaricamento('dash-team-list', 'dash-map', 'dash-detail');
+    });
   }
 
   document.addEventListener('DOMContentLoaded', init);
