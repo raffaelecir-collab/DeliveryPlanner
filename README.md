@@ -277,11 +277,17 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      conviene dal punto di vista del percorso (i loro orari si aggiornano di
      conseguenza), ma non viene mai rimosso o spostato su un'altra
      squadra/giorno un intervento già confermato. A differenza della
-     selezione manuale, qui **"Non Prima Del" e "Scadenza" sono un vincolo
-     rigido**: un intervento non ancora disponibile o già scaduto per il
-     giorno che si sta riempiendo non viene proposto, ma resta comunque "Da
-     pianificare" con una nota esplicita del perché ("Nota Pianificazione")
-     invece di sparire silenziosamente dal riempimento. Premendo "Rimuovi"
+     selezione manuale, qui **"Non Prima Del" è un vincolo rigido**: un
+     intervento non ancora disponibile per il giorno che si sta riempiendo
+     non viene proposto, ma resta comunque "Da pianificare" con una nota
+     esplicita del perché ("Nota Pianificazione") invece di sparire
+     silenziosamente dal riempimento. **"Scadenza" invece non esclude mai**:
+     un intervento con scadenza già superata resta pianificabile
+     normalmente, ma viene trattato ovunque come priorità "Urgente"
+     (indipendentemente dalla priorità realmente impostata sulla riga, che
+     non viene modificata) finché la scadenza non viene corretta o rimossa —
+     vale per "Riempi buco", per la pianificazione automatica su intervallo e
+     per la selezione manuale. Premendo "Rimuovi"
      questo riempimento **parte in automatico** subito dopo la deselezione,
      così il buco lasciato aperto in un giorno già programmato viene
      ricoperto, se possibile, senza un passo manuale in più.
@@ -401,9 +407,14 @@ Cosa succede per ogni riga compilata (Nome Cliente + Indirizzo valorizzati):
   così come sono e **geocodificati automaticamente**, come per un intervento
   inserito a mano;
 - **Urgente** spuntato diventa priorità "Urgente", altrimenti "Normale";
-- **Data Disp./Data Scadenza** diventano rispettivamente "Non Prima Del" e
-  "Scadenza"; **Telefono** viene riportato così com'è; **Importo ODS**
-  diventa il **Ricavo (€)** dell'intervento;
+- **"Data Disp." NON viene importata** ("Non Prima Del" resta sempre vuoto
+  per le righe importate: nel tracking esterno questo campo si è rivelato
+  inaffidabile e bloccava "Riempi buco"/pianificazione automatica su
+  interventi in realtà disponibili); **"Data Scadenza" viene importata
+  normalmente come "Scadenza"** — ma non è un vincolo rigido: un intervento
+  che supera la scadenza resta pianificabile, semplicemente con la massima
+  priorità (vedi sopra, tab Programmazione); **Telefono** viene riportato
+  così com'è; **Importo ODS** diventa il **Ricavo (€)** dell'intervento;
 - la **durata stimata** viene dedotta da "Attività" (ed eventualmente
   dall'"Importo ODS", per le attività graduate a fasce), secondo la
   legenda in `LEGENDA_DURATA_ATTIVITA_` (`gas/Import.gs`):

@@ -197,9 +197,12 @@ function trovaOCreaColonnaMarcatore_(sheet, headerRow, lastCol) {
  * con "Riempi buco") che non si sovrapponga ad altri interventi già confermati.
  *
  * "Urgente" (TRUE/FALSE) diventa priorità Urgente/Normale; "Data Scadenza" viene riportata come
- * scadenza dell'Intervento; "Importo ODS" diventa il Ricavo (€); la durata stimata è calcolata
- * da LEGENDA_DURATA_ATTIVITA_ in base ad "Attività" (e, per alcune attività, allo stesso Importo
- * ODS).
+ * scadenza dell'Intervento (non è un vincolo rigido: se supera la scadenza, l'intervento non
+ * viene comunque escluso dalla pianificazione automatica, ma trattato come priorità Urgente — vedi
+ * prioritaEffettiva_ in RouteEngine.gs); "Data Disp." NON viene importata ("Non Prima Del" resta
+ * sempre vuoto per le righe importate); "Importo ODS" diventa il Ricavo (€); la durata stimata è
+ * calcolata da LEGENDA_DURATA_ATTIVITA_ in base ad "Attività" (e, per alcune attività, allo stesso
+ * Importo ODS).
  *
  * Guardrail di tempo (come in pianificaIntervallo): con moltissime righe da importare in un solo
  * run, se il tempo sta per scadere si interrompe l'elaborazione delle righe restanti
@@ -310,7 +313,10 @@ function importaInterventiEsterni() {
       cliente: cliente,
       indirizzo: indirizzoCompleto,
       priorita: valoreColonnaImport_(row, idx, 'Urgente') === true ? PRIORITA.URGENTE : PRIORITA.NORMALE,
-      dataRichiesta: normalizzaDataImport_(valoreColonnaImport_(row, idx, 'Data Disp.')),
+      // "Data Disp." (Non Prima Del) non viene importata: nel tracking esterno questo campo si è
+      // rivelato inaffidabile e bloccava "Riempi buco"/pianificazione automatica su interventi in
+      // realtà disponibili. La scadenza resta importata, ma non è più un vincolo rigido (vedi
+      // prioritaEffettiva_ in RouteEngine.gs): se superata l'intervento diventa solo prioritario.
       scadenza: normalizzaDataImport_(valoreColonnaImport_(row, idx, 'Data Scadenza')),
       note: noteParti.join(' | '),
       telefono: normalizzaTelefonoImport_(valoreColonnaImport_(row, idx, 'Telefono'))

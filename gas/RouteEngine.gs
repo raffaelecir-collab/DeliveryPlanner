@@ -48,6 +48,12 @@ function formatDateStr_(date) {
   return Utilities.formatDate(date, Session.getScriptTimeZone(), 'dd/MM/yyyy');
 }
 
+/** Data odierna normalizzata a mezzanotte, per confronti omogenei con parseDateStr_. */
+function dataOggi_() {
+  var now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
 function haversineKm_(lat1, lng1, lat2, lng2) {
   var R = 6371;
   var dLat = (lat2 - lat1) * Math.PI / 180;
@@ -85,6 +91,20 @@ function pesoRegola_(regole, chiave) {
   var percentuale = regole[chiave];
   if (percentuale === undefined || percentuale === null || percentuale === '') percentuale = 100;
   return (percentuale / 100) * RIFERIMENTO_PESI_[chiave];
+}
+
+/**
+ * La scadenza NON esclude più un intervento dalla pianificazione automatica (vedi
+ * riempiBucoGiorno/pianificaIntervallo): un intervento con scadenza già superata rispetto a oggi
+ * resta pianificabile, ma va trattato come massima priorità ("Urgente") ovunque la priorità
+ * influenzi l'ordine di scelta, per farlo emergere subito invece di lasciarlo indietro a tempo
+ * indeterminato. Calcolato al volo (non scritto sul foglio): si aggiorna da solo se la scadenza
+ * viene corretta o rimossa, senza lasciare un'etichetta "Urgente" incoerente.
+ */
+function prioritaEffettiva_(intervento) {
+  var sc = parseDateStr_(intervento.scadenza);
+  if (sc && sc < dataOggi_()) return PRIORITA.URGENTE;
+  return intervento.priorita;
 }
 
 function pesoPriorita_(priorita, regole) {
@@ -206,7 +226,7 @@ function costruisciPercorsoInserzione_(squadra, stopIndices, matrice, partenzaId
     var distanzaBase = matrice[partenzaIdx][idx].minuti;
     var ricavo = nodi[idx].intervento.ricavo || 0;
     var bonusCompetenza = squadraHaCompetenzaSpecificaPer_(squadra, nodi[idx].intervento) ? pesoCompetenzaSpecifica : 0;
-    return pesoPriorita_(nodi[idx].intervento.priorita, regole) + pesoDensita * densita - pesoProssimita * distanzaBase + pesoRicavo * ricavo + bonusCompetenza;
+    return pesoPriorita_(prioritaEffettiva_(nodi[idx].intervento), regole) + pesoDensita * densita - pesoProssimita * distanzaBase + pesoRicavo * ricavo + bonusCompetenza;
   }
 
   var remaining = stopIndices.slice();
@@ -751,7 +771,7 @@ function formattaAnteprima_(squadra, giorno, risultato) {
         interventoId: t.intervento.id,
         cliente: t.intervento.cliente,
         indirizzo: t.intervento.indirizzo,
-        priorita: t.intervento.priorita,
+        priorita: prioritaEffettiva_(t.intervento),
         durataMinuti: t.intervento.durataMinuti,
         ricavo: t.intervento.ricavo || 0,
         oraInizio: t.oraInizio,
@@ -924,7 +944,7 @@ function getProgrammazione(dataInizioStr, dataFineStr) {
       lng: i.lng,
       telefono: i.telefono || '',
       competenza: i.competenza,
-      priorita: i.priorita,
+      priorita: prioritaEffettiva_(i),
       durataMinuti: i.durataMinuti,
       ricavo: i.ricavo || 0,
       dataPianificata: i.dataPianificata,
@@ -966,21 +986,20 @@ function riempiBucoGiorno(squadraId, giornoStr) {
     return i.squadraId === squadraId && i.dataPianificata === giornoFmt && i.stato === STATO_INTERVENTO.PIANIFICATO;
   }).sort(function (a, b) { return (a.ordineTappa || 0) - (b.ordineTappa || 0); });
 
-  // A differenza della selezione manuale (che non applica alcun controllo su "Non Prima Del"/
-  // "Scadenza"), qui questi due campi sono un vincolo rigido: un intervento richiesto per una data
-  // futura, o già scaduto rispetto al giorno che si sta riempiendo, non viene proposto. A differenza
-  // degli altri motivi di esclusione (finestra oraria, orario di lavoro...) questo si decide PRIMA
-  // di costruire il percorso, quindi va segnalato esplicitamente sulla riga — altrimenti l'utente
-  // vedrebbe l'intervento restare "Da pianificare" senza alcuna nota, come se fosse un errore.
+  // A differenza della selezione manuale (che non applica alcun controllo su "Non Prima Del"), qui
+  // questo campo è un vincolo rigido: un intervento richiesto per una data futura non viene
+  // proposto. A differenza degli altri motivi di esclusione (finestra oraria, orario di lavoro...)
+  // questo si decide PRIMA di costruire il percorso, quindi va segnalato esplicitamente sulla riga
+  // — altrimenti l'utente vedrebbe l'intervento restare "Da pianificare" senza alcuna nota, come se
+  // fosse un errore. La scadenza invece NON esclude più: un intervento scaduto resta pianificabile
+  // (vedi prioritaEffettiva_), semplicemente con la massima priorità.
   var esclusiPerData = [];
   var disponibiliCompatibili = tuttiInterventi.filter(function (i) {
     if (i.stato !== STATO_INTERVENTO.DA_PIANIFICARE) return false;
     if (!isNum_(i.lat) || !isNum_(i.lng)) return false;
     if (!squadraCoprCompetenza_(squadra, i)) return false;
     var dr = parseDateStr_(i.dataRichiesta);
-    var sc = parseDateStr_(i.scadenza);
     if (dr && giorno < dr) { esclusiPerData.push({ intervento: i, motivo: 'Non incluso nel riempimento del ' + giornoFmt + ': non disponibile prima del ' + i.dataRichiesta }); return false; }
-    if (sc && giorno > sc) { esclusiPerData.push({ intervento: i, motivo: 'Non incluso nel riempimento del ' + giornoFmt + ': scaduto il ' + i.scadenza }); return false; }
     return true;
   });
   esclusiPerData.forEach(function (n) {
@@ -1162,7 +1181,7 @@ function costruisciOrdiniGiornoCongiunti_(squadre, candidatiPerSquadra, regole) 
       if (!slot || slot.fine > finestraFineInt) return; // non entra nel turno di questa squadra
       var ricavo = cand.ricavo || 0;
       var bonusCompetenza = squadraHaCompetenzaSpecificaPer_(s, cand) ? pesoCompetenzaSpecifica : 0;
-      var costo = viaggio - pesoPriorita_(cand.priorita, regole) * 0.05 - pesoRicavoEffettivo * ricavo - bonusCompetenza;
+      var costo = viaggio - pesoPriorita_(prioritaEffettiva_(cand), regole) * 0.05 - pesoRicavoEffettivo * ricavo - bonusCompetenza;
       if (!migliore || costo < migliore.costo) migliore = { cand: cand, costo: costo, fine: slot.fine, viaggio: isFirstMossa ? 0 : viaggio };
     });
     return migliore;
@@ -1230,10 +1249,10 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
     if (!isNum_(i.lat) || !isNum_(i.lng)) return false;
     var copertoDaAlmenoUna = squadre.some(function (s) { return squadraCoprCompetenza_(s, i); });
     if (!copertoDaAlmenoUna) return false;
+    // La scadenza NON esclude un intervento dal pool (vedi prioritaEffettiva_): se già superata,
+    // resta pianificabile con la massima priorità invece di restare escluso a tempo indeterminato.
     var dr = parseDateStr_(i.dataRichiesta);
     if (dr && dr > dataFine) return false;
-    var sc = parseDateStr_(i.scadenza);
-    if (sc && sc < dataInizio) return false;
     return true;
   });
 
@@ -1279,8 +1298,6 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
         if (!squadraCoprCompetenza_(squadra, i)) return false;
         var dr = parseDateStr_(i.dataRichiesta);
         if (dr && giorno < dr) return false;
-        var sc = parseDateStr_(i.scadenza);
-        if (sc && giorno > sc) return false;
         return true;
       });
     });
