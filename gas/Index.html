@@ -176,20 +176,25 @@
 
       <!-- VISTA SQUADRE -->
       <section class="view" id="view-squadre">
-        <div class="card">
-          <div class="row" style="justify-content: space-between;">
-            <h2 style="margin:0;">Squadre di lavoro</h2>
-            <button class="btn" id="btn-nuova-squadra">+ Nuova Squadra</button>
+        <div class="screen-toolbar">
+          <h2>Squadre di lavoro</h2>
+          <div class="toolbar-actions">
+            <div class="search-field">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+              <input type="text" id="squadre-search" placeholder="Cerca squadra…" autocomplete="off">
+            </div>
+            <button class="btn-primary" id="btn-nuova-squadra">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+              Nuova squadra
+            </button>
           </div>
-          <div class="table-wrap">
-            <table id="tabella-squadre">
-              <thead><tr>
-                <th></th><th>Nome</th><th>Partenza</th><th>Rientro</th>
-                <th>Orario</th><th>Pausa pranzo</th><th>Attiva</th><th>Disponibilità</th><th>Azioni</th>
-              </tr></thead>
-              <tbody></tbody>
-            </table>
+        </div>
+        <div class="team-list">
+          <div class="team-list-head">
+            <span></span><span>Squadra</span><span>Indirizzo</span><span>Orario</span>
+            <span>Pausa pranzo</span><span>Attiva</span><span>Disponibilità</span><span></span>
           </div>
+          <div id="team-rows"></div>
         </div>
       </section>
 

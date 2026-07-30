@@ -203,7 +203,9 @@
     modalState.schemaKey = schemaKey;
     modalState.editObj = existingObj || null;
     var def = state.schema[schemaKey];
-    document.getElementById('modal-title').textContent = (existingObj ? 'Modifica' : 'Nuovo/a') + ' — ' + def.label;
+    var NOME_SINGOLARE_SCHEMA_ = { SQUADRE: 'squadra', INTERVENTI: 'intervento' };
+    var nomeSingolare = NOME_SINGOLARE_SCHEMA_[schemaKey] || def.label.toLowerCase();
+    document.getElementById('modal-title').textContent = existingObj ? ('Modifica ' + nomeSingolare) : ('Nuov' + (nomeSingolare.slice(-1) === 'a' ? 'a' : 'o') + ' ' + nomeSingolare);
     var form = document.getElementById('modal-form');
     form.innerHTML = '';
     def.fields.forEach(function (field) {
@@ -234,6 +236,76 @@
           wrap.appendChild(helpGiorni);
         }
         form.appendChild(wrap);
+        return;
+      }
+
+      if (field.type === 'color') {
+        var paletteColori = ['#1B6B7C', '#2E7D5B', '#B4740E', '#7B4B94', '#C24C6B', '#3D6FB4', '#4E8B3F', '#8C5A2B'];
+        var valoreColoreEsistente = existingObj && existingObj[field.key] ? existingObj[field.key] : (field.default || paletteColori[0]);
+        var hiddenColore = document.createElement('input');
+        hiddenColore.type = 'hidden'; hiddenColore.dataset.key = field.key; hiddenColore.value = valoreColoreEsistente;
+        var swatchesWrap = document.createElement('div');
+        swatchesWrap.className = 'color-swatches';
+        var disegnaSwatches = function () {
+          swatchesWrap.innerHTML = '';
+          paletteColori.forEach(function (colore) {
+            var sw = document.createElement('span');
+            var selezionato = colore.toLowerCase() === (hiddenColore.value || '').toLowerCase();
+            sw.className = 'swatch' + (selezionato ? ' selected' : '');
+            sw.style.background = colore;
+            if (selezionato) {
+              sw.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M20 6 9 17l-5-5"></path></svg>';
+            }
+            sw.addEventListener('click', function () { hiddenColore.value = colore; disegnaSwatches(); });
+            swatchesWrap.appendChild(sw);
+          });
+        };
+        disegnaSwatches();
+        wrap.appendChild(hiddenColore);
+        wrap.appendChild(swatchesWrap);
+        if (field.help) {
+          var helpColore = document.createElement('div');
+          helpColore.className = 'field-help';
+          helpColore.textContent = field.help;
+          wrap.appendChild(helpColore);
+        }
+        form.appendChild(wrap);
+        return;
+      }
+
+      // "Il rientro è allo stesso indirizzo della partenza": vuoto = uguale alla partenza (vedi
+      // help del campo in Config.gs); qui lo esprimiamo come scelta esplicita invece di lasciare
+      // che l'operatore debba capire da solo che un campo vuoto ha quel significato.
+      if (schemaKey === 'SQUADRE' && field.key === 'indirizzoRientro') {
+        var valoreRientroEsistente = existingObj ? (existingObj.indirizzoRientro || '') : '';
+        var ugualeAllaPartenza = !valoreRientroEsistente;
+        var checkWrap = document.createElement('label');
+        checkWrap.className = 'check-inline';
+        var checkUguale = document.createElement('input');
+        checkUguale.type = 'checkbox';
+        checkUguale.checked = ugualeAllaPartenza;
+        checkWrap.appendChild(checkUguale);
+        checkWrap.appendChild(document.createTextNode(' Il rientro è allo stesso indirizzo della partenza'));
+        form.appendChild(checkWrap);
+
+        var wrapRientro = document.createElement('div');
+        wrapRientro.className = 'field';
+        wrapRientro.style.display = ugualeAllaPartenza ? 'none' : 'flex';
+        var labelRientro = document.createElement('label');
+        labelRientro.textContent = field.label;
+        var inputRientro = document.createElement('input');
+        inputRientro.type = 'text';
+        inputRientro.dataset.key = 'indirizzoRientro';
+        inputRientro.value = valoreRientroEsistente;
+        wrapRientro.appendChild(labelRientro);
+        wrapRientro.appendChild(inputRientro);
+        if (field.mapPreview) aggiungiAnteprimaMappa(wrapRientro, field, inputRientro, existingObj);
+        form.appendChild(wrapRientro);
+
+        checkUguale.addEventListener('change', function () {
+          wrapRientro.style.display = checkUguale.checked ? 'none' : 'flex';
+          if (checkUguale.checked) inputRientro.value = '';
+        });
         return;
       }
 
@@ -295,8 +367,6 @@
         input = document.createElement('input'); input.type = 'checkbox';
       } else if (field.type === 'date') {
         input = document.createElement('input'); input.type = 'text'; input.placeholder = 'gg/mm/aaaa';
-      } else if (field.type === 'color') {
-        input = document.createElement('input'); input.type = 'color';
       } else if (field.type === 'number') {
         input = document.createElement('input'); input.type = 'number';
       } else {
@@ -372,49 +442,70 @@
   }
 
   // ---------- Squadre ----------
+  var ICONA_MATITA_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>';
+  var ICONA_CESTINO_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6M14 11v6"></path></svg>';
+  var ICONA_PIN_ = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12Z"></path><circle cx="12" cy="9" r="2.4"></circle></svg>';
+
   function loadSquadre() {
     return callServer('listaSquadre').then(function (list) {
       state.squadre = list;
-      renderSquadre(list);
+      renderSquadre();
       return list;
     });
   }
 
-  function renderSquadre(list) {
-    var tbody = document.querySelector('#tabella-squadre tbody');
-    if (!list.length) { tbody.innerHTML = '<tr><td colspan="9"><div class="empty-hint">Nessuna squadra. Aggiungine una.</div></td></tr>'; return; }
-    tbody.innerHTML = list.map(function (s) {
-      var rientro = s.indirizzoRientro ? escapeHtml(s.indirizzoRientro) : '<span style="color:#999;">= partenza</span>';
-      var pausa = (s.pausaPranzoInizio && s.pausaPranzoFine) ? (s.pausaPranzoInizio + ' - ' + s.pausaPranzoFine) : '<span style="color:#999;">nessuna</span>';
+  /** Squadre visibili nella lista, filtrate dal testo di ricerca corrente (nome o competenze). */
+  function squadreFiltrate_() {
+    var campo = document.getElementById('squadre-search');
+    var q = campo ? campo.value.trim().toLowerCase() : '';
+    if (!q) return state.squadre;
+    return state.squadre.filter(function (s) {
+      return (s.nome || '').toLowerCase().indexOf(q) !== -1 || (s.competenze || '').toLowerCase().indexOf(q) !== -1;
+    });
+  }
+
+  function renderSquadre() {
+    var container = document.getElementById('team-rows');
+    if (!state.squadre.length) { container.innerHTML = '<div class="empty-hint">Nessuna squadra. Aggiungine una.</div>'; return; }
+    var list = squadreFiltrate_();
+    if (!list.length) { container.innerHTML = '<div class="empty-hint">Nessuna squadra corrisponde alla ricerca.</div>'; return; }
+    container.innerHTML = list.map(function (s) {
+      var indirizzoHtml = s.indirizzoRientro
+        ? '<div class="addr-line"><span class="addr-tag">Partenza</span>' + ICONA_PIN_ + '<span>' + escapeHtml(s.indirizzoPartenza || '') + '</span></div>' +
+          '<div class="addr-line"><span class="addr-tag">Rientro</span>' + ICONA_PIN_ + '<span>' + escapeHtml(s.indirizzoRientro) + '</span></div>'
+        : '<div class="addr-line">' + ICONA_PIN_ + '<span>' + escapeHtml(s.indirizzoPartenza || '') + '</span></div>';
+      var pausaTesto = (s.pausaPranzoInizio && s.pausaPranzoFine) ? (s.pausaPranzoInizio + '–' + s.pausaPranzoFine) : '';
       var giorniOff = splitListClient(s.giorniIndisponibili);
       var periodiFerie = [];
       try { periodiFerie = JSON.parse(s.feriePeriodi || '[]'); } catch (e) { periodiFerie = []; }
       if (!Array.isArray(periodiFerie)) periodiFerie = [];
-      var disponibilitaParti = [];
-      if (giorniOff.length) disponibilitaParti.push('Riposo: ' + giorniOff.join(', '));
-      if (periodiFerie.length) disponibilitaParti.push(periodiFerie.length + ' periodo/i di ferie');
-      var disponibilita = disponibilitaParti.length
-        ? '<span style="font-size:11.5px;">' + escapeHtml(disponibilitaParti.join(' · ')) + '</span>'
-        : '<span style="color:#999;">standard</span>';
-      return '<tr>' +
-        '<td><span class="team-dot" style="background:' + (s.colore || '#999') + '"></span></td>' +
-        '<td>' + escapeHtml(s.nome) + '</td>' +
-        '<td>' + escapeHtml(s.indirizzoPartenza || '') + '</td>' +
-        '<td>' + rientro + '</td>' +
-        '<td>' + (s.oraInizio || '') + ' - ' + (s.oraFine || '') + '</td>' +
-        '<td>' + pausa + '</td>' +
-        '<td>' + (s.attiva ? '✅' : '❌') + '</td>' +
-        '<td>' + disponibilita + '</td>' +
-        '<td><div class="actions-cell">' +
-          '<button class="btn small secondary" data-action="modifica" data-row="' + s._row + '">Modifica</button>' +
-          '<button class="btn small danger" data-action="elimina" data-row="' + s._row + '">Elimina</button>' +
-        '</div></td></tr>';
+      var partiDisponibilita = [];
+      if (giorniOff.length) partiDisponibilita.push('Riposo ' + giorniOff.join(', '));
+      if (periodiFerie.length) partiDisponibilita.push(periodiFerie.length === 1 ? '1 periodo di ferie' : periodiFerie.length + ' periodi di ferie');
+      var disponibilitaHtml = partiDisponibilita.length
+        ? '<span class="chip chip-warn">' + escapeHtml(partiDisponibilita.join(' · ')) + '</span>'
+        : '<span class="chip chip-neutral">Standard</span>';
+      return '<div class="team-row' + (s.attiva ? '' : ' is-inactive') + '">' +
+        '<span class="team-dot" style="background:' + (s.colore || '#999') + '"></span>' +
+        '<div><div class="team-name">' + escapeHtml(s.nome) + '</div>' +
+          (s.competenze ? '<div class="team-competenze">' + escapeHtml(s.competenze) + '</div>' : '') + '</div>' +
+        '<div class="team-address">' + indirizzoHtml + '</div>' +
+        '<div class="team-hours">' + (s.oraInizio || '') + '–' + (s.oraFine || '') + '</div>' +
+        '<div class="team-lunch' + (pausaTesto ? '' : ' none') + '">' + (pausaTesto || 'Nessuna') + '</div>' +
+        '<label class="toggle"><input type="checkbox" ' + (s.attiva ? 'checked' : '') + ' data-toggle-attiva="' + s._row + '"><span class="track"></span></label>' +
+        '<div>' + disponibilitaHtml + '</div>' +
+        '<div class="row-actions">' +
+          '<button class="btn-icon" data-action="modifica" data-row="' + s._row + '" title="Modifica">' + ICONA_MATITA_ + '</button>' +
+          '<button class="btn-icon danger" data-action="elimina" data-row="' + s._row + '" title="Elimina">' + ICONA_CESTINO_ + '</button>' +
+        '</div>' +
+      '</div>';
     }).join('');
   }
 
   function setupSquadreTab() {
     on('btn-nuova-squadra', 'click', function () { openModal('SQUADRE', null); });
-    onQuery('#tabella-squadre tbody', 'click', function (e) {
+    on('squadre-search', 'input', function () { renderSquadre(); });
+    onQuery('#team-rows', 'click', function (e) {
       var btn = e.target.closest('button[data-action]');
       if (!btn) return;
       // Identifica la riga per numero di riga fisica (sempre univoco), non per id:
@@ -428,6 +519,22 @@
         callServer('eliminaSquadra', obj.id, obj._row).then(function () { toast('Squadra eliminata.', 'success'); loadSquadre().then(populaSelectSquadra); })
           .catch(function (err) { toast(err.message || String(err), 'error'); });
       }
+    });
+    onQuery('#team-rows', 'change', function (e) {
+      var cb = e.target.closest('[data-toggle-attiva]');
+      if (!cb) return;
+      var row = parseInt(cb.dataset.toggleAttiva, 10);
+      var obj = state.squadre.filter(function (s) { return s._row === row; })[0];
+      if (!obj) return;
+      var nuovoStato = cb.checked;
+      cb.disabled = true;
+      callServer('salvaSquadra', Object.assign({}, obj, { attiva: nuovoStato })).then(function () {
+        toast(nuovoStato ? 'Squadra attivata.' : 'Squadra disattivata.', 'success');
+        return loadSquadre().then(populaSelectSquadra);
+      }).catch(function (err) {
+        cb.checked = !nuovoStato;
+        toast(err.message || String(err), 'error');
+      }).finally(function () { cb.disabled = false; });
     });
   }
 
@@ -1335,7 +1442,7 @@
       document.getElementById('utente-corrente').textContent = data.utente;
       popolaSelectFiltri();
       populaSelectSquadra();
-      renderSquadre(state.squadre);
+      renderSquadre();
     }).catch(function (err) { toast('Errore di inizializzazione: ' + (err.message || err), 'error'); });
   }
 

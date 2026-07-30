@@ -200,4 +200,149 @@
     .route-stop-actions button { background: #1b1c1e; border-color: #46474b; color: #e8eaed; }
     .checklist-squadre label { background: #1b1c1e; border-color: #35363a; }
   }
+
+  /* =========================================================================
+     REDESIGN — nuovo sistema di token, introdotto schermata per schermata.
+     Le viste non ancora ridisegnate continuano a usare i token/stili sopra;
+     questo blocco convive con essi senza modificarli, per non alterare le
+     tab non ancora aggiornate durante la migrazione incrementale.
+     ========================================================================= */
+  :root {
+    --dp-ink: #152225;
+    --dp-ink-soft: #46595c;
+    --dp-ink-faint: #7c8e90;
+    --dp-surface: #F4F7F7;
+    --dp-surface-card: #ffffff;
+    --dp-line: #dde5e5;
+    --dp-line-soft: #e9eff0;
+    --dp-accent: #1B6B7C;
+    --dp-accent-strong: #124F5C;
+    --dp-accent-wash: #e7f1f3;
+    --dp-good: #2E7D5B;
+    --dp-good-wash: #e5f2ec;
+    --dp-warn: #B4740E;
+    --dp-warn-wash: #fbf1e0;
+    --dp-danger: #B23A2E;
+    --dp-danger-wash: #fbeae8;
+    --dp-radius: 10px;
+    --dp-radius-sm: 7px;
+    --dp-shadow: 0 1px 2px rgba(21,34,37,.06), 0 4px 14px rgba(21,34,37,.05);
+    --dp-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --dp-ink: #E9EFEE;
+      --dp-ink-soft: #aebcbd;
+      --dp-ink-faint: #7c8e90;
+      --dp-surface: #10181a;
+      --dp-surface-card: #182224;
+      --dp-line: #263335;
+      --dp-line-soft: #1e2a2c;
+      --dp-accent: #3FA6BA;
+      --dp-accent-strong: #6fc1d1;
+      --dp-accent-wash: #16333a;
+      --dp-good: #56b98c;
+      --dp-good-wash: #133226;
+      --dp-warn: #d99a3f;
+      --dp-warn-wash: #382a12;
+      --dp-danger: #e2685a;
+      --dp-danger-wash: #3a1d1a;
+      --dp-shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.35);
+    }
+  }
+
+  .screen-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+  .screen-toolbar h2 { font-size: 20px; font-weight: 650; margin: 0; letter-spacing: -.015em; color: var(--dp-ink); }
+  .screen-toolbar .toolbar-actions { display: flex; align-items: center; gap: 10px; }
+
+  .search-field { position: relative; }
+  .search-field svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--dp-ink-faint); pointer-events: none; }
+  .search-field input {
+    font-family: inherit; font-size: 13.5px; padding: 9px 12px 9px 33px;
+    border: 1px solid var(--dp-line); border-radius: var(--dp-radius-sm);
+    background: var(--dp-surface-card); color: var(--dp-ink); width: 240px;
+  }
+  .search-field input:focus { outline: none; border-color: var(--dp-accent); box-shadow: 0 0 0 3px var(--dp-accent-wash); }
+
+  .btn-primary {
+    font-family: inherit; font-size: 13.5px; font-weight: 600; padding: 9px 16px;
+    border-radius: var(--dp-radius-sm); border: 1px solid transparent; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+    background: var(--dp-accent); color: #fff;
+  }
+  .btn-primary:hover { background: var(--dp-accent-strong); }
+  .btn-icon {
+    width: 32px; height: 32px; padding: 0; border-radius: var(--dp-radius-sm);
+    border: 1px solid var(--dp-line); background: var(--dp-surface-card); color: var(--dp-ink-soft);
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .btn-icon:hover { background: var(--dp-line-soft); color: var(--dp-ink); }
+  .btn-icon.danger:hover { background: var(--dp-danger-wash); color: var(--dp-danger); border-color: var(--dp-danger); }
+
+  .team-list { background: var(--dp-surface-card); border: 1px solid var(--dp-line); border-radius: var(--dp-radius); box-shadow: var(--dp-shadow); overflow: hidden; }
+  .team-list-head, .team-row {
+    display: grid;
+    grid-template-columns: 22px 1.5fr 1.6fr 108px 108px 74px 1fr 74px;
+    gap: 14px; align-items: center;
+  }
+  .team-list-head {
+    padding: 10px 18px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--dp-ink-faint); border-bottom: 1px solid var(--dp-line);
+  }
+  .team-row { padding: 14px 18px; border-bottom: 1px solid var(--dp-line-soft); }
+  .team-row:last-child { border-bottom: none; }
+  .team-row:hover { background: var(--dp-line-soft); }
+  .team-row.is-inactive { opacity: .58; }
+
+  .team-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .team-name { font-weight: 620; color: var(--dp-ink); }
+  .team-competenze { font-size: 11.5px; color: var(--dp-ink-faint); margin-top: 1px; }
+
+  .team-address { font-size: 12.5px; color: var(--dp-ink-soft); display: flex; flex-direction: column; gap: 2px; }
+  .team-address .addr-line { display: flex; align-items: baseline; gap: 5px; }
+  .team-address .addr-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--dp-ink-faint); width: 54px; flex-shrink: 0; }
+  .team-address svg { flex-shrink: 0; color: var(--dp-ink-faint); }
+
+  .team-hours, .team-lunch { font-family: var(--dp-mono); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--dp-ink); }
+  .team-lunch.none { font-family: inherit; color: var(--dp-ink-faint); font-style: italic; font-size: 12px; }
+
+  .toggle { position: relative; display: inline-block; width: 38px; height: 22px; }
+  .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .toggle .track { position: absolute; inset: 0; background: var(--dp-line); border-radius: 999px; cursor: pointer; transition: background .15s ease; }
+  .toggle .track::before { content: ""; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: transform .15s ease; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+  .toggle input:checked + .track { background: var(--dp-good); }
+  .toggle input:checked + .track::before { transform: translateX(16px); }
+  .toggle input:disabled + .track { opacity: .6; cursor: default; }
+
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 620; padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
+  .chip-neutral { background: var(--dp-line-soft); color: var(--dp-ink-soft); }
+  .chip-warn { background: var(--dp-warn-wash); color: var(--dp-warn); }
+
+  .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+
+  .check-inline { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--dp-ink-soft); margin: 2px 0; }
+  .check-inline input { width: 15px; height: 15px; accent-color: var(--dp-accent); }
+
+  .color-swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+  .color-swatches .swatch { width: 28px; height: 28px; border-radius: 8px; cursor: pointer; border: 2px solid transparent; display: grid; place-items: center; color: #fff; }
+  .color-swatches .swatch.selected { border-color: var(--dp-ink); }
+
+  /* Il modale generico (SQUADRE/INTERVENTI) adotta i nuovi token: qualunque schermata lo usi
+     eredita già lo stile aggiornato, senza bisogno di ridefinirlo per ciascuna. */
+  #modal-box { background: var(--dp-surface-card); border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+  #modal-box h3 { color: var(--dp-ink); font-weight: 650; }
+  #modal-form .field label { color: var(--dp-ink-soft); font-weight: 620; font-size: 12px; }
+  #modal-form input, #modal-form select, #modal-form textarea {
+    border-color: var(--dp-line); background: var(--dp-surface); color: var(--dp-ink); border-radius: var(--dp-radius-sm);
+  }
+  #modal-form input:focus, #modal-form select:focus { outline: none; border-color: var(--dp-accent); box-shadow: 0 0 0 3px var(--dp-accent-wash); }
+  #modal-form .field-help { color: var(--dp-ink-faint); }
+  .modal-actions { border-top: 1px solid var(--dp-line-soft); padding-top: 16px; }
+  .checklist-squadre label { background: var(--dp-surface); border-color: var(--dp-line); color: var(--dp-ink-soft); }
+  .ferie-riga input { border-color: var(--dp-line); }
+  #modal-form button.btn.secondary.small, .ferie-rimuovi { border-color: var(--dp-line); color: var(--dp-ink-soft); background: var(--dp-surface-card); }
+
+  @media (prefers-color-scheme: dark) {
+    .checklist-squadre label { background: var(--dp-surface); border-color: var(--dp-line); }
+  }
 </style>
