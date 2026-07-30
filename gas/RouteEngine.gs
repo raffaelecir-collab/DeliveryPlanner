@@ -575,9 +575,15 @@ function riempiGiornata_(squadra, nodi, risultato, matriceStima, partenzaIdx, ri
 /**
  * Come riempiGiornata_, ma con un pool di candidati ESPLICITO (passato dal chiamante) invece che
  * ricavato da risultato.nonIncluse: usata da estendiPercorsoEsistente_ per aggiungere nuovi
- * candidati a un percorso le cui tappe iniziali sono già fissate (vedi lì). Tenta l'inserimento
- * di ciascun candidato in qualsiasi posizione del percorso attuale, accettandolo solo se il
- * numero di tappe incluse aumenta — non elimina/sposta mai una tappa già presente.
+ * candidati a un percorso le cui tappe iniziali sono già fissate (vedi lì). Per ciascun candidato
+ * prova TUTTE le posizioni di inserimento (partendo dalla più economica in termini di viaggio),
+ * non solo la migliore: con stime di viaggio simmetriche la posizione "più economica" spesso
+ * pareggia tra inserire prima o dopo una tappa fissa, e solo una delle due può risultare
+ * compatibile con orario di lavoro/pausa pranzo/finestra oraria (es. una tappa lunga già fissata
+ * che finisce esattamente all'inizio della pausa pranzo: inserire un candidato prima la fa
+ * sconfinare, inserirlo dopo no). Fermarsi alla prima posizione provata farebbe scartare
+ * ingiustamente candidati che in realtà entrano benissimo nella giornata. Accetta un inserimento
+ * solo se il numero di tappe incluse aumenta — non elimina/sposta mai una tappa già presente.
  */
 function riempiGiornataConCandidatiEspliciti_(squadra, nodi, risultato, matriceStima, partenzaIdx, rientroIdx, regole) {
   var MAX_ITERAZIONI = 30;
@@ -617,30 +623,32 @@ function riempiGiornataConCandidatiEspliciti_(squadra, nodi, risultato, matriceS
       .map(function (n) {
         var idx = idxPerId[n.intervento.id];
         if (idx === undefined) return null;
-        var migliorPos = -1, migliorCosto = Infinity;
+        var posizioni = [];
         for (var pos = -1; pos < ordineAttuale.length; pos++) {
-          var costo = costoInserzionePosizione(ordineAttuale, idx, pos);
-          if (costo < migliorCosto) { migliorCosto = costo; migliorPos = pos; }
+          posizioni.push({ pos: pos, costoViaggio: costoInserzionePosizione(ordineAttuale, idx, pos) });
         }
+        posizioni.sort(function (a, b) { return a.costoViaggio - b.costoViaggio; });
         var durata = nodi[idx].intervento.durataMinuti || 60;
         var ricavo = nodi[idx].intervento.ricavo || 0;
         var bonusCompetenza = squadraHaCompetenzaSpecificaPer_(squadra, nodi[idx].intervento) ? pesoCompetenzaSpecifica : 0;
-        return { idx: idx, id: n.intervento.id, pos: migliorPos, costo: migliorCosto + durata - pesoRicavoEffettivo * ricavo - bonusCompetenza };
+        return { idx: idx, id: n.intervento.id, posizioni: posizioni, costo: posizioni[0].costoViaggio + durata - pesoRicavoEffettivo * ricavo - bonusCompetenza };
       })
       .filter(function (c) { return c !== null; })
       .sort(function (a, b) { return a.costo - b.costo; })
       .slice(0, MAX_CANDIDATI_PER_TENTATIVO);
 
     var migliorato = false;
-    for (var i = 0; i < candidati.length; i++) {
-      var provaOrdine = ordineAttuale.slice();
-      provaOrdine.splice(candidati[i].pos + 1, 0, candidati[i].idx);
-      var provaRisultato = pianificaConUpgradeReale_(squadra, nodi, provaOrdine, matriceStima, partenzaIdx, rientroIdx, regole);
-      if (provaRisultato.tappe.length > corrente.tappe.length) {
-        provaRisultato.nonIncluse = corrente.nonIncluse.filter(function (n) { return n.intervento.id !== candidati[i].id; });
-        corrente = provaRisultato;
-        migliorato = true;
-        break;
+    for (var i = 0; i < candidati.length && !migliorato; i++) {
+      for (var p = 0; p < candidati[i].posizioni.length; p++) {
+        var provaOrdine = ordineAttuale.slice();
+        provaOrdine.splice(candidati[i].posizioni[p].pos + 1, 0, candidati[i].idx);
+        var provaRisultato = pianificaConUpgradeReale_(squadra, nodi, provaOrdine, matriceStima, partenzaIdx, rientroIdx, regole);
+        if (provaRisultato.tappe.length > corrente.tappe.length) {
+          provaRisultato.nonIncluse = corrente.nonIncluse.filter(function (n) { return n.intervento.id !== candidati[i].id; });
+          corrente = provaRisultato;
+          migliorato = true;
+          break;
+        }
       }
     }
     if (!migliorato) break;
