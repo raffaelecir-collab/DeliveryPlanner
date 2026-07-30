@@ -965,15 +965,26 @@ function riempiBucoGiorno(squadraId, giornoStr) {
   var giaPianificati = tuttiInterventi.filter(function (i) {
     return i.squadraId === squadraId && i.dataPianificata === giornoFmt && i.stato === STATO_INTERVENTO.PIANIFICATO;
   }).sort(function (a, b) { return (a.ordineTappa || 0) - (b.ordineTappa || 0); });
+
+  // A differenza della selezione manuale (che non applica alcun controllo su "Non Prima Del"/
+  // "Scadenza"), qui questi due campi sono un vincolo rigido: un intervento richiesto per una data
+  // futura, o già scaduto rispetto al giorno che si sta riempiendo, non viene proposto. A differenza
+  // degli altri motivi di esclusione (finestra oraria, orario di lavoro...) questo si decide PRIMA
+  // di costruire il percorso, quindi va segnalato esplicitamente sulla riga — altrimenti l'utente
+  // vedrebbe l'intervento restare "Da pianificare" senza alcuna nota, come se fosse un errore.
+  var esclusiPerData = [];
   var disponibiliCompatibili = tuttiInterventi.filter(function (i) {
     if (i.stato !== STATO_INTERVENTO.DA_PIANIFICARE) return false;
     if (!isNum_(i.lat) || !isNum_(i.lng)) return false;
     if (!squadraCoprCompetenza_(squadra, i)) return false;
     var dr = parseDateStr_(i.dataRichiesta);
-    if (dr && giorno < dr) return false;
     var sc = parseDateStr_(i.scadenza);
-    if (sc && giorno > sc) return false;
+    if (dr && giorno < dr) { esclusiPerData.push({ intervento: i, motivo: 'Non incluso nel riempimento del ' + giornoFmt + ': non disponibile prima del ' + i.dataRichiesta }); return false; }
+    if (sc && giorno > sc) { esclusiPerData.push({ intervento: i, motivo: 'Non incluso nel riempimento del ' + giornoFmt + ': scaduto il ' + i.scadenza }); return false; }
     return true;
+  });
+  esclusiPerData.forEach(function (n) {
+    updateRowFields_('INTERVENTI', n.intervento._row, { motivoNonPianificato: n.motivo });
   });
 
   var selezionati = giaPianificati.concat(disponibiliCompatibili);

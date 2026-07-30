@@ -268,14 +268,23 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      ripianificate da zero) e vengono solo **aggiunti** interventi ancora
      "Da pianificare" compatibili (stessa competenza, stesso rispetto di
      finestre orarie/pausa pranzo/orario di lavoro) nei buchi residui del
-     turno, per non lasciare ore inutilizzate. Un nuovo intervento può essere
-     inserito anche "in mezzo" a due tappe già ferme se conviene dal punto di
-     vista del percorso (i loro orari si aggiornano di conseguenza), ma non
-     viene mai rimosso o spostato su un'altra squadra/giorno un intervento già
-     confermato. Premendo "Rimuovi" questo riempimento **parte in
-     automatico** subito dopo la deselezione, così il buco lasciato aperto in
-     un giorno già programmato viene ricoperto, se possibile, senza un passo
-     manuale in più.
+     turno, per non lasciare ore inutilizzate. Vengono valutate **tutte** le
+     posizioni di inserimento disponibili per ciascun candidato (non solo la
+     più economica in termini di viaggio) e **tutti** i candidati compatibili
+     (non solo i primi per vicinanza), per non scartare ingiustamente un
+     intervento che in realtà entrerebbe benissimo nella giornata. Un nuovo
+     intervento può essere inserito anche "in mezzo" a due tappe già ferme se
+     conviene dal punto di vista del percorso (i loro orari si aggiornano di
+     conseguenza), ma non viene mai rimosso o spostato su un'altra
+     squadra/giorno un intervento già confermato. A differenza della
+     selezione manuale, qui **"Non Prima Del" e "Scadenza" sono un vincolo
+     rigido**: un intervento non ancora disponibile o già scaduto per il
+     giorno che si sta riempiendo non viene proposto, ma resta comunque "Da
+     pianificare" con una nota esplicita del perché ("Nota Pianificazione")
+     invece di sparire silenziosamente dal riempimento. Premendo "Rimuovi"
+     questo riempimento **parte in automatico** subito dopo la deselezione,
+     così il buco lasciato aperto in un giorno già programmato viene
+     ricoperto, se possibile, senza un passo manuale in più.
    - **"🗺️ Vedi mappa"** per una squadra/giorno: apre una mappa (OpenStreetMap
      via Leaflet, nessuna chiave API da configurare) con le tappe numerate
      nell'ordine di visita e collegate da segmenti diritti — non un percorso
