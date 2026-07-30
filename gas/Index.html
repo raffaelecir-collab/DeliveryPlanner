@@ -39,7 +39,19 @@
 
         <div class="dash-body">
           <div class="dash-teams" id="dash-team-list"></div>
-          <div class="dash-map-wrap"><div id="dash-map"></div></div>
+          <div class="dash-map-wrap">
+            <div class="dash-map-toolbar">
+              <button type="button" class="map-mode-btn active" data-map-mode="percorsi">🧭 Percorsi</button>
+              <button type="button" class="map-mode-btn" data-map-mode="stato">📍 Tutti gli interventi</button>
+            </div>
+            <div id="dash-map"></div>
+            <div class="mappa-legenda hidden" id="dash-map-legenda">
+              <span><span class="legenda-dot" style="background:#B4740E"></span> Da pianificare</span>
+              <span><span class="legenda-dot" style="background:#2E7D5B"></span> Pianificato</span>
+              <span><span class="legenda-dot" style="background:#1B6B7C"></span> Completato</span>
+              <span><span class="legenda-dot" style="background:#9aa0a6"></span> Annullato</span>
+            </div>
+          </div>
         </div>
 
         <div class="dash-detail" id="dash-detail"></div>

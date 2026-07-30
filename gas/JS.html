@@ -1229,7 +1229,7 @@
   }
 
   // ---------- Dashboard (Screen A): mappa + squadre + dettaglio, su un giorno o un intervallo ----------
-  var dashState = { dal: null, al: null, selezionata: null, righe: [] };
+  var dashState = { dal: null, al: null, selezionata: null, righe: [], mapMode: 'percorsi' };
   var dashMapInstance = null, dashLayerGroup = null;
 
   function getDashDal() { return document.getElementById('dash-dal').value; }
@@ -1305,8 +1305,12 @@
         dashState.selezionata = primaAttiva ? primaAttiva.id : null;
       }
       renderDashTeamList();
-      renderDashMap();
       renderDashDetail();
+      // In vista "stato" la mappa mostra tutti gli interventi indipendentemente dal Dal/Al: la
+      // ricarica qui tiene quella vista aggiornata dopo un'azione (conferma percorso, riempi
+      // buchi, ecc.) senza dover disattivarla e riattivarla a mano.
+      if (dashState.mapMode === 'stato') loadInterventi().then(renderDashMap);
+      else renderDashMap();
     }).catch(function (err) { toast('Errore nel caricamento della dashboard: ' + (err.message || err), 'error'); });
   }
 
@@ -1334,6 +1338,13 @@
     }).join('');
   }
 
+  var COLORE_STATO_MAPPA_ = {
+    'Da pianificare': '#B4740E',
+    'Pianificato': '#2E7D5B',
+    'Completato': '#1B6B7C',
+    'Annullato': '#9aa0a6'
+  };
+
   function renderDashMap() {
     caricaLeaflet_().then(function () {
       if (!dashMapInstance) {
@@ -1344,36 +1355,74 @@
         dashLayerGroup = L.layerGroup().addTo(dashMapInstance);
       }
       dashLayerGroup.clearLayers();
-      var giorniRange = dateRangeArrayClient(dashState.dal, dashState.al);
-      var multiGiorno = giorniRange.length > 1;
-      var tuttiPunti = [];
-      state.squadre.filter(function (s) { return s.attiva; }).forEach(function (sq) {
-        if (!isNumClient(sq.latPartenza) || !isNumClient(sq.lngPartenza)) return;
-        var attenuata = sq.id !== dashState.selezionata;
-        giorniRange.forEach(function (gInput) {
-          var tappe = datiSquadraGiorno_(sq.id, gInput).filter(function (t) { return isNumClient(t.lat) && isNumClient(t.lng); });
-          if (!tappe.length) return;
-          var partenza = [sq.latPartenza, sq.lngPartenza];
-          var rientro = isNumClient(sq.latRientro) ? [sq.latRientro, sq.lngRientro] : partenza;
-          var punti = [partenza].concat(tappe.map(function (t) { return [t.lat, t.lng]; })).concat([rientro]);
-          L.polyline(punti, { color: sq.colore || '#999', weight: attenuata ? 2 : 4, opacity: attenuata ? .3 : .9 }).addTo(dashLayerGroup);
-          tappe.forEach(function (t, idx) {
-            var icon = L.divIcon({
-              className: '',
-              html: '<div style="background:' + (sq.colore || '#999') + ';opacity:' + (attenuata ? 0.35 : 1) + ';color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.35);">' + (idx + 1) + '</div>',
-              iconSize: [22, 22], iconAnchor: [11, 11]
-            });
-            L.marker([t.lat, t.lng], { icon: icon }).addTo(dashLayerGroup)
-              .bindPopup('<b>' + escapeHtml(t.cliente) + '</b><br>' + escapeHtml(t.indirizzo || '') + (multiGiorno ? '<br><small>' + giornoLabelBreveClient(gInput) + '</small>' : ''));
-            tuttiPunti.push([t.lat, t.lng]);
-          });
-        });
-      });
-      if (tuttiPunti.length) dashMapInstance.fitBounds(tuttiPunti, { padding: [30, 30] });
+      if (dashState.mapMode === 'stato') renderDashMapStato_();
+      else renderDashMapPercorsi_();
       setTimeout(function () { if (dashMapInstance) dashMapInstance.invalidateSize(); }, 60);
     }).catch(function () {
       toast('Impossibile caricare la mappa (verifica la connessione a internet o la rete/proxy in uso).', 'error');
     });
+  }
+
+  /** Vista "Percorsi": i percorsi già pianificati nell'intervallo Dal/Al selezionato, squadra per squadra. */
+  function renderDashMapPercorsi_() {
+    var giorniRange = dateRangeArrayClient(dashState.dal, dashState.al);
+    var multiGiorno = giorniRange.length > 1;
+    var tuttiPunti = [];
+    state.squadre.filter(function (s) { return s.attiva; }).forEach(function (sq) {
+      if (!isNumClient(sq.latPartenza) || !isNumClient(sq.lngPartenza)) return;
+      var attenuata = sq.id !== dashState.selezionata;
+      giorniRange.forEach(function (gInput) {
+        var tappe = datiSquadraGiorno_(sq.id, gInput).filter(function (t) { return isNumClient(t.lat) && isNumClient(t.lng); });
+        if (!tappe.length) return;
+        var partenza = [sq.latPartenza, sq.lngPartenza];
+        var rientro = isNumClient(sq.latRientro) ? [sq.latRientro, sq.lngRientro] : partenza;
+        var punti = [partenza].concat(tappe.map(function (t) { return [t.lat, t.lng]; })).concat([rientro]);
+        L.polyline(punti, { color: sq.colore || '#999', weight: attenuata ? 2 : 4, opacity: attenuata ? .3 : .9 }).addTo(dashLayerGroup);
+        tappe.forEach(function (t, idx) {
+          var icon = L.divIcon({
+            className: '',
+            html: '<div style="background:' + (sq.colore || '#999') + ';opacity:' + (attenuata ? 0.35 : 1) + ';color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.35);">' + (idx + 1) + '</div>',
+            iconSize: [22, 22], iconAnchor: [11, 11]
+          });
+          L.marker([t.lat, t.lng], { icon: icon }).addTo(dashLayerGroup)
+            .bindPopup('<b>' + escapeHtml(t.cliente) + '</b><br>' + escapeHtml(t.indirizzo || '') + (multiGiorno ? '<br><small>' + giornoLabelBreveClient(gInput) + '</small>' : ''));
+          tuttiPunti.push([t.lat, t.lng]);
+        });
+      });
+    });
+    if (tuttiPunti.length) dashMapInstance.fitBounds(tuttiPunti, { padding: [30, 30] });
+  }
+
+  /** Vista "Tutti gli interventi": ogni intervento geocodificato (indipendentemente dal Dal/Al scelto), colorato per stato. */
+  function renderDashMapStato_() {
+    var tuttiPunti = [];
+    (state.interventi || []).forEach(function (i) {
+      if (!isNumClient(i.lat) || !isNumClient(i.lng)) return;
+      var colore = COLORE_STATO_MAPPA_[i.stato] || '#999';
+      var icon = L.divIcon({
+        className: '',
+        html: '<div style="background:' + colore + ';width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);"></div>',
+        iconSize: [14, 14], iconAnchor: [7, 7]
+      });
+      var squadra = i.squadraId ? state.squadre.filter(function (s) { return s.id === i.squadraId; })[0] : null;
+      var popup = '<b>' + escapeHtml(i.cliente) + '</b><br>' + escapeHtml(i.indirizzo || '') + '<br>Stato: ' + escapeHtml(i.stato || '') +
+        (squadra ? '<br>Squadra: ' + escapeHtml(squadra.nome) + (i.dataPianificata ? ' — ' + escapeHtml(i.dataPianificata) + (i.oraPianificata ? ' ' + escapeHtml(i.oraPianificata) : '') : '') : '');
+      L.marker([i.lat, i.lng], { icon: icon }).addTo(dashLayerGroup).bindPopup(popup);
+      tuttiPunti.push([i.lat, i.lng]);
+    });
+    if (tuttiPunti.length) dashMapInstance.fitBounds(tuttiPunti, { padding: [30, 30] });
+  }
+
+  function setMapMode(mode) {
+    dashState.mapMode = mode;
+    document.querySelectorAll('.map-mode-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.mapMode === mode); });
+    var legenda = document.getElementById('dash-map-legenda');
+    if (legenda) legenda.classList.toggle('hidden', mode !== 'stato');
+    if (mode === 'stato') {
+      loadInterventi().then(renderDashMap);
+    } else {
+      renderDashMap();
+    }
   }
 
   function dashRigaTappa_(t) {
@@ -1524,6 +1573,10 @@
     if (elAl) elAl.value = toInputDate(oggi);
     on('dash-dal', 'change', caricaDashboard);
     on('dash-al', 'change', caricaDashboard);
+
+    document.querySelectorAll('.map-mode-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { setMapMode(btn.dataset.mapMode); });
+    });
 
     onQuery('#dash-team-list', 'click', function (e) {
       var card = e.target.closest('[data-squadra]');

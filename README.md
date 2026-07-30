@@ -184,10 +184,15 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    intervallo di più giorni. A sinistra l'elenco delle squadre attive, con
    stato ("Pianificato"/"Libera"), produzione rispetto al target (se
    impostato), km indicativi e numero di interventi nel periodo scelto; a
-   destra una mappa (Leaflet/OpenStreetMap) che disegna il percorso di ogni
-   squadra per ciascun giorno dell'intervallo, con quella selezionata in
-   evidenza e le altre attenuate. Cliccando una squadra nell'elenco la
-   selezioni e il pannello sotto la mappa mostra il dettaglio: con un solo
+   destra una mappa (Leaflet/OpenStreetMap) con due modalità, scelte con i
+   due bottoncini sopra la mappa: **"🧭 Percorsi"** (default) disegna il
+   percorso di ogni squadra per ciascun giorno dell'intervallo, con quella
+   selezionata in evidenza e le altre attenuate; **"📍 Tutti gli interventi"**
+   mostra invece, indipendentemente dal Dal/Al scelto, ogni intervento
+   geocodificato colorato per stato (legenda sotto la mappa: Da pianificare,
+   Pianificato, Completato, Annullato) — utile per una visione d'insieme del
+   territorio, non solo di ciò che è già pianificato. Cliccando una squadra
+   nell'elenco la selezioni e il pannello sotto la mappa mostra il dettaglio: con un solo
    giorno selezionato, la lista piatta delle tappe (ora, cliente, indirizzo,
    durata, telefono); con un intervallo di più giorni, le stesse tappe
    **raggruppate per giornata**, ciascuna con il proprio riepilogo e le

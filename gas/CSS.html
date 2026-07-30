@@ -136,7 +136,7 @@
 
   #pian-selezione-mappa-wrap { margin-bottom: 14px; }
   #pian-selezione-mappa-wrap.hidden { display: none; }
-  #pian-selezione-mappa { width: 100%; height: 420px; border-radius: var(--radius); overflow: hidden; }
+  #pian-selezione-mappa { width: 100%; height: 420px; border-radius: var(--radius); overflow: hidden; isolation: isolate; }
   .mappa-legenda { display: flex; gap: 16px; font-size: 12px; color: var(--grigio-600); margin-top: 8px; flex-wrap: wrap; }
   .mappa-legenda .legenda-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
   .legenda-dot.disponibile, .marker-selezione.disponibile { background: var(--arancio); }
@@ -456,8 +456,19 @@
   .dash-progress-fill.good { background: var(--dp-good); }
   .dash-team-meta-row { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--dp-ink-faint); }
 
-  .dash-map-wrap { border: 1px solid var(--dp-line); border-radius: var(--dp-radius); overflow: hidden; box-shadow: var(--dp-shadow); }
+  .dash-map-wrap { border: 1px solid var(--dp-line); border-radius: var(--dp-radius); overflow: hidden; box-shadow: var(--dp-shadow); isolation: isolate; }
   #dash-map { width: 100%; height: 600px; }
+
+  .dash-map-toolbar { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid var(--dp-line); background: var(--dp-surface-card); }
+  .map-mode-btn {
+    font-family: inherit; font-size: 12.5px; font-weight: 620; padding: 6px 13px; border-radius: 999px;
+    border: 1px solid var(--dp-line); background: var(--dp-surface); color: var(--dp-ink-soft); cursor: pointer;
+  }
+  .map-mode-btn:hover { background: var(--dp-line-soft); }
+  .map-mode-btn.active { background: var(--dp-accent); color: #fff; border-color: var(--dp-accent); }
+
+  #dash-map-legenda { padding: 9px 16px; border-top: 1px solid var(--dp-line); background: var(--dp-surface-card); margin: 0; }
+  #dash-map-legenda.hidden { display: none; }
 
   .dash-detail { background: var(--dp-surface-card); border: 1px solid var(--dp-line); border-radius: var(--dp-radius); box-shadow: var(--dp-shadow); padding: 18px 20px; }
   .dash-detail-head { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 14px; }
