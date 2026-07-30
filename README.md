@@ -270,8 +270,18 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    giorno/squadra, con le indicazioni essenziali (ora, cliente, indirizzo,
    **durata dell'intervento**) più il **numero di telefono** — utile per
    contattare il cliente direttamente da questa vista. Da qui puoi:
-   - **"Rimuovi"** su una singola riga: l'intervento torna "Da pianificare"
-     (deselezione di una tappa già programmata);
+   - **"Rimuovi"** su una singola riga: l'intervento torna semplicemente "Da
+     pianificare" (deselezione di una tappa già programmata) — **non** viene
+     ripianificato né il buco lasciato aperto viene ricoperto in automatico:
+     è una scelta esplicita successiva (premi "Riempi buco" quando vuoi). In
+     più, l'intervento rimosso **non viene più riproposto dagli strumenti
+     automatici** ("Riempi buco", pianificazione su intervallo) per quella
+     **stessa data** da cui è stato tolto — così non ricompare subito al
+     primo riempimento automatico successivo — ma resta **sempre selezionabile
+     a mano**, anche per quella stessa data (tab Pianificazione), e resta
+     pianificabile automaticamente per qualsiasi altra data. Il vincolo si
+     azzera da solo non appena l'intervento viene ripianificato di nuovo (a
+     mano o in automatico, anche per un'altra data);
    - **"Riempi buco"** per una squadra/giorno: le tappe **già pianificate
      restano ferme** (stesso ordine relativo tra loro, mai scartate né
      ripianificate da zero) e vengono solo **aggiunti** interventi ancora
@@ -307,10 +317,7 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      (indipendentemente dalla priorità realmente impostata sulla riga, che
      non viene modificata) finché la scadenza non viene corretta o rimossa —
      vale per "Riempi buco", per la pianificazione automatica su intervallo e
-     per la selezione manuale. Premendo "Rimuovi"
-     questo riempimento **parte in automatico** subito dopo la deselezione,
-     così il buco lasciato aperto in un giorno già programmato viene
-     ricoperto, se possibile, senza un passo manuale in più.
+     per la selezione manuale.
    - **"🗺️ Vedi mappa"** per una squadra/giorno: apre una mappa (OpenStreetMap
      via Leaflet, nessuna chiave API da configurare) con le tappe numerate
      nell'ordine di visita e collegate da segmenti diritti — non un percorso

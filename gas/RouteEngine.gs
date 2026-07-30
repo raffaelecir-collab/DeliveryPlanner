@@ -1023,8 +1023,12 @@ function confermaPercorso(squadraId, giornoStr, interventoIdsOrdinati, ignoraTet
   var idsConfermati = anteprima.tappe.map(function (t) { return t.interventoId; });
   precedentementePianificati.forEach(function (i) {
     if (idsConfermati.indexOf(i.id) === -1) {
+      // Deselezionato durante una ripianificazione manuale: stessa protezione di "Rimuovi" (tab
+      // Programmazione) — non va riproposto automaticamente per questa stessa data, resta
+      // comunque pianificabile a mano.
       updateRowFields_('INTERVENTI', i._row, {
-        stato: STATO_INTERVENTO.DA_PIANIFICARE, squadraId: '', dataPianificata: '', oraPianificata: '', ordineTappa: '', motivoNonPianificato: ''
+        stato: STATO_INTERVENTO.DA_PIANIFICARE, squadraId: '', dataPianificata: '', oraPianificata: '', ordineTappa: '', motivoNonPianificato: '',
+        nonAutomatizzabileData: anteprima.giorno
       });
     }
   });
@@ -1037,7 +1041,8 @@ function confermaPercorso(squadraId, giornoStr, interventoIdsOrdinati, ignoraTet
       dataPianificata: anteprima.giorno,
       oraPianificata: t.oraInizio,
       ordineTappa: idx + 1,
-      motivoNonPianificato: ''
+      motivoNonPianificato: '',
+      nonAutomatizzabileData: ''
     });
   });
 
@@ -1153,6 +1158,9 @@ function calcolaRiempimentoBuco_(squadraId, giornoStr, vincolaOrariFissati) {
     if (i.stato !== STATO_INTERVENTO.DA_PIANIFICARE) return false;
     if (!isNum_(i.lat) || !isNum_(i.lng)) return false;
     if (!squadraCoprCompetenza_(squadra, i)) return false;
+    // Rimosso da questa stessa data con "Rimuovi" (tab Programmazione): non va riproposto
+    // automaticamente qui, resta comunque pianificabile a mano.
+    if (i.nonAutomatizzabileData === giornoFmt) return false;
     var dr = parseDateStr_(i.dataRichiesta);
     if (dr && giorno < dr) { esclusiPerData.push({ intervento: i, motivo: 'Non incluso nel riempimento del ' + giornoFmt + ': non disponibile prima del ' + i.dataRichiesta }); return false; }
     return true;
@@ -1241,7 +1249,8 @@ function riempiBucoGiorno(squadraId, giornoStr, consentiSpostamento) {
       dataPianificata: giornoFmt,
       oraPianificata: t.oraInizio,
       ordineTappa: idx + 1,
-      motivoNonPianificato: ''
+      motivoNonPianificato: '',
+      nonAutomatizzabileData: ''
     });
   });
   risultato.nonIncluse.forEach(function (n) {
@@ -1502,6 +1511,10 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
       candidatiPerSquadra[squadra.id] = pool.filter(function (i) {
         if (i._assegnato) return false;
         if (!squadraCoprCompetenza_(squadra, i)) return false;
+        // Rimosso da questa stessa data con "Rimuovi" (tab Programmazione): non va riproposto
+        // automaticamente per questa data, resta comunque pianificabile a mano (e automaticamente
+        // per le altre date dell'intervallo).
+        if (i.nonAutomatizzabileData === giornoFmt) return false;
         var dr = parseDateStr_(i.dataRichiesta);
         if (dr && giorno < dr) return false;
         return true;
@@ -1579,7 +1592,8 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
           dataPianificata: giornoFmt,
           oraPianificata: t.oraInizio,
           ordineTappa: idx + 1,
-          motivoNonPianificato: ''
+          motivoNonPianificato: '',
+          nonAutomatizzabileData: ''
         });
       });
 

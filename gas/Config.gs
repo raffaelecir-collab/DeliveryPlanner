@@ -116,7 +116,8 @@ var SCHEMA = {
       { key: 'motivoNonPianificato', label: 'Nota Pianificazione', type: 'text', readonly: true },
       { key: 'telefono', label: 'Telefono', type: 'text' },
       { key: 'ricavo', label: 'Ricavo (€)', type: 'number', default: 0, help: 'Usato per calcolare la produzione (ricavo totale) di ciascuna squadra rispetto al proprio target di produzione giornaliera.' },
-      { key: 'codiceEsterno', label: 'Codice Esterno (Ods)', type: 'text', readonly: true, help: 'Identificativo dell\'intervento nel sistema di tracking esterno da cui è stato importato (tab ImportInterventi): re-importando lo stesso Ods, questo intervento viene aggiornato invece di duplicato.' }
+      { key: 'codiceEsterno', label: 'Codice Esterno (Ods)', type: 'text', readonly: true, help: 'Identificativo dell\'intervento nel sistema di tracking esterno da cui è stato importato (tab ImportInterventi): re-importando lo stesso Ods, questo intervento viene aggiornato invece di duplicato.' },
+      { key: 'nonAutomatizzabileData', label: 'Escluso da pianificazione automatica per il', type: 'date', readonly: true, help: 'Impostato automaticamente da "Rimuovi" (tab Programmazione): per questa data, l\'intervento non viene riproposto da "Riempi buco" o dalla pianificazione automatica su intervallo — resta comunque pianificabile a mano, anche per la stessa data. Si azzera da solo non appena l\'intervento viene ripianificato (a mano o in automatico).' }
     ]
   },
   REGOLE: {

@@ -43,7 +43,15 @@ function eliminaIntervento(id, row) {
   return deleteRow_('INTERVENTI', id, row);
 }
 
-/** Riporta un intervento allo stato "Da pianificare", liberando squadra/data/ora assegnate. */
+/**
+ * Riporta un intervento allo stato "Da pianificare", liberando squadra/data/ora assegnate (senza
+ * ripianificarlo automaticamente: è compito dell'utente farlo, a mano o con un successivo "Riempi
+ * buco" esplicito). Registra in nonAutomatizzabileData la data da cui è stato rimosso: finché
+ * quel campo resta valorizzato, gli strumenti automatici (Riempi buco, pianificazione su
+ * intervallo) non lo riproporranno per quella stessa data — resta comunque selezionabile a mano,
+ * anche per la stessa data. Il vincolo si azzera da solo alla prossima ripianificazione (vedi
+ * salvaIntervento, confermaPercorso, riempiBucoGiorno, pianificaIntervallo).
+ */
 function ripianificaIntervento(id, row) {
   var esistente = trovaInterventoPerIdORiga_(id, row);
   if (!esistente) throw new Error('Intervento non trovato.');
@@ -53,7 +61,8 @@ function ripianificaIntervento(id, row) {
     dataPianificata: '',
     oraPianificata: '',
     ordineTappa: '',
-    motivoNonPianificato: ''
+    motivoNonPianificato: '',
+    nonAutomatizzabileData: esistente.dataPianificata || ''
   });
   return true;
 }

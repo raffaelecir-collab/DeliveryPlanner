@@ -1170,10 +1170,18 @@
     }).catch(function (err) { toast('Errore nel riempimento: ' + (err.message || err), 'error'); });
   }
 
+  /**
+   * Rimuove un intervento dal percorso: torna "Da pianificare" e basta, senza ripianificare né
+   * riempire subito il buco lasciato aperto — quello resta una scelta esplicita dell'utente (col
+   * pulsante "Riempi buco"). L'intervento rimosso non viene più riproposto dagli strumenti
+   * automatici per questa stessa data (resta comunque selezionabile a mano, anche per la stessa
+   * data), finché non viene ripianificato di nuovo.
+   */
   function rimuoviProgrammatoClick(id, row, squadraId, giornoStr) {
-    if (!window.confirm('Rimuovere questo intervento dal percorso? Tornerà "Da pianificare" e il buco lasciato aperto verrà subito ricoperto, se possibile, con altri interventi disponibili.')) return;
+    if (!window.confirm('Rimuovere questo intervento dal percorso? Tornerà "Da pianificare" e non sarà più riproposto automaticamente per questa data (resta comunque selezionabile a mano).')) return;
     callServer('ripianificaIntervento', id, row).then(function () {
-      return riempiBucoGiornoClick(squadraId, giornoStr);
+      toast('Intervento rimosso: torna "Da pianificare".', 'success');
+      return caricaProgrammazione();
     }).catch(function (err) { toast('Errore nella rimozione: ' + (err.message || err), 'error'); });
   }
 
