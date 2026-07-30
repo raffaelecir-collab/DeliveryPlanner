@@ -1269,17 +1269,18 @@
         if (cssPronto && scriptPronto) { clearTimeout(timeout); resolve(); }
       }
 
+      __dbg('caricaLeaflet_: inizio inserimento link+script');
       var link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      link.onload = function () { cssPronto = true; provaRisolvere(); };
-      link.onerror = function () { clearTimeout(timeout); reject(new Error('css load error')); };
+      link.onload = function () { __dbg('caricaLeaflet_: CSS onload'); cssPronto = true; provaRisolvere(); };
+      link.onerror = function () { __dbg('caricaLeaflet_: CSS onerror'); clearTimeout(timeout); reject(new Error('css load error')); };
       document.head.appendChild(link);
 
       var script = document.createElement('script');
       script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.onload = function () { scriptPronto = true; provaRisolvere(); };
-      script.onerror = function () { clearTimeout(timeout); reject(new Error('js load error')); };
+      script.onload = function () { __dbg('caricaLeaflet_: JS onload'); scriptPronto = true; provaRisolvere(); };
+      script.onerror = function () { __dbg('caricaLeaflet_: JS onerror'); clearTimeout(timeout); reject(new Error('js load error')); };
       document.head.appendChild(script);
     }).catch(function (err) {
       leafletCaricamento = null; // permette di ritentare a un click successivo
@@ -1290,6 +1291,39 @@
 
   // ---------- Dashboard (Screen A): mappa + squadre + dettaglio, su un giorno o un intervallo ----------
   var dashState = { dal: null, al: null, selezionata: null, righe: [], mapMode: 'percorsi' };
+
+  // ---------- DEBUG TEMPORANEO: diagnosi bug layout Dashboard (da rimuovere una volta risolto) ----------
+  var __dbgT0 = (window.performance && performance.now) ? performance.now() : Date.now();
+  function __dbg() {
+    var t = Math.round(((window.performance && performance.now) ? performance.now() : Date.now()) - __dbgT0);
+    var args = ['[DBG +' + t + 'ms]'].concat(Array.prototype.slice.call(arguments));
+    console.log.apply(console, args);
+  }
+  function __dbgRect(id) {
+    var el = document.getElementById(id) || document.querySelector(id);
+    if (!el) return id + '=MISSING';
+    var r = el.getBoundingClientRect();
+    var cs = getComputedStyle(el);
+    return id + '={x:' + Math.round(r.x) + ',y:' + Math.round(r.y) + ',w:' + Math.round(r.width) + ',h:' + Math.round(r.height) + ',cls:"' + el.className + '"}';
+  }
+  function __dbgSnapshot(label) {
+    __dbg(label, 'vw=' + window.innerWidth, __dbgRect('.dash-body'), __dbgRect('.dash-teams'), __dbgRect('.dash-map-wrap'), __dbgRect('#dash-map'));
+  }
+  try {
+    var __dbgRO = new ResizeObserver(function (entries) {
+      entries.forEach(function (e) {
+        __dbg('ResizeObserver', e.target.id || e.target.className, 'w=' + Math.round(e.contentRect.width), 'h=' + Math.round(e.contentRect.height));
+      });
+    });
+    document.addEventListener('DOMContentLoaded', function () {
+      ['dash-body', 'dash-teams', 'dash-map-wrap', 'dash-map'].forEach(function (id) {
+        var el = document.getElementById(id) || document.querySelector('.' + id);
+        if (el) __dbgRO.observe(el);
+      });
+    });
+  } catch (e) { console.warn('ResizeObserver non disponibile', e); }
+  window.addEventListener('load', function () { __dbgSnapshot('window.load'); });
+  // ---------- FINE DEBUG TEMPORANEO ----------
   var dashMapInstance = null, dashLayerGroup = null;
 
   function getDashDal() { return document.getElementById('dash-dal').value; }
@@ -1365,20 +1399,29 @@
     var hint = document.getElementById('dash-range-hint');
     if (hint) hint.textContent = giorniRange.length === 1 ? 'Un solo giorno selezionato' : giorniRange.length + ' giorni selezionati';
     mostraCaricamento('dash-team-list', 'dash-map', 'dash-detail');
+    __dbg('caricaDashboard: start', 'dal=' + dal, 'al=' + al);
+    __dbgSnapshot('caricaDashboard: pre-fetch');
     return callServer('getProgrammazione', fromInputDate(dal), fromInputDate(al)).then(function (righe) {
+      __dbg('caricaDashboard: getProgrammazione risolto', righe.length + ' righe');
       dashState.dal = dal; dashState.al = al; dashState.righe = righe;
       if (!dashState.selezionata || !state.squadre.some(function (s) { return s.id === dashState.selezionata && s.attiva; })) {
         var primaAttiva = state.squadre.filter(function (s) { return s.attiva; })[0];
         dashState.selezionata = primaAttiva ? primaAttiva.id : null;
       }
-      renderDashTeamList();
-      renderDashDetail();
+      try { renderDashTeamList(); __dbg('renderDashTeamList OK'); } catch (e) { __dbg('renderDashTeamList ERRORE', e.message, e.stack); throw e; }
+      __dbgSnapshot('dopo renderDashTeamList');
+      try { renderDashDetail(); __dbg('renderDashDetail OK'); } catch (e) { __dbg('renderDashDetail ERRORE', e.message, e.stack); throw e; }
+      __dbgSnapshot('dopo renderDashDetail');
       // In vista "stato" la mappa mostra tutti gli interventi indipendentemente dal Dal/Al: la
       // ricarica qui tiene quella vista aggiornata dopo un'azione (conferma percorso, riempi
       // buchi, ecc.) senza dover disattivarla e riattivarla a mano.
       return dashState.mapMode === 'stato' ? loadInterventi().then(renderDashMap) : renderDashMap();
-    }).catch(function (err) { toast('Errore nel caricamento della dashboard: ' + (err.message || err), 'error'); }).finally(function () {
+    }).catch(function (err) {
+      __dbg('caricaDashboard ERRORE', err && (err.message || err), err && err.stack);
+      toast('Errore nel caricamento della dashboard: ' + (err.message || err), 'error');
+    }).finally(function () {
       nascondiCaricamento('dash-team-list', 'dash-map', 'dash-detail');
+      __dbgSnapshot('caricaDashboard: finally');
     });
   }
 
@@ -1414,9 +1457,12 @@
   };
 
   function renderDashMap() {
+    __dbg('renderDashMap: chiamata', 'dashMapInstance esistente=' + !!dashMapInstance);
     return caricaLeaflet_().then(function () {
+      __dbg('renderDashMap: leaflet pronto'); __dbgSnapshot('renderDashMap: pre-creazione mappa');
       if (!dashMapInstance) {
         dashMapInstance = L.map('dash-map').setView([45.46, 9.19], 11);
+        __dbg('renderDashMap: L.map creata'); __dbgSnapshot('renderDashMap: post L.map');
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(dashMapInstance);
@@ -1425,8 +1471,13 @@
       dashLayerGroup.clearLayers();
       if (dashState.mapMode === 'stato') renderDashMapStato_();
       else renderDashMapPercorsi_();
-      setTimeout(function () { if (dashMapInstance) dashMapInstance.invalidateSize(); }, 60);
-    }).catch(function () {
+      __dbgSnapshot('renderDashMap: dopo disegno layer, prima di invalidateSize');
+      setTimeout(function () {
+        if (dashMapInstance) dashMapInstance.invalidateSize();
+        __dbg('renderDashMap: invalidateSize eseguita'); __dbgSnapshot('renderDashMap: dopo invalidateSize');
+      }, 60);
+    }).catch(function (err) {
+      __dbg('renderDashMap ERRORE', err && (err.message || err), err && err.stack);
       toast('Impossibile caricare la mappa (verifica la connessione a internet o la rete/proxy in uso).', 'error');
     });
   }
