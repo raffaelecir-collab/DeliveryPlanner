@@ -170,7 +170,9 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    priorità, durata stimata, finestra oraria, **telefono** del cliente per
    contattarlo sul campo, **ricavo (€)** dell'intervento (usato per
    calcolare la produzione della squadra), eventuale non-prima-del/scadenza
-   informativi). Il pulsante **"⏸ Sospendi"** su una riga apre un dialog che
+   informativi, **Codice Esterno (Ods)** (normalmente compilato dall'import,
+   ma modificabile anche a mano da qui) e **Op.** (campo libero, es. sigla
+   dell'operatore). Il pulsante **"⏸ Sospendi"** su una riga apre un dialog che
    chiede una **nota di motivazione** (obbligatoria) e uno dei tre **stati di
    sospensione** ("Sospeso - ys", "Sospeso - zp", "Sospeso - zc"): la data
    odierna viene registrata automaticamente insieme alla nota nello **storico
