@@ -174,9 +174,12 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    chiede una **nota di motivazione** (obbligatoria) e uno dei tre **stati di
    sospensione** ("Sospeso - ys", "Sospeso - zp", "Sospeso - zc"): la data
    odierna viene registrata automaticamente insieme alla nota nello **storico
-   sospensioni** dell'intervento (icona a orologio accanto allo stato, con
-   tooltip che elenca ogni voce data/stato/nota inserita nel tempo, anche da
-   import). Un intervento sospeso **non entra mai nella programmazione**
+   sospensioni** dell'intervento (icona a orologio accanto allo stato: **solo
+   se ci sono note inserite** — la "Nota Pianificazione" generata
+   automaticamente dal motore, vedi più sotto, non compare più qui — click
+   sull'icona apre un **popup** con l'elenco completo di tutte le voci
+   data/autore/stato/nota, incluse quelle inserite da un account Cliente).
+   Un intervento sospeso **non entra mai nella programmazione**
    (né automatica né tramite selezione manuale — i filtri della
    pianificazione candidano solo "Da pianificare") e, se era già pianificato
    su un percorso, ne viene tolto (come "Rimuovi"). Il pulsante diventa **"▶
@@ -221,8 +224,9 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    automaticamente, come per la sospensione): non cambia stato né
    programmazione, serve solo per annotazioni libere sull'intervento già
    pianificato. Le note si accumulano nello stesso storico visibile nel tab
-   Interventi (icona a orologio, tooltip con l'elenco di tutte le voci) e
-   compaiono anche qui, sulla tappa stessa, quando presenti. Da qui:
+   Interventi (icona a orologio, click per aprire il popup con l'elenco di
+   tutte le voci) e compaiono anche qui, sulla tappa stessa (al passaggio del
+   mouse), quando presenti. Da qui:
    - **"🧩 Riempi buchi"** per una squadra/giorno: le tappe **già
      pianificate restano ferme** (stesso ordine relativo tra loro, mai
      scartate né ripianificate da zero) e vengono solo **aggiunti**
@@ -430,8 +434,8 @@ un'email qui.
 Le note aggiunte dal Cliente finiscono nello **stesso storico** già visibile
 con l'icona a orologio (rinominato "Storico Note e Sospensioni"): ogni voce
 riporta ora anche **chi l'ha scritta** (Admin o Cliente), così l'Admin legge
-le note del Cliente e viceversa nello stesso tooltip, sia nel tab Interventi
-sia (per l'Admin) accanto alle tappe della Dashboard.
+le note del Cliente e viceversa nello stesso popup (nel tab Interventi, click
+sull'icona) sia (per l'Admin) accanto alle tappe della Dashboard.
 
 ### Inserire righe direttamente sul Google Sheet
 
