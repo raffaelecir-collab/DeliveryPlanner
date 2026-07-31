@@ -597,7 +597,7 @@
     return state.interventi.filter(function (i) {
       if (stato && i.stato !== stato) return false;
       if (squadraId && i.squadraId !== squadraId) return false;
-      if (q && (i.cliente || '').toLowerCase().indexOf(q) === -1 && (i.indirizzo || '').toLowerCase().indexOf(q) === -1) return false;
+      if (q && (i.cliente || '').toLowerCase().indexOf(q) === -1 && (i.indirizzo || '').toLowerCase().indexOf(q) === -1 && (i.codiceEsterno || '').toLowerCase().indexOf(q) === -1) return false;
       return true;
     });
   }
