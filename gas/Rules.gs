@@ -4,6 +4,7 @@
 
 /** Elenco regole con `tipo` allegato (da REGOLE_DEFAULT) per guidare il rendering del form lato client. */
 function listaRegole() {
+  richiedeAdmin_();
   inizializzaRegoleDefault_();
   var tipoPerChiave = {};
   REGOLE_DEFAULT.forEach(function (r) { tipoPerChiave[r.chiave] = r.tipo || 'numero'; });
@@ -13,6 +14,7 @@ function listaRegole() {
 }
 
 function salvaRegola(regola) {
+  richiedeAdmin_();
   if (!regola.chiave) throw new Error('La chiave della regola è obbligatoria.');
   var defaultRegola = REGOLE_DEFAULT.filter(function (r) { return r.chiave === regola.chiave; })[0];
   if (defaultRegola && defaultRegola.tipo === 'percentuale') {

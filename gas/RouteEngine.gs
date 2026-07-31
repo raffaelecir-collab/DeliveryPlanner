@@ -850,6 +850,7 @@ function riempiBucoSenzaSpostare_(squadra, giaPianificati, disponibili, regole) 
 
 /** Interventi disponibili per la selezione + eventuale percorso già confermato per squadra+giorno. */
 function getContestoPianificazione(squadraId, giornoStr) {
+  richiedeAdmin_();
   var giorno = parseDateStr_(giornoStr);
   var giornoFmt = formatDateStr_(giorno);
   var tutti = assicuraIdTutti_('INTERVENTI');
@@ -877,6 +878,7 @@ function getContestoPianificazione(squadraId, giornoStr) {
 
 /** Tutti i percorsi già confermati per un giorno, raggruppati per squadra (vista d'insieme). */
 function getPercorsiGiorno(giornoStr) {
+  richiedeAdmin_();
   var giorno = parseDateStr_(giornoStr);
   var giornoFmt = formatDateStr_(giorno);
   var tutti = readAll_('INTERVENTI').filter(function (i) {
@@ -952,6 +954,7 @@ function formattaAnteprima_(squadra, giorno, risultato) {
  * che una tappa supera il limite, sceglie esplicitamente di pianificarla comunque.
  */
 function anteprimaPercorso(squadraId, giornoStr, interventoIds, ordineManuale, ignoraTettoViaggio) {
+  richiedeAdmin_();
   if (!interventoIds || interventoIds.length === 0) throw new Error('Seleziona almeno un intervento.');
   var regole = getRegoleMappa_();
   if (ignoraTettoViaggio) regole.tempoViaggioMassimoMinuti = 0;
@@ -1014,6 +1017,7 @@ function anteprimaPercorso(squadraId, giornoStr, interventoIds, ordineManuale, i
  * nuovo silenziosamente proprio al salvataggio.
  */
 function confermaPercorso(squadraId, giornoStr, interventoIdsOrdinati, ignoraTettoViaggio) {
+  richiedeAdmin_();
   var anteprima = anteprimaPercorso(squadraId, giornoStr, interventoIdsOrdinati, interventoIdsOrdinati, ignoraTettoViaggio);
   var tuttiInterventi = readAll_('INTERVENTI');
 
@@ -1073,6 +1077,7 @@ function confermaPercorso(squadraId, giornoStr, interventoIdsOrdinati, ignoraTet
  * il cliente) e per poter deselezionare una tappa già programmata.
  */
 function getProgrammazione(dataInizioStr, dataFineStr) {
+  richiedeAdmin_();
   var dataInizio = parseDateStr_(dataInizioStr);
   var dataFine = parseDateStr_(dataFineStr);
   if (!dataInizio || !dataFine) throw new Error('Intervallo di date non valido.');
@@ -1208,6 +1213,7 @@ function calcolaRiempimentoBuco_(squadraId, giornoStr, vincolaOrariFissati) {
  * scrivere davvero il risultato (vedi riempiBucoGiorno).
  */
 function anteprimaRiempiBucoGiorno(squadraId, giornoStr) {
+  richiedeAdmin_();
   var calcolo = calcolaRiempimentoBuco_(squadraId, giornoStr, false);
   var oraOriginalePerId = {};
   calcolo.giaPianificati.forEach(function (i) { oraOriginalePerId[i.id] = i.oraPianificata; });
@@ -1234,6 +1240,7 @@ function anteprimaRiempiBucoGiorno(squadraId, giornoStr) {
  * default) o mantenere gli orari già fissati (consentiSpostamento=false).
  */
 function riempiBucoGiorno(squadraId, giornoStr, consentiSpostamento) {
+  richiedeAdmin_();
   var calcolo = calcolaRiempimentoBuco_(squadraId, giornoStr, consentiSpostamento === false);
   var giornoFmt = calcolo.giornoFmt;
 
@@ -1272,6 +1279,7 @@ function riempiBucoGiorno(squadraId, giornoStr, consentiSpostamento) {
  * posizione corretta dell'elenco e non solo in coda.
  */
 function creaEPianificaIntervento(intervento, squadraId, giornoStr, oraStr) {
+  richiedeAdmin_();
   var squadra = assicuraIdTutti_('SQUADRE').filter(function (s) { return s.id === squadraId; })[0];
   if (!squadra) throw new Error('Squadra non trovata.');
   var giorno = parseDateStr_(giornoStr);
@@ -1479,6 +1487,7 @@ function costruisciOrdiniGiornoCongiunti_(squadre, candidatiPerSquadra, regole) 
  * giorno restano "libere".
  */
 function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
+  richiedeAdmin_();
   if (!squadraIds || squadraIds.length === 0) throw new Error('Seleziona almeno una squadra.');
   var regole = getRegoleMappa_();
   var tutteLeSquadre = assicuraIdTutti_('SQUADRE');

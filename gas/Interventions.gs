@@ -13,6 +13,7 @@ function listaInterventi(filtri) {
 }
 
 function salvaIntervento(intervento) {
+  richiedeAdmin_();
   if (!intervento.cliente) throw new Error('Il cliente è obbligatorio.');
   if (!intervento.indirizzo) throw new Error('L\'indirizzo è obbligatorio.');
 
@@ -40,6 +41,7 @@ function trovaInterventoPerIdORiga_(id, row) {
 }
 
 function eliminaIntervento(id, row) {
+  richiedeAdmin_();
   return deleteRow_('INTERVENTI', id, row);
 }
 
@@ -53,6 +55,7 @@ function eliminaIntervento(id, row) {
  * salvaIntervento, confermaPercorso, riempiBucoGiorno, pianificaIntervallo).
  */
 function ripianificaIntervento(id, row) {
+  richiedeAdmin_();
   var esistente = trovaInterventoPerIdORiga_(id, row);
   if (!esistente) throw new Error('Intervento non trovato.');
   updateRowFields_('INTERVENTI', esistente._row, {
@@ -68,18 +71,24 @@ function ripianificaIntervento(id, row) {
 }
 
 function segnaCompletato(id, row) {
+  richiedeAdmin_();
   var esistente = trovaInterventoPerIdORiga_(id, row);
   if (!esistente) throw new Error('Intervento non trovato.');
   updateRowFields_('INTERVENTI', esistente._row, { stato: STATO_INTERVENTO.COMPLETATO });
   return true;
 }
 
-/** Aggiunge una voce (data odierna, stato, nota) allo storico sospensioni esistente di un intervento. */
+/**
+ * Aggiunge una voce (data odierna, stato, nota, autore) allo storico sospensioni/note esistente di
+ * un intervento. L'autore (Admin/Cliente) è preso dal ruolo dell'account che sta effettivamente
+ * chiamando in quel momento, così ogni voce dello storico è sempre attribuita correttamente
+ * (utile per far leggere all'Admin le note inserite dall'account Cliente, e viceversa).
+ */
 function aggiungiStoriaSospensione_(esistente, stato, nota) {
   var storia = [];
   try { storia = JSON.parse((esistente && esistente.storiaSospensioni) || '[]'); } catch (e) { storia = []; }
   if (!Array.isArray(storia)) storia = [];
-  storia.push({ data: formatDateStr_(dataOggi_()), stato: stato, nota: nota || '' });
+  storia.push({ data: formatDateStr_(dataOggi_()), stato: stato, nota: nota || '', autore: ruoloUtenteCorrente_() });
   return JSON.stringify(storia);
 }
 
@@ -108,6 +117,24 @@ function terminaSospensione(id, row) {
   var esistente = trovaInterventoPerIdORiga_(id, row);
   if (!esistente) throw new Error('Intervento non trovato.');
   updateRowFields_('INTERVENTI', esistente._row, { stato: STATO_INTERVENTO.DA_PIANIFICARE, motivoNonPianificato: '' });
+  return true;
+}
+
+/**
+ * Annulla un intervento: registra nota + data odierna nello storico e imposta stato Annullato.
+ * Come "Sospendi", se era già pianificato su un percorso viene tolto dalla programmazione (non
+ * viene mai più riproposto dalla pianificazione, a differenza di una sospensione che è temporanea
+ * e reversibile con "Fine sospensione"). Usata anche dall'account Cliente.
+ */
+function annullaIntervento(id, row, nota) {
+  var esistente = trovaInterventoPerIdORiga_(id, row);
+  if (!esistente) throw new Error('Intervento non trovato.');
+  if (!nota) throw new Error('La nota di motivazione è obbligatoria.');
+  updateRowFields_('INTERVENTI', esistente._row, {
+    stato: STATO_INTERVENTO.ANNULLATO,
+    storiaSospensioni: aggiungiStoriaSospensione_(esistente, STATO_INTERVENTO.ANNULLATO, nota),
+    squadraId: '', dataPianificata: '', oraPianificata: '', ordineTappa: '', motivoNonPianificato: ''
+  });
   return true;
 }
 

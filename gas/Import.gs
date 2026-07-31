@@ -229,6 +229,7 @@ function trovaOCreaColonnaMarcatore_(sheet, headerRow, lastCol) {
  * configurazione/accesso che un'intenzione di annullare tutto.
  */
 function importaInterventiEsterni() {
+  richiedeAdmin_();
   var sheet = apriFoglioImportEsterno_();
   var lastRow = sheet.getLastRow();
   var risultatoVuoto = { creati: 0, aggiornati: 0, giaImportati: 0, annullatiRimossi: 0, saltati: 0, falliti: 0, dettagliSaltati: [], dettagliFalliti: [], tempoScaduto: false };

@@ -9,6 +9,7 @@ function listaSquadre() {
 }
 
 function salvaSquadra(squadra) {
+  richiedeAdmin_();
   if (!squadra.nome) throw new Error('Il nome della squadra è obbligatorio.');
   if (!squadra.indirizzoPartenza) throw new Error('L\'indirizzo di partenza è obbligatorio.');
 
@@ -42,5 +43,6 @@ function salvaSquadra(squadra) {
 }
 
 function eliminaSquadra(id, row) {
+  richiedeAdmin_();
   return deleteRow_('SQUADRE', id, row);
 }

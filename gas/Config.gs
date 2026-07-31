@@ -48,6 +48,14 @@ var PRIORITA = {
   BASSA: 'Bassa'
 };
 
+/**
+ * Ruoli account: Admin ha accesso completo; Cliente vede solo il tab Interventi e può solo
+ * aggiungere note, sospendere o annullare gli interventi (mai crearli/modificarli/eliminarli/
+ * pianificarli/importarli). Il ruolo si determina dall'email dell'account Google che esegue la
+ * Web App confrontata con la regola "emailClienti" (vedi Auth.gs).
+ */
+var RUOLO = { ADMIN: 'Admin', CLIENTE: 'Cliente' };
+
 var STATO_INTERVENTO = {
   DA_PIANIFICARE: 'Da pianificare',
   PIANIFICATO: 'Pianificato',
@@ -126,7 +134,7 @@ var SCHEMA = {
       { key: 'ricavo', label: 'Ricavo (€)', type: 'number', default: 0, help: 'Usato per calcolare la produzione (ricavo totale) di ciascuna squadra rispetto al proprio target di produzione giornaliera.' },
       { key: 'codiceEsterno', label: 'Codice Esterno (Ods)', type: 'text', readonly: true, help: 'Identificativo dell\'intervento nel sistema di tracking esterno da cui è stato importato (tab ImportInterventi): re-importando lo stesso Ods, questo intervento viene aggiornato invece di duplicato.' },
       { key: 'nonAutomatizzabileData', label: 'Escluso da pianificazione automatica per il', type: 'date', readonly: true, help: 'Impostato automaticamente da "Rimuovi" (tab Programmazione): per questa data, l\'intervento non viene riproposto da "Riempi buco" o dalla pianificazione automatica su intervallo — resta comunque pianificabile a mano, anche per la stessa data. Si azzera da solo non appena l\'intervento viene ripianificato (a mano o in automatico).' },
-      { key: 'storiaSospensioni', label: 'Storico Sospensioni', type: 'text', readonly: true, help: 'Cronologia (data, stato, nota di motivazione) di ogni sospensione registrata su questo intervento, a mano o da import. Gestita dai pulsanti "Sospendi"/"Fine sospensione".' }
+      { key: 'storiaSospensioni', label: 'Storico Note e Sospensioni', type: 'text', readonly: true, help: 'Cronologia (data, autore Admin/Cliente, eventuale stato, nota) di ogni nota libera o sospensione/annullamento registrata su questo intervento, a mano (da Admin o da Cliente) o da import.' }
     ]
   },
   REGOLE: {
@@ -175,5 +183,6 @@ var REGOLE_DEFAULT = [
   { chiave: 'pesoDensita', valore: '100', tipo: 'percentuale', descrizione: 'Quanto pesa la densità di un\'area (numero di altri interventi vicini) nello scegliere da quale zona iniziare il percorso, in percentuale (0-100): aree con più interventi vicini vengono preferite per massimizzare quanti interventi si riescono a completare. 100% è l\'intensità raccomandata di default, 0% disattiva questo fattore.' },
   { chiave: 'pesoProssimitaBase', valore: '100', tipo: 'percentuale', descrizione: 'Quanto pesa la vicinanza alla base della squadra nello scegliere da dove iniziare il percorso, a parità di priorità/densità, in percentuale (0-100). 100% è l\'intensità raccomandata di default, 0% disattiva questo fattore.' },
   { chiave: 'pesoRicavo', valore: '100', tipo: 'percentuale', descrizione: 'Quanto pesa il ricavo (€) di un intervento nella scelta di quali interventi assegnare, in percentuale (0-100): fa preferire gli interventi più redditizi, senza mai bloccare il riempimento delle ore disponibili del turno (il target resta un indicatore, non un limite che ferma le assegnazioni). Questo peso viene rafforzato automaticamente (fino a 5 volte) quando la produzione della squadra è ancora lontana dal proprio target giornaliero, e torna al valore impostato qui avvicinandosi/superando il target. 100% è l\'intensità raccomandata di default, 0% disattiva completamente il fattore ricavo.' },
-  { chiave: 'pesoCompetenzaSpecifica', valore: '100', tipo: 'percentuale', descrizione: 'Priorità data agli interventi che richiedono esplicitamente una competenza posseduta dalla squadra, rispetto a quelli generici (competenza vuota, assegnabili a qualsiasi squadra), in percentuale (0-100): un tecnico specializzato riceve prima il lavoro della propria specializzazione, usando quello generico solo come riempitivo quando non ce n\'è (più) a sufficienza. 100% è l\'intensità raccomandata di default, 0% disattiva questa priorità (non ha comunque effetto sulle squadre senza competenze specifiche impostate).' }
+  { chiave: 'pesoCompetenzaSpecifica', valore: '100', tipo: 'percentuale', descrizione: 'Priorità data agli interventi che richiedono esplicitamente una competenza posseduta dalla squadra, rispetto a quelli generici (competenza vuota, assegnabili a qualsiasi squadra), in percentuale (0-100): un tecnico specializzato riceve prima il lavoro della propria specializzazione, usando quello generico solo come riempitivo quando non ce n\'è (più) a sufficienza. 100% è l\'intensità raccomandata di default, 0% disattiva questa priorità (non ha comunque effetto sulle squadre senza competenze specifiche impostate).' },
+  { chiave: 'emailClienti', valore: '', tipo: 'testo', descrizione: 'Elenco email (separate da virgola) degli account Google trattati come "Cliente": vedono solo il tab Interventi e possono solo aggiungere note, sospendere o annullare gli interventi (mai crearli, modificarli, eliminarli, pianificarli o importarli). Tutti gli account non in elenco restano Admin con accesso completo. Lascia vuoto per non avere nessun account Cliente.' }
 ];

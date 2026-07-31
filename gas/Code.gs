@@ -24,18 +24,22 @@ function include(nomeFile) {
  */
 function getBootstrapData() {
   inizializzaApp();
+  var ruolo = ruoloUtenteCorrente_();
   var schemaClient = {};
   Object.keys(SCHEMA).forEach(function (k) {
+    if (ruolo === RUOLO.CLIENTE && k !== 'INTERVENTI') return;
     schemaClient[k] = { label: SCHEMA[k].label, fields: SCHEMA[k].fields };
   });
   return {
     schema: schemaClient,
     squadre: readAll_('SQUADRE'),
-    utente: Session.getActiveUser().getEmail() || ''
+    utente: Session.getActiveUser().getEmail() || '',
+    ruolo: ruolo
   };
 }
 
 function getLogPianificazioni() {
+  richiedeAdmin_();
   var log = readAll_('LOG');
   return log.slice().reverse().slice(0, 20);
 }

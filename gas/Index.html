@@ -12,10 +12,10 @@
     </header>
 
     <nav class="tabs">
-      <button class="tab-btn active" data-view="dashboard">Dashboard</button>
+      <button class="tab-btn active admin-only" data-view="dashboard">Dashboard</button>
       <button class="tab-btn" data-view="interventi">Interventi</button>
-      <button class="tab-btn" data-view="squadre">Squadre</button>
-      <button class="tab-btn" data-view="impostazioni">Regole</button>
+      <button class="tab-btn admin-only" data-view="squadre">Squadre</button>
+      <button class="tab-btn admin-only" data-view="impostazioni">Regole</button>
     </nav>
 
     <main>
@@ -59,7 +59,7 @@
 
       <!-- VISTA INTERVENTI -->
       <section class="view" id="view-interventi">
-        <div class="import-banner">
+        <div class="import-banner admin-only">
           <span class="import-icon">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M4 19h16"></path></svg>
           </span>
@@ -90,7 +90,7 @@
               <input type="text" id="interventi-search" placeholder="Cerca cliente, indirizzo o Codice Esterno (Ods)…" autocomplete="off">
             </div>
           </div>
-          <button class="btn-primary" id="btn-nuovo-intervento">
+          <button class="btn-primary admin-only" id="btn-nuovo-intervento">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
             Nuovo intervento
           </button>
@@ -322,6 +322,26 @@
         <div class="modal-actions">
           <button type="button" class="btn secondary" data-close-dlg="dlg-nota-intervento">Annulla</button>
           <button type="button" class="btn" id="btn-salva-nota-intervento">Salva nota</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="dlg-annulla" class="dlg-overlay hidden">
+      <div class="dlg-box">
+        <div class="dlg-head">
+          <h3 id="dlg-annulla-titolo">Annulla intervento</h3>
+          <button type="button" class="dlg-close" data-close-dlg="dlg-annulla">✕</button>
+        </div>
+        <form id="form-annulla-intervento">
+          <div class="field">
+            <label>Nota di motivazione *</label>
+            <textarea id="annulla-nota" rows="3" placeholder="Motivo dell'annullamento…"></textarea>
+          </div>
+          <p class="field-help">La data odierna viene registrata automaticamente insieme alla nota nello storico dell'intervento. A differenza della sospensione, l'annullamento è definitivo: l'intervento non viene più riproposto dalla pianificazione.</p>
+        </form>
+        <div class="modal-actions">
+          <button type="button" class="btn secondary" data-close-dlg="dlg-annulla">Chiudi</button>
+          <button type="button" class="btn danger" id="btn-salva-annulla">Annulla intervento</button>
         </div>
       </div>
     </div>

@@ -96,6 +96,7 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 |---|---|
 | `appsscript.json` | Manifest del progetto Apps Script (fuso orario, accesso Web App) |
 | `Config.gs` | Schema dati (colonne dei fogli) e valori di default delle regole |
+| `Auth.gs` | Ruolo Admin/Cliente dell'account che esegue la Web App e guardia usata dalle funzioni riservate all'Admin |
 | `SheetService.gs` | Lettura/scrittura generica dei fogli basata sullo schema |
 | `Geocoding.gs` | Conversione indirizzo → coordinate (con cache) |
 | `Triggers.gs` | Trigger installabile: geocodifica automatica quando un indirizzo viene scritto direttamente sul foglio |
@@ -181,6 +182,13 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    su un percorso, ne viene tolto (come "Rimuovi"). Il pulsante diventa **"▶
    Fine sospensione"** quando l'intervento è già sospeso: lo riporta
    direttamente a "Da pianificare" (lo storico resta, non viene cancellato).
+   Il pulsante **"📝"** apre un popup per aggiungere una semplice **nota**
+   (solo data automatica, non cambia stato); il pulsante **"⊘ Annulla"**
+   chiede una nota di motivazione e porta l'intervento a "Annullato" in modo
+   definitivo (non viene più riproposto dalla pianificazione, a differenza
+   della sospensione). Vedi anche "Account Cliente" più sotto: lo stesso tab,
+   con questi tre pulsanti (Nota/Sospendi/Annulla) ma senza Modifica/Completa/
+   Elimina, è quello che vede un account Cliente.
 
    Sotto ogni campo indirizzo (Squadre e Interventi) c'è un link **"🗺️
    Mostra mappa"**: apre un'anteprima piccola e ridimensionabile (trascina
@@ -392,6 +400,38 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 Ogni percorso confermato (in entrambe le modalità) viene registrato nel
 foglio `LogPianificazione` (visibile in fondo al tab Regole), utile per
 tracciare chi ha pianificato cosa e quando.
+
+### Account Cliente (accesso ristretto)
+
+Oltre all'account Admin (accesso completo a tutti i tab), la Web App supporta
+un secondo ruolo, **Cliente**, pensato per essere condiviso con l'account
+Google del cliente esterno senza dargli accesso a squadre, regole,
+pianificazione o import: vede **solo il tab Interventi** e su ogni intervento
+può soltanto **aggiungere una nota**, **sospendere** (con nota di motivazione
+e stato "Sospeso - ys/zp/zc", esattamente come l'Admin) o **annullare** (nuovo
+pulsante ⊘, chiede una nota di motivazione: a differenza della sospensione è
+definitivo, l'intervento non viene più riproposto dalla pianificazione). Non
+può creare, modificare o eliminare interventi, né importare dal tracking
+esterno, né toccare Squadre/Regole/Dashboard/pianificazione — questi pulsanti
+e queste schede restano nascosti, e le funzioni corrispondenti sono comunque
+bloccate anche lato server (non è un'occultazione solo grafica: chiamandole
+comunque restituiscono un errore "Operazione non consentita per l'account
+Cliente").
+
+**Come attivarlo**: nel tab Regole (visibile solo all'Admin) trovi la regola
+**"emailClienti"**: scrivi qui l'email (o le email, separate da virgola)
+dell'account/i Google da trattare come Cliente — devi comunque prima dare a
+quell'account accesso alla Web App dalle impostazioni di distribuzione di
+Apps Script (Distribuisci → Gestisci distribuzioni), esattamente come per un
+account Admin. Chi non è in questo elenco resta Admin: il comportamento di
+tutti gli account esistenti non cambia finché non aggiungi esplicitamente
+un'email qui.
+
+Le note aggiunte dal Cliente finiscono nello **stesso storico** già visibile
+con l'icona a orologio (rinominato "Storico Note e Sospensioni"): ogni voce
+riporta ora anche **chi l'ha scritta** (Admin o Cliente), così l'Admin legge
+le note del Cliente e viceversa nello stesso tooltip, sia nel tab Interventi
+sia (per l'Admin) accanto alle tappe della Dashboard.
 
 ### Inserire righe direttamente sul Google Sheet
 
