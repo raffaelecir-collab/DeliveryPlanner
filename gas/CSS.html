@@ -545,4 +545,58 @@
     border-radius: 50%; animation: dp-spin .7s linear infinite; z-index: 5;
   }
   @keyframes dp-spin { to { transform: rotate(360deg); } }
+
+  /* ---------- tab Analysis ---------- */
+  .an-toolbar {
+    display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 18px;
+    background: var(--dp-surface-card); border: 1px solid var(--dp-line); border-radius: var(--dp-radius); padding: 14px 16px;
+  }
+  .an-filtro-campo { display: flex; flex-direction: column; gap: 4px; }
+  .an-filtro-campo label { font-size: 11px; font-weight: 620; color: var(--dp-ink-soft); text-transform: uppercase; letter-spacing: .03em; }
+  .an-filtro-campo input[type=date] {
+    padding: 6px 8px; border: 1px solid var(--dp-line); border-radius: var(--dp-radius-sm);
+    background: var(--dp-surface-card); color: var(--dp-ink); font-size: 13px; font-family: var(--dp-mono);
+  }
+  .an-filtro-campo select { padding: 6px 8px; border: 1px solid var(--dp-line); border-radius: var(--dp-radius-sm); background: var(--dp-surface-card); color: var(--dp-ink); font-size: 13px; }
+  .an-preset { flex-direction: row; gap: 6px; }
+  .an-check-inline { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--dp-ink-soft); }
+
+  .an-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
+  .an-card {
+    background: var(--dp-surface-card); border: 1px solid var(--dp-line); border-radius: var(--dp-radius);
+    padding: 16px 18px; grid-column: span 1;
+  }
+  .an-card.an-wide { grid-column: 1 / -1; }
+  .an-card h2 { margin: 0 0 10px; font-size: 15px; font-weight: 650; color: var(--dp-ink); }
+  .an-card .sub { color: var(--dp-ink-faint); font-size: 11.5px; margin: -4px 0 12px; }
+
+  .an-subtoolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+  .an-tot { font-size: 20px; font-weight: 700; color: var(--dp-accent-strong); font-family: var(--dp-mono); }
+
+  .an-vista-toggle { display: inline-flex; border: 1px solid var(--dp-line); border-radius: var(--dp-radius-sm); overflow: hidden; }
+  .an-vista-toggle button {
+    border: none; background: var(--dp-surface-card); color: var(--dp-ink-soft); font-size: 12px; padding: 6px 12px; cursor: pointer;
+  }
+  .an-vista-toggle button.active { background: var(--dp-accent); color: #fff; }
+
+  .an-bars { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .an-bar-riga { display: grid; grid-template-columns: 90px 1fr auto; align-items: center; gap: 10px; font-size: 12px; }
+  .an-bar-etichetta { color: var(--dp-ink-soft); }
+  .an-bar-traccia { background: var(--dp-line-soft); border-radius: 5px; height: 16px; overflow: hidden; position: relative; }
+  .an-bar-riempimento { background: var(--dp-accent); height: 100%; border-radius: 5px; min-width: 2px; }
+  .an-bar-valore { font-family: var(--dp-mono); color: var(--dp-ink); font-weight: 620; white-space: nowrap; }
+
+  .an-lista { display: flex; flex-direction: column; gap: 6px; }
+  .an-lista-riga { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; padding: 4px 0; border-bottom: 1px solid var(--dp-line-soft); }
+  .an-lista-riga:last-child { border-bottom: none; }
+  .an-lista-nome { display: flex; align-items: center; gap: 8px; color: var(--dp-ink); }
+  .an-lista-valore { font-family: var(--dp-mono); font-weight: 620; color: var(--dp-ink); }
+
+  .an-stat-riga { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 13px; color: var(--dp-ink-soft); }
+  .an-stat-riga strong { font-family: var(--dp-mono); font-size: 16px; color: var(--dp-ink); font-weight: 700; }
+
+  .an-tabella { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .an-tabella th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--dp-ink-faint); padding: 4px 8px 6px 0; border-bottom: 1px solid var(--dp-line); }
+  .an-tabella td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--dp-line-soft); color: var(--dp-ink); }
+  .an-tabella tr:last-child td { border-bottom: none; }
 </style>

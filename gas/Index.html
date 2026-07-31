@@ -16,6 +16,7 @@
       <button class="tab-btn" data-view="interventi">Interventi</button>
       <button class="tab-btn admin-only" data-view="squadre">Squadre</button>
       <button class="tab-btn admin-only" data-view="impostazioni">Regole</button>
+      <button class="tab-btn admin-only" data-view="analysis">Analysis</button>
     </nav>
 
     <main>
@@ -150,6 +151,107 @@
               <thead><tr><th>Data/Ora</th><th>Utente</th><th>Squadra</th><th>Giorno</th><th>Tappe</th></tr></thead>
               <tbody></tbody>
             </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VISTA ANALYSIS (solo Admin) -->
+      <section class="view" id="view-analysis">
+        <div class="an-toolbar">
+          <div class="an-filtro-campo">
+            <label>Dal</label>
+            <input type="date" id="an-dal">
+          </div>
+          <div class="an-filtro-campo">
+            <label>Al</label>
+            <input type="date" id="an-al">
+          </div>
+          <div class="an-filtro-campo an-preset">
+            <button type="button" class="btn-secondary-sm" data-an-preset="settimana">Questa settimana</button>
+            <button type="button" class="btn-secondary-sm" data-an-preset="mese">Questo mese</button>
+          </div>
+          <div class="an-filtro-campo">
+            <label>Tecnico</label>
+            <select id="an-squadra"><option value="">Tutti</option></select>
+          </div>
+          <label class="an-check-inline">
+            <input type="checkbox" id="an-includi-aperti"> Includi interventi ancora aperti (stima ad oggi)
+          </label>
+          <button class="btn-primary" id="btn-an-aggiorna">Aggiorna analisi</button>
+        </div>
+
+        <div class="an-grid" id="an-grid">
+          <div class="an-card an-wide">
+            <h2>Ricavo per tecnico</h2>
+            <div class="an-subtoolbar">
+              <span class="an-tot" id="an-ricavo-totale">—</span>
+              <div class="an-vista-toggle" data-an-toggle="ricavo-vista">
+                <button type="button" class="active" data-val="settimanale">Settimanale</button>
+                <button type="button" data-val="mensile">Mensile</button>
+              </div>
+            </div>
+            <div id="an-ricavo-serie" class="an-bars"></div>
+            <div id="an-ricavo-per-squadra" class="an-lista"></div>
+          </div>
+
+          <div class="an-card an-wide">
+            <h2>Tempi di lavorazione (giorni lavorativi)</h2>
+            <p class="sub">Lun-Ven, festività italiane escluse; i giorni di sospensione non vengono conteggiati. Solo Interventi Completati, salvo "Includi interventi ancora aperti" sopra.</p>
+            <div class="an-vista-toggle" data-an-toggle="tempi-vista">
+              <button type="button" class="active" data-val="cumulativo">Cumulativo</button>
+              <button type="button" data-val="attivita">Per tipo attività</button>
+            </div>
+            <div id="an-tempi-corpo"></div>
+          </div>
+
+          <div class="an-card an-wide">
+            <h2>Nuovi interventi dispacciati</h2>
+            <div class="an-subtoolbar">
+              <span class="an-tot" id="an-nuovi-totale">—</span>
+              <div class="an-vista-toggle" data-an-toggle="nuovi-vista">
+                <button type="button" class="active" data-val="cumulativo">Cumulativo</button>
+                <button type="button" data-val="attivita">Per tipo attività</button>
+              </div>
+            </div>
+            <div id="an-nuovi-serie" class="an-bars"></div>
+          </div>
+
+          <div class="an-card">
+            <h2>Tasso completamento / annullamento / sospensione</h2>
+            <div id="an-tassi-corpo"></div>
+          </div>
+
+          <div class="an-card">
+            <h2>Sospensioni</h2>
+            <div id="an-sospensioni-corpo"></div>
+          </div>
+
+          <div class="an-card">
+            <h2>Aging backlog "Da pianificare"</h2>
+            <div class="an-subtoolbar">
+              <label class="an-check-inline">Soglia (giorni lavorativi) <input type="number" id="an-soglia-backlog" value="5" min="0" style="width:60px"></label>
+            </div>
+            <div id="an-backlog-corpo"></div>
+          </div>
+
+          <div class="an-card">
+            <h2>SLA scadenza</h2>
+            <div id="an-sla-corpo"></div>
+          </div>
+
+          <div class="an-card">
+            <h2>Ricavo medio per tipo attività</h2>
+            <div id="an-ricavo-attivita-corpo"></div>
+          </div>
+
+          <div class="an-card">
+            <h2>Km stimati per tecnico</h2>
+            <div id="an-km-corpo"></div>
+          </div>
+
+          <div class="an-card">
+            <h2>Distribuzione per Comune</h2>
+            <div id="an-comune-corpo"></div>
           </div>
         </div>
       </section>

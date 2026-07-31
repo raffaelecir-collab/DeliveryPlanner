@@ -104,6 +104,8 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 | `Teams.gs` / `Interventions.gs` / `Rules.gs` | CRUD (con geocodifica automatica su Squadre/Interventi) |
 | `Import.gs` | Import di Interventi direttamente da un foglio Google esterno (tracking) |
 | `RouteEngine.gs` | Motore di ottimizzazione percorso (inserimento più economico + 2-opt, scheduling con pausa pranzo, dati per la Dashboard e riempimento buchi) |
+| `Calendario.gs` | Calendario giorni lavorativi FISSO (Lun-Ven, festività italiane escluse) usato solo dal tab Analysis, indipendente dalla regola "giorniLavorativi" della pianificazione |
+| `Analysis.gs` | Metriche del tab Analysis (solo Admin): ricavo, tempi di lavorazione, tassi, backlog, km, distribuzione geografica |
 | `Code.gs` | `doGet()` e funzioni esposte al client |
 | `Index.html` / `CSS.html` / `JS.html` | Interfaccia utente (SPA) |
 
@@ -171,8 +173,14 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    contattarlo sul campo, **ricavo (€)** dell'intervento (usato per
    calcolare la produzione della squadra), eventuale non-prima-del/scadenza
    informativi, **Codice Esterno (Ods)** (normalmente compilato dall'import,
-   ma modificabile anche a mano da qui) e **Op.** (campo libero, es. sigla
-   dell'operatore). Il pulsante **"⏸ Sospendi"** su una riga apre un dialog che
+   ma modificabile anche a mano da qui), **Op.** (campo libero, es. sigla
+   dell'operatore), **Data Dispacciamento** (per gli importati è la "Data
+   Disp." del tracking esterno; per quelli creati a mano viene impostata di
+   default a oggi, modificabile), **Tipo Attività** (dedotto dalla colonna
+   "Attività" del tracking esterno per gli importati, da scegliere per quelli
+   manuali) e **Comune** (dedotto dal tracking esterno per gli importati).
+   Questi ultimi tre campi non servono alla pianificazione: alimentano solo
+   le metriche del tab **Analysis** (vedi più sotto). Il pulsante **"⏸ Sospendi"** su una riga apre un dialog che
    chiede una **nota di motivazione** (obbligatoria) e uno dei tre **stati di
    sospensione** ("Sospeso - ys", "Sospeso - zp", "Sospeso - zc"): la data
    odierna viene registrata automaticamente insieme alla nota nello **storico
@@ -439,6 +447,59 @@ riporta ora anche **chi l'ha scritta** (Admin o Cliente), così l'Admin legge
 le note del Cliente e viceversa nello stesso popup (nel tab Interventi, click
 sull'icona) sia (per l'Admin) accanto alle tappe della Dashboard.
 
+### Tab Analysis (solo Admin)
+
+Tab dedicato alle metriche sull'andamento degli interventi, con un'unica barra
+filtri in alto: intervallo di date **Dal/Al** (con scorciatoie "Questa
+settimana"/"Questo mese", o scelto liberamente), **Tecnico** (una squadra
+specifica o "Tutti"), e la casella **"Includi interventi ancora aperti (stima
+ad oggi)"** (vedi sotto). Premendo "Aggiorna analisi" tutte le card si
+ricalcolano in un'unica chiamata al server.
+
+**Importante limite sui dati storici**: i tre "tempi di lavorazione" (vedi
+sotto) si basano su tre nuovi campi (`primoEventoData`, `dataPrimoPianificato`,
+`dataCompletamento`) impostati automaticamente ad ogni cambio di stato/nota
+rilevante — ma solo **da quando questa funzionalità è stata introdotta in
+poi**: gli Interventi già esistenti prima non hanno questi dati (non essendo
+mai stati registrati) e restano fuori da queste tre metriche finché non
+vengono ripresi in mano (una sospensione, una nota, una nuova pianificazione
+li fa "entrare" nel tracciamento da quel momento). Il calendario dei giorni
+lavorativi usato da queste metriche è **fisso** (Lun-Ven, festività
+nazionali italiane escluse) e non è lo stesso della regola configurabile
+"giorniLavorativi" usata dalla pianificazione: cambiare quest'ultima non
+altera le statistiche già calcolate.
+
+Le card disponibili:
+- **Ricavo per tecnico**: totale nel periodo (solo Interventi Completati, per
+  data pianificata) con andamento **settimanale/mensile** (toggle) e
+  ripartizione per squadra; il filtro "Tecnico" in alto lo restringe a una
+  sola squadra.
+- **Tempi di lavorazione** (in giorni lavorativi, sospensioni escluse): **Tempo
+  di prima lavorazione** (dispacciamento → primo evento, es. una nota o un
+  cambio di stato), **Tempo di lavorazione medio** (dispacciamento → primo
+  "Pianificato") e **Tempo di completamento** (dispacciamento →
+  completamento). Toggle **Cumulativo/Per tipo attività**. Di default
+  considera solo gli Interventi già Completati; con "Includi interventi
+  ancora aperti" spuntato, include anche quelli non ancora arrivati a quel
+  traguardo, stimando il tempo trascorso **ad oggi** (esclusi gli Annullati).
+- **Nuovi interventi dispacciati**: conteggio mensile (per data
+  dispacciamento), cumulativo o per tipo attività.
+- **Tasso completamento/annullamento/sospensione**: percentuali sul totale
+  dispacciato nel periodo, cumulativo e per tipo attività.
+- **Sospensioni**: durata media di una sospensione e numero medio di
+  sospensioni per intervento (tra quelli sospesi almeno una volta).
+- **Aging backlog "Da pianificare"**: quanti Interventi non ancora presi in
+  carico da più della soglia scelta (default 5 giorni lavorativi), con
+  elenco.
+- **SLA scadenza**: percentuale di Interventi Completati oltre la loro
+  "Scadenza" impostata.
+- **Ricavo medio per tipo attività**: valore medio a intervento (non
+  totale), utile per capire la redditività relativa delle diverse attività.
+- **Km stimati per tecnico**: percorso stimato (linea d'aria, stessa stima
+  usata in Dashboard) sommato su tutti i giorni del periodo.
+- **Distribuzione per Comune**: numero di interventi dispacciati per Comune
+  (richiede che il campo Comune sia valorizzato).
+
 ### Inserire righe direttamente sul Google Sheet
 
 Puoi anche aggiungere Squadre o Interventi scrivendo direttamente le righe sul
@@ -505,14 +566,20 @@ Cosa succede per ogni riga compilata (Nome Cliente + Indirizzo valorizzati):
   così come sono e **geocodificati automaticamente**, come per un intervento
   inserito a mano;
 - **Urgente** spuntato diventa priorità "Urgente", altrimenti "Normale";
-- **"Data Disp." NON viene importata** ("Non Prima Del" resta sempre vuoto
-  per le righe importate: nel tracking esterno questo campo si è rivelato
-  inaffidabile e bloccava "Riempi buchi"/pianificazione automatica su
-  interventi in realtà disponibili); **"Data Scadenza" viene importata
-  normalmente come "Scadenza"** — ma non è un vincolo rigido: un intervento
-  che supera la scadenza resta pianificabile, semplicemente con la massima
-  priorità (vedi sopra, tab Dashboard); **Telefono** viene riportato
-  così com'è; **Importo ODS** diventa il **Ricavo (€)** dell'intervento;
+- **"Data Disp." NON diventa mai "Non Prima Del"** (quel campo resta sempre
+  vuoto per le righe importate: nel tracking esterno si è rivelato
+  inaffidabile come VINCOLO e bloccava "Riempi buchi"/pianificazione
+  automatica su interventi in realtà disponibili) — viene però riportata
+  come **Data Dispacciamento**, un campo puramente informativo per il tab
+  Analysis: qui un dato impreciso non blocca nessuna pianificazione, quindi
+  lo stesso problema di affidabilità non si ripresenta; **"Attività" e
+  "Comune" diventano Tipo Attività e Comune** (usati anch'essi solo dal tab
+  Analysis: un'Attività non tra quelle note diventa "Altro"); **"Data
+  Scadenza" viene importata normalmente come "Scadenza"** — ma non è un
+  vincolo rigido: un intervento che supera la scadenza resta pianificabile,
+  semplicemente con la massima priorità (vedi sopra, tab Dashboard);
+  **Telefono** viene riportato così com'è; **Importo ODS** diventa il
+  **Ricavo (€)** dell'intervento;
 - la **durata stimata** viene dedotta da "Attività" (ed eventualmente
   dall'"Importo ODS", per le attività graduate a fasce), secondo la
   legenda in `LEGENDA_DURATA_ATTIVITA_` (`gas/Import.gs`):

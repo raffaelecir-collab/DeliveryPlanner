@@ -5,6 +5,7 @@
   var state = { schema: {}, squadre: [], utente: '', ruolo: 'Admin' };
   var modalState = { schemaKey: null, editObj: null };
   var pianState = { squadraId: null, giorno: null, disponibili: [], pianificati: [], pianificatiAltrove: [], ordineCorrente: [], anteprima: null, ignoraTettoViaggio: false };
+  var analysisState = { caricato: false, dati: null, ricavoVista: 'settimanale', tempiVista: 'cumulativo', nuoviVista: 'cumulativo' };
 
   var SAVE_FN = { SQUADRE: 'salvaSquadra', INTERVENTI: 'salvaIntervento' };
   var DELETE_FN = { SQUADRE: 'eliminaSquadra', INTERVENTI: 'eliminaIntervento' };
@@ -204,13 +205,16 @@
     if (view === 'interventi') loadInterventi();
     if (view === 'squadre') loadSquadre();
     if (view === 'impostazioni') { loadRegole(); loadLog(); }
+    if (view === 'analysis' && !analysisState.caricato) caricaAnalysis();
   }
 
   // ---------- modale generico basato su schema ----------
   function getOptionsForField(field) {
-    if (field.options) return field.options.map(function (o) { return { value: o, label: o }; });
-    if (field.optionsFrom === 'SQUADRE') return state.squadre.map(function (s) { return { value: s.id, label: s.nome }; });
-    return [];
+    var opts = [];
+    if (field.options) opts = field.options.map(function (o) { return { value: o, label: o }; });
+    else if (field.optionsFrom === 'SQUADRE') opts = state.squadre.map(function (s) { return { value: s.id, label: s.nome }; });
+    if (field.allowEmptyOption) opts = [{ value: '', label: '— Non specificato —' }].concat(opts);
+    return opts;
   }
 
   function openModal(schemaKey, existingObj) {
@@ -1885,6 +1889,243 @@
     setupDialogIntervalloESelezione();
   }
 
+  // ---------- Analysis (solo Admin) ----------
+  function setupAnalysisTab() {
+    var oggi = new Date();
+    var primoDelMese = new Date(oggi.getFullYear(), oggi.getMonth(), 1);
+    document.getElementById('an-dal').value = toInputDate(primoDelMese);
+    document.getElementById('an-al').value = toInputDate(oggi);
+
+    populaSelectAnalysisSquadra_();
+
+    on('btn-an-aggiorna', 'click', caricaAnalysis);
+
+    document.querySelectorAll('[data-an-preset]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var lunedi, fine;
+        var now = new Date();
+        if (btn.dataset.anPreset === 'settimana') {
+          var giornoSett = (now.getDay() + 6) % 7; // 0 = lunedì
+          lunedi = new Date(now.getFullYear(), now.getMonth(), now.getDate() - giornoSett);
+          fine = now;
+        } else {
+          lunedi = new Date(now.getFullYear(), now.getMonth(), 1);
+          fine = now;
+        }
+        document.getElementById('an-dal').value = toInputDate(lunedi);
+        document.getElementById('an-al').value = toInputDate(fine);
+        caricaAnalysis();
+      });
+    });
+
+    document.querySelectorAll('[data-an-toggle]').forEach(function (gruppo) {
+      gruppo.querySelectorAll('button').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          gruppo.querySelectorAll('button').forEach(function (b) { b.classList.toggle('active', b === btn); });
+          var toggle = gruppo.dataset.anToggle;
+          if (toggle === 'ricavo-vista') { analysisState.ricavoVista = btn.dataset.val; renderRicavo_(); }
+          if (toggle === 'tempi-vista') { analysisState.tempiVista = btn.dataset.val; renderTempi_(); }
+          if (toggle === 'nuovi-vista') { analysisState.nuoviVista = btn.dataset.val; renderNuovi_(); }
+        });
+      });
+    });
+
+    on('an-soglia-backlog', 'change', caricaAnalysis);
+    on('an-includi-aperti', 'change', caricaAnalysis);
+    on('an-squadra', 'change', caricaAnalysis);
+  }
+
+  function populaSelectAnalysisSquadra_() {
+    var sel = document.getElementById('an-squadra');
+    if (!sel) return;
+    var valorePrecedente = sel.value;
+    sel.innerHTML = '<option value="">Tutti</option>' +
+      state.squadre.map(function (s) { return '<option value="' + s.id + '">' + escapeHtml(s.nome) + '</option>'; }).join('');
+    sel.value = valorePrecedente;
+  }
+
+  function caricaAnalysis() {
+    var dal = document.getElementById('an-dal').value, al = document.getElementById('an-al').value;
+    if (!dal || !al) { toast('Seleziona un intervallo Dal/Al.', 'error'); return Promise.resolve(); }
+    mostraCaricamento('an-grid');
+    var filtri = {
+      dal: fromInputDate(dal), al: fromInputDate(al),
+      squadraId: document.getElementById('an-squadra').value,
+      includiAperti: document.getElementById('an-includi-aperti').checked,
+      sogliaBacklogGiorni: parseInt(document.getElementById('an-soglia-backlog').value, 10) || 0
+    };
+    return callServer('getAnalisiDashboard', filtri).then(function (dati) {
+      analysisState.caricato = true;
+      analysisState.dati = dati;
+      renderAnalysis();
+    }).catch(function (err) {
+      toast(err.message || String(err), 'error');
+    }).then(function () { nascondiCaricamento('an-grid'); });
+  }
+
+  function renderAnalysis() {
+    if (!analysisState.dati) return;
+    renderRicavo_();
+    renderTempi_();
+    renderNuovi_();
+    renderTassi_();
+    renderSospensioni_();
+    renderBacklog_();
+    renderSla_();
+    renderRicavoAttivita_();
+    renderKm_();
+    renderComune_();
+  }
+
+  /** Righe [{etichetta, valore, colore}] come barre orizzontali, larghezza proporzionale al massimo. */
+  function renderBarre_(containerId, righe, formattaValore) {
+    var el = document.getElementById(containerId);
+    if (!el) return;
+    if (!righe.length) { el.innerHTML = '<div class="empty-hint">Nessun dato nel periodo selezionato.</div>'; return; }
+    var max = Math.max.apply(null, righe.map(function (r) { return r.valore; }).concat([0.0001]));
+    el.innerHTML = righe.map(function (r) {
+      var pct = Math.max(2, Math.round((r.valore / max) * 100));
+      return '<div class="an-bar-riga">' +
+        '<span class="an-bar-etichetta">' + escapeHtml(r.etichetta) + '</span>' +
+        '<span class="an-bar-traccia"><span class="an-bar-riempimento" style="width:' + pct + '%;' + (r.colore ? 'background:' + r.colore + ';' : '') + '"></span></span>' +
+        '<span class="an-bar-valore">' + (formattaValore ? formattaValore(r.valore) : r.valore) + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  function renderListaValori_(containerId, righe, formattaValore) {
+    var el = document.getElementById(containerId);
+    if (!el) return;
+    if (!righe.length) { el.innerHTML = '<div class="empty-hint">Nessun dato.</div>'; return; }
+    el.innerHTML = righe.map(function (r) {
+      return '<div class="an-lista-riga"><span class="an-lista-nome">' +
+        (r.colore ? '<span class="dot" style="background:' + r.colore + '"></span>' : '') +
+        escapeHtml(r.nome) + '</span><span class="an-lista-valore">' + (formattaValore ? formattaValore(r.valore) : r.valore) + '</span></div>';
+    }).join('');
+  }
+
+  function renderRicavo_() {
+    var d = analysisState.dati.ricavo;
+    document.getElementById('an-ricavo-totale').textContent = formatEuroClient(d.totale);
+    var serie = analysisState.ricavoVista === 'mensile' ? d.serieMensile : d.serieSettimanale;
+    renderBarre_('an-ricavo-serie', serie.map(function (s) { return { etichetta: s.etichetta, valore: s.totale }; }), formatEuroClient);
+    renderListaValori_('an-ricavo-per-squadra', d.perSquadra.map(function (s) { return { nome: s.squadraNome, valore: s.totale, colore: s.colore }; }), formatEuroClient);
+  }
+
+  function etichettaMetricaTempo_(chiave) {
+    return { primaLavorazione: 'Tempo di prima lavorazione', lavorazione: 'Tempo di lavorazione medio', completamento: 'Tempo di completamento' }[chiave];
+  }
+
+  function renderTempi_() {
+    var t = analysisState.dati.tempi;
+    var chiavi = ['primaLavorazione', 'lavorazione', 'completamento'];
+    var html = '';
+    if (analysisState.tempiVista === 'cumulativo') {
+      html += chiavi.map(function (k) {
+        var m = t[k].cumulativo;
+        return '<div class="an-stat-riga"><span>' + etichettaMetricaTempo_(k) + '</span>' +
+          '<strong>' + (m.media !== null ? m.media + ' gg' : '—') + '</strong></div>' +
+          '<div class="sub" style="margin:-2px 0 8px;">su ' + m.n + ' interventi</div>';
+      }).join('');
+    } else {
+      var tuttiTipi = {};
+      chiavi.forEach(function (k) { t[k].perAttivita.forEach(function (r) { tuttiTipi[r.tipoAttivita] = true; }); });
+      var tipi = Object.keys(tuttiTipi).sort();
+      if (!tipi.length) {
+        html = '<div class="empty-hint">Nessun dato nel periodo selezionato.</div>';
+      } else {
+        html += '<table class="an-tabella"><thead><tr><th>Tipo attività</th>' +
+          chiavi.map(function (k) { return '<th>' + etichettaMetricaTempo_(k) + '</th>'; }).join('') + '</tr></thead><tbody>';
+        html += tipi.map(function (tipo) {
+          return '<tr><td>' + escapeHtml(tipo) + '</td>' + chiavi.map(function (k) {
+            var r = t[k].perAttivita.filter(function (x) { return x.tipoAttivita === tipo; })[0];
+            return '<td>' + (r && r.media !== null ? r.media + ' gg (n=' + r.n + ')' : '—') + '</td>';
+          }).join('') + '</tr>';
+        }).join('') + '</tbody></table>';
+      }
+    }
+    document.getElementById('an-tempi-corpo').innerHTML = html;
+  }
+
+  function renderNuovi_() {
+    var d = analysisState.dati.nuoviInterventi;
+    document.getElementById('an-nuovi-totale').textContent = d.totale + ' interventi';
+    if (analysisState.nuoviVista === 'cumulativo') {
+      renderBarre_('an-nuovi-serie', d.serieMensile.map(function (s) { return { etichetta: s.etichetta, valore: s.totale }; }));
+    } else {
+      var el = document.getElementById('an-nuovi-serie');
+      if (!d.serieMensile.length) { el.innerHTML = '<div class="empty-hint">Nessun dato nel periodo selezionato.</div>'; return; }
+      var tuttiTipi = {};
+      d.serieMensile.forEach(function (s) { Object.keys(s.perGruppo).forEach(function (t) { tuttiTipi[t] = true; }); });
+      var tipi = Object.keys(tuttiTipi).sort();
+      el.innerHTML = '<table class="an-tabella"><thead><tr><th>Mese</th>' +
+        tipi.map(function (t) { return '<th>' + escapeHtml(t) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        d.serieMensile.map(function (s) {
+          return '<tr><td>' + escapeHtml(s.etichetta) + '</td>' + tipi.map(function (t) { return '<td>' + (s.perGruppo[t] || 0) + '</td>'; }).join('') + '</tr>';
+        }).join('') + '</tbody></table>';
+    }
+  }
+
+  function renderTassi_() {
+    var t = analysisState.dati.tassi;
+    var html = '<div class="an-stat-riga"><span>Totale dispacciati nel periodo</span><strong>' + t.totaleDispacciati + '</strong></div>' +
+      '<div class="an-stat-riga"><span>Completati</span><strong>' + t.completati + (t.percCompletati !== null ? ' (' + t.percCompletati + '%)' : '') + '</strong></div>' +
+      '<div class="an-stat-riga"><span>Annullati</span><strong>' + t.annullati + (t.percAnnullati !== null ? ' (' + t.percAnnullati + '%)' : '') + '</strong></div>' +
+      '<div class="an-stat-riga"><span>Sospesi (attualmente)</span><strong>' + t.sospesi + (t.percSospesi !== null ? ' (' + t.percSospesi + '%)' : '') + '</strong></div>';
+    if (t.perAttivita.length) {
+      html += '<table class="an-tabella" style="margin-top:10px;"><thead><tr><th>Tipo attività</th><th>Tot.</th><th>Compl.</th><th>Ann.</th><th>Sosp.</th></tr></thead><tbody>' +
+        t.perAttivita.map(function (r) {
+          return '<tr><td>' + escapeHtml(r.tipoAttivita) + '</td><td>' + r.totale + '</td><td>' + r.completati + '</td><td>' + r.annullati + '</td><td>' + r.sospesi + '</td></tr>';
+        }).join('') + '</tbody></table>';
+    }
+    document.getElementById('an-tassi-corpo').innerHTML = html;
+  }
+
+  function renderSospensioni_() {
+    var s = analysisState.dati.sospensioni;
+    document.getElementById('an-sospensioni-corpo').innerHTML =
+      '<div class="an-stat-riga"><span>Sospensioni registrate</span><strong>' + s.numeroSospensioni + '</strong></div>' +
+      '<div class="an-stat-riga"><span>Interventi sospesi almeno una volta</span><strong>' + s.interventiConAlmenoUnaSospensione + '</strong></div>' +
+      '<div class="an-stat-riga"><span>Durata media di una sospensione</span><strong>' + (s.tempoMedioGiorni !== null ? s.tempoMedioGiorni + ' gg' : '—') + '</strong></div>' +
+      '<div class="an-stat-riga"><span>Sospensioni medie per intervento</span><strong>' + (s.numeroMedioPerIntervento !== null ? s.numeroMedioPerIntervento : '—') + '</strong></div>';
+  }
+
+  function renderBacklog_() {
+    var b = analysisState.dati.backlogAging;
+    var html = '<div class="an-stat-riga"><span>Interventi "Da pianificare" da più di ' + b.sogliaGiorni + ' gg lavorativi</span><strong>' + b.numero + '</strong></div>';
+    if (b.elenco.length) {
+      html += '<table class="an-tabella" style="margin-top:8px;"><thead><tr><th>Cliente</th><th>Dispacciato il</th><th>Giorni</th></tr></thead><tbody>' +
+        b.elenco.map(function (r) { return '<tr><td>' + escapeHtml(r.cliente) + '</td><td>' + r.dataDispacciamento + '</td><td>' + r.giorniTrascorsi + '</td></tr>'; }).join('') +
+        '</tbody></table>';
+    }
+    document.getElementById('an-backlog-corpo').innerHTML = html;
+  }
+
+  function renderSla_() {
+    var s = analysisState.dati.slaScadenza;
+    document.getElementById('an-sla-corpo').innerHTML =
+      '<div class="an-stat-riga"><span>Completati con scadenza impostata</span><strong>' + s.totaleConScadenza + '</strong></div>' +
+      '<div class="an-stat-riga"><span>Completati oltre la scadenza</span><strong>' + s.oltreScadenza + (s.percentuale !== null ? ' (' + s.percentuale + '%)' : '') + '</strong></div>';
+  }
+
+  function renderRicavoAttivita_() {
+    renderListaValori_('an-ricavo-attivita-corpo', analysisState.dati.ricavoMedioPerAttivita.map(function (r) {
+      return { nome: r.tipoAttivita + ' (n=' + r.n + ')', valore: r.media };
+    }), formatEuroClient);
+  }
+
+  function renderKm_() {
+    renderListaValori_('an-km-corpo', analysisState.dati.kmPerTecnico.map(function (r) {
+      return { nome: r.squadraNome, valore: r.km, colore: r.colore };
+    }), function (v) { return v + ' km'; });
+  }
+
+  function renderComune_() {
+    renderListaValori_('an-comune-corpo', analysisState.dati.distribuzioneComune.map(function (r) {
+      return { nome: r.comune, valore: r.numero };
+    }));
+  }
+
   // ---------- bootstrap ----------
   // Ogni setup viene isolato: se una parte fallisce (es. un elemento mancante perché
   // un file HTML non è stato aggiornato/copiato insieme agli altri) non deve impedire
@@ -1905,6 +2146,7 @@
     safeRun_('interventi', setupInterventiTab);
     safeRun_('squadre', setupSquadreTab);
     safeRun_('regole', setupRegoleTab);
+    safeRun_('analysis', setupAnalysisTab);
 
     mostraCaricamento('dash-team-list', 'dash-detail');
     callServer('getBootstrapData').then(function (data) {

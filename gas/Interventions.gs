@@ -28,6 +28,12 @@ function salvaIntervento(intervento) {
     intervento.lat = coord.lat;
     intervento.lng = coord.lng;
   }
+  // Data di dispacciamento: per un nuovo intervento creato a mano (mai per un import, che valorizza
+  // già il campo da "Data Disp." del tracking esterno), di default è la data odierna se non
+  // specificata — usata dal tab Analysis come base dei tempi di lavorazione.
+  if (!esistente && !intervento.dataDispacciamento) {
+    intervento.dataDispacciamento = formatDateStr_(dataOggi_());
+  }
 
   return upsertRow_('INTERVENTI', intervento);
 }
@@ -46,6 +52,29 @@ function eliminaIntervento(id, row) {
 }
 
 /**
+ * Calcola i campi "di analisi" (primoEventoData, dataPrimoPianificato, dataCompletamento) da
+ * unire a un aggiornamento di un Intervento, in base allo stato esistente e a `nuoviCampi.stato`
+ * (se presente): nessuno di questi viene mai sovrascritto una volta impostato, sono tutti "prima
+ * volta che succede questa cosa". Da richiamare su OGNI scrittura che cambi stato, aggiunga una
+ * nota/sospensione o crei un intervento già pianificato, così le metriche del tab Analysis
+ * restano coerenti ovunque nel codice le tocchi (Interventions.gs, RouteEngine.gs, Import.gs).
+ * Per scelta esplicita, questi campi partono vuoti sui dati storici: si popolano solo da quando
+ * questa funzione esiste in poi (vedi tab Analysis per il dettaglio).
+ */
+function campiAnalisi_(esistente, nuoviCampi) {
+  var pregresso = esistente || {};
+  var out = {};
+  if (!pregresso.primoEventoData) out.primoEventoData = formatDateStr_(dataOggi_());
+  if (nuoviCampi && nuoviCampi.stato === STATO_INTERVENTO.PIANIFICATO && !pregresso.dataPrimoPianificato) {
+    out.dataPrimoPianificato = formatDateStr_(dataOggi_());
+  }
+  if (nuoviCampi && nuoviCampi.stato === STATO_INTERVENTO.COMPLETATO && !pregresso.dataCompletamento) {
+    out.dataCompletamento = formatDateStr_(dataOggi_());
+  }
+  return out;
+}
+
+/**
  * Riporta un intervento allo stato "Da pianificare", liberando squadra/data/ora assegnate (senza
  * ripianificarlo automaticamente: è compito dell'utente farlo, a mano o con un successivo "Riempi
  * buco" esplicito). Registra in nonAutomatizzabileData la data da cui è stato rimosso: finché
@@ -58,7 +87,7 @@ function ripianificaIntervento(id, row) {
   richiedeAdmin_();
   var esistente = trovaInterventoPerIdORiga_(id, row);
   if (!esistente) throw new Error('Intervento non trovato.');
-  updateRowFields_('INTERVENTI', esistente._row, {
+  var campi = {
     stato: STATO_INTERVENTO.DA_PIANIFICARE,
     squadraId: '',
     dataPianificata: '',
@@ -66,7 +95,8 @@ function ripianificaIntervento(id, row) {
     ordineTappa: '',
     motivoNonPianificato: '',
     nonAutomatizzabileData: esistente.dataPianificata || ''
-  });
+  };
+  updateRowFields_('INTERVENTI', esistente._row, Object.assign(campi, campiAnalisi_(esistente, campi)));
   return true;
 }
 
@@ -74,7 +104,8 @@ function segnaCompletato(id, row) {
   richiedeAdmin_();
   var esistente = trovaInterventoPerIdORiga_(id, row);
   if (!esistente) throw new Error('Intervento non trovato.');
-  updateRowFields_('INTERVENTI', esistente._row, { stato: STATO_INTERVENTO.COMPLETATO });
+  var campi = { stato: STATO_INTERVENTO.COMPLETATO };
+  updateRowFields_('INTERVENTI', esistente._row, Object.assign(campi, campiAnalisi_(esistente, campi)));
   return true;
 }
 
@@ -93,6 +124,34 @@ function aggiungiStoriaSospensione_(esistente, stato, nota) {
 }
 
 /**
+ * Estrae dallo storico di un intervento gli intervalli [dal, al) in cui è rimasto sospeso (uno dei
+ * 3 stati di sospensione), usati dal tab Analysis per escludere questi giorni dal conteggio dei
+ * tempi di lavorazione. Considera solo le voci dello storico con uno stato (non le note libere,
+ * che hanno stato vuoto): una sospensione si chiude alla prima voce successiva con uno stato
+ * diverso da sospensione (tipicamente "Fine sospensione", ma anche un annullamento o un
+ * completamento diretto); se non c'è mai stata una voce di chiusura, l'intervento è ancora
+ * sospeso e l'intervallo resta aperto fino a oggi.
+ */
+function intervalliSospensione_(storiaJson) {
+  var storia = [];
+  try { storia = JSON.parse(storiaJson || '[]'); } catch (e) { storia = []; }
+  if (!Array.isArray(storia)) storia = [];
+  var eventi = storia.filter(function (s) { return s.stato; });
+  var intervalli = [];
+  var inizioSospensione = null;
+  eventi.forEach(function (e) {
+    if (isStatoSospeso_(e.stato)) {
+      if (!inizioSospensione) inizioSospensione = e.data;
+    } else if (inizioSospensione) {
+      intervalli.push({ dal: inizioSospensione, al: e.data });
+      inizioSospensione = null;
+    }
+  });
+  if (inizioSospensione) intervalli.push({ dal: inizioSospensione, al: formatDateStr_(dataOggi_()) });
+  return intervalli;
+}
+
+/**
  * Sospende un intervento: registra nota + data odierna nello storico sospensioni e imposta lo
  * stato su uno dei tre stati di sospensione. Se l'intervento era già pianificato su un percorso,
  * lo libera (come "Rimuovi") perché un intervento sospeso non deve comparire nella
@@ -104,19 +163,30 @@ function sospendiIntervento(id, row, statoSospensione, nota) {
   if (!esistente) throw new Error('Intervento non trovato.');
   if (!isStatoSospeso_(statoSospensione)) throw new Error('Stato di sospensione non valido.');
   if (!nota) throw new Error('La nota di motivazione è obbligatoria.');
-  updateRowFields_('INTERVENTI', esistente._row, {
+  var campi = {
     stato: statoSospensione,
     storiaSospensioni: aggiungiStoriaSospensione_(esistente, statoSospensione, nota),
     squadraId: '', dataPianificata: '', oraPianificata: '', ordineTappa: '', motivoNonPianificato: ''
-  });
+  };
+  updateRowFields_('INTERVENTI', esistente._row, Object.assign(campi, campiAnalisi_(esistente, campi)));
   return true;
 }
 
-/** Termina la sospensione di un intervento: torna "Da pianificare" (lo storico resta). */
+/**
+ * Termina la sospensione di un intervento: torna "Da pianificare" (lo storico resta) e registra
+ * anche qui una voce di storico (stato "Da pianificare"), necessaria per sapere QUANDO è finita
+ * la sospensione — senza questa voce il tab Analysis non potrebbe escludere correttamente i
+ * giorni di sospensione dal conteggio dei tempi di lavorazione (vedi intervalliSospensione_).
+ */
 function terminaSospensione(id, row) {
   var esistente = trovaInterventoPerIdORiga_(id, row);
   if (!esistente) throw new Error('Intervento non trovato.');
-  updateRowFields_('INTERVENTI', esistente._row, { stato: STATO_INTERVENTO.DA_PIANIFICARE, motivoNonPianificato: '' });
+  var campi = {
+    stato: STATO_INTERVENTO.DA_PIANIFICARE,
+    motivoNonPianificato: '',
+    storiaSospensioni: aggiungiStoriaSospensione_(esistente, STATO_INTERVENTO.DA_PIANIFICARE, 'Fine sospensione')
+  };
+  updateRowFields_('INTERVENTI', esistente._row, Object.assign(campi, campiAnalisi_(esistente, campi)));
   return true;
 }
 
@@ -130,11 +200,12 @@ function annullaIntervento(id, row, nota) {
   var esistente = trovaInterventoPerIdORiga_(id, row);
   if (!esistente) throw new Error('Intervento non trovato.');
   if (!nota) throw new Error('La nota di motivazione è obbligatoria.');
-  updateRowFields_('INTERVENTI', esistente._row, {
+  var campi = {
     stato: STATO_INTERVENTO.ANNULLATO,
     storiaSospensioni: aggiungiStoriaSospensione_(esistente, STATO_INTERVENTO.ANNULLATO, nota),
     squadraId: '', dataPianificata: '', oraPianificata: '', ordineTappa: '', motivoNonPianificato: ''
-  });
+  };
+  updateRowFields_('INTERVENTI', esistente._row, Object.assign(campi, campiAnalisi_(esistente, campi)));
   return true;
 }
 
@@ -146,8 +217,7 @@ function aggiungiNotaIntervento(id, row, nota) {
   var esistente = trovaInterventoPerIdORiga_(id, row);
   if (!esistente) throw new Error('Intervento non trovato.');
   if (!nota) throw new Error('La nota è obbligatoria.');
-  updateRowFields_('INTERVENTI', esistente._row, {
-    storiaSospensioni: aggiungiStoriaSospensione_(esistente, '', nota)
-  });
+  var campi = { storiaSospensioni: aggiungiStoriaSospensione_(esistente, '', nota) };
+  updateRowFields_('INTERVENTI', esistente._row, Object.assign(campi, campiAnalisi_(esistente, campi)));
   return true;
 }

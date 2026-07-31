@@ -75,6 +75,18 @@ function isStatoSospeso_(stato) { return STATI_SOSPENSIONE.indexOf(stato) !== -1
 var GIORNI_SETTIMANA = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
 
 /**
+ * Tipi di attività riconosciuti (stessa nomenclatura di LEGENDA_DURATA_ATTIVITA_ in Import.gs,
+ * qui in forma leggibile): usati come opzioni del campo "Tipo Attività" sugli Interventi e per
+ * raggruppare le metriche del tab Analysis. Una riga importata la cui "Attività" non corrisponde
+ * a nessuna di queste diventa "Altro".
+ */
+var TIPI_ATTIVITA_NOTI = [
+  'Installazione Periferica', 'Installazione WiComm', 'Manutenzione Correttiva', 'Manutenzione Ispettiva',
+  'Smontaggio', 'Integrazione Impianto', 'Scarico Immagini', 'Installazione Filare'
+];
+var TIPO_ATTIVITA_ALTRO = 'Altro';
+
+/**
  * Definizione campi per ciascun foglio. L'ordine dei campi determina
  * l'ordine delle colonne nel foglio (a partire dalla colonna A).
  */
@@ -135,7 +147,13 @@ var SCHEMA = {
       { key: 'codiceEsterno', label: 'Codice Esterno (Ods)', type: 'text', help: 'Identificativo dell\'intervento nel sistema di tracking esterno da cui è stato importato (tab ImportInterventi): re-importando lo stesso Ods, questo intervento viene aggiornato invece di duplicato. Modificabile anche a mano.' },
       { key: 'nonAutomatizzabileData', label: 'Escluso da pianificazione automatica per il', type: 'date', readonly: true, help: 'Impostato automaticamente da "Rimuovi" (tab Programmazione): per questa data, l\'intervento non viene riproposto da "Riempi buco" o dalla pianificazione automatica su intervallo — resta comunque pianificabile a mano, anche per la stessa data. Si azzera da solo non appena l\'intervento viene ripianificato (a mano o in automatico).' },
       { key: 'storiaSospensioni', label: 'Storico Note e Sospensioni', type: 'text', readonly: true, help: 'Cronologia (data, autore Admin/Cliente, eventuale stato, nota) di ogni nota libera o sospensione/annullamento registrata su questo intervento, a mano (da Admin o da Cliente) o da import.' },
-      { key: 'operatore', label: 'Op.', type: 'text', help: 'Sigla o nome dell\'operatore, per uso libero.' }
+      { key: 'operatore', label: 'Op.', type: 'text', help: 'Sigla o nome dell\'operatore, per uso libero.' },
+      { key: 'dataDispacciamento', label: 'Data Dispacciamento', type: 'date', help: 'Data in cui l\'intervento è stato ricevuto/dispacciato: per gli interventi importati è la "Data Disp." del tracking esterno; per quelli creati a mano nella Web App viene impostata di default alla data odierna al primo salvataggio (modificabile). Usata come base per le metriche del tab Analysis (tempi di lavorazione, nuovi interventi dispacciati nel tempo).' },
+      { key: 'tipoAttivita', label: 'Tipo Attività', type: 'select', options: TIPI_ATTIVITA_NOTI.concat([TIPO_ATTIVITA_ALTRO]), allowEmptyOption: true, help: 'Categoria dell\'intervento: per quelli importati viene dedotta automaticamente dalla colonna "Attività" del tracking esterno; per quelli creati a mano va scelta qui (facoltativo). Usata per raggruppare le metriche del tab Analysis.' },
+      { key: 'comune', label: 'Comune', type: 'text', help: 'Comune dell\'indirizzo (per gli interventi importati, dedotto dalla colonna "Comune" del tracking esterno): usato per la distribuzione geografica nel tab Analysis. Per gli interventi creati a mano è facoltativo.' },
+      { key: 'primoEventoData', label: 'Data Primo Evento', type: 'date', readonly: true, help: 'Impostata automaticamente la prima volta che succede qualcosa su questo intervento dopo la creazione (nota, sospensione, cambio stato...): usata per calcolare il "Tempo di prima lavorazione" nel tab Analysis.' },
+      { key: 'dataPrimoPianificato', label: 'Data Primo Pianificato', type: 'date', readonly: true, help: 'Impostata automaticamente la prima volta che l\'intervento passa a stato "Pianificato": usata per calcolare il "Tempo di lavorazione medio" nel tab Analysis.' },
+      { key: 'dataCompletamento', label: 'Data Completamento', type: 'date', readonly: true, help: 'Impostata automaticamente quando l\'intervento viene segnato come "Completato": usata per calcolare il "Tempo di completamento" nel tab Analysis.' }
     ]
   },
   REGOLE: {

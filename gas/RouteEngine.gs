@@ -1030,16 +1030,17 @@ function confermaPercorso(squadraId, giornoStr, interventoIdsOrdinati, ignoraTet
       // Deselezionato durante una ripianificazione manuale: stessa protezione di "Rimuovi" (tab
       // Programmazione) — non va riproposto automaticamente per questa stessa data, resta
       // comunque pianificabile a mano.
-      updateRowFields_('INTERVENTI', i._row, {
+      var campiRimosso = {
         stato: STATO_INTERVENTO.DA_PIANIFICARE, squadraId: '', dataPianificata: '', oraPianificata: '', ordineTappa: '', motivoNonPianificato: '',
         nonAutomatizzabileData: anteprima.giorno
-      });
+      };
+      updateRowFields_('INTERVENTI', i._row, Object.assign(campiRimosso, campiAnalisi_(i, campiRimosso)));
     }
   });
 
   anteprima.tappe.forEach(function (t, idx) {
     var it = tuttiInterventi.filter(function (i) { return i.id === t.interventoId; })[0];
-    updateRowFields_('INTERVENTI', it._row, {
+    var campiPianificato = {
       stato: STATO_INTERVENTO.PIANIFICATO,
       squadraId: squadraId,
       dataPianificata: anteprima.giorno,
@@ -1047,14 +1048,16 @@ function confermaPercorso(squadraId, giornoStr, interventoIdsOrdinati, ignoraTet
       ordineTappa: idx + 1,
       motivoNonPianificato: '',
       nonAutomatizzabileData: ''
-    });
+    };
+    updateRowFields_('INTERVENTI', it._row, Object.assign(campiPianificato, campiAnalisi_(it, campiPianificato)));
   });
 
   anteprima.nonIncluse.forEach(function (n) {
     var it = tuttiInterventi.filter(function (i) { return i.id === n.interventoId; })[0];
-    updateRowFields_('INTERVENTI', it._row, {
+    var campiNonIncluso = {
       stato: STATO_INTERVENTO.DA_PIANIFICARE, squadraId: '', dataPianificata: '', oraPianificata: '', ordineTappa: '', motivoNonPianificato: n.motivo
-    });
+    };
+    updateRowFields_('INTERVENTI', it._row, Object.assign(campiNonIncluso, campiAnalisi_(it, campiNonIncluso)));
   });
 
   upsertRow_('LOG', {
@@ -1250,7 +1253,7 @@ function riempiBucoGiorno(squadraId, giornoStr, consentiSpostamento) {
 
   var risultato = calcolo.risultato;
   risultato.tappe.forEach(function (t, idx) {
-    updateRowFields_('INTERVENTI', t.intervento._row, {
+    var campiPianificato = {
       stato: STATO_INTERVENTO.PIANIFICATO,
       squadraId: calcolo.squadra.id,
       dataPianificata: giornoFmt,
@@ -1258,12 +1261,14 @@ function riempiBucoGiorno(squadraId, giornoStr, consentiSpostamento) {
       ordineTappa: idx + 1,
       motivoNonPianificato: '',
       nonAutomatizzabileData: ''
-    });
+    };
+    updateRowFields_('INTERVENTI', t.intervento._row, Object.assign(campiPianificato, campiAnalisi_(t.intervento, campiPianificato)));
   });
   risultato.nonIncluse.forEach(function (n) {
-    updateRowFields_('INTERVENTI', n.intervento._row, {
+    var campiNonIncluso = {
       stato: STATO_INTERVENTO.DA_PIANIFICARE, squadraId: '', dataPianificata: '', oraPianificata: '', ordineTappa: '', motivoNonPianificato: n.motivo
-    });
+    };
+    updateRowFields_('INTERVENTI', n.intervento._row, Object.assign(campiNonIncluso, campiAnalisi_(n.intervento, campiNonIncluso)));
   });
 
   return formattaAnteprima_(calcolo.squadra, calcolo.giorno, risultato);
@@ -1296,6 +1301,7 @@ function creaEPianificaIntervento(intervento, squadraId, giornoStr, oraStr) {
   intervento.oraPianificata = oraStr;
   intervento.motivoNonPianificato = '';
   intervento.nonAutomatizzabileData = '';
+  Object.assign(intervento, campiAnalisi_(null, intervento));
   var salvato = salvaIntervento(intervento);
 
   var tappeGiorno = readAll_('INTERVENTI').filter(function (i) {
@@ -1633,7 +1639,7 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
       risultato.tappe.forEach(function (t, idx) {
         var originale = pool.filter(function (i) { return i.id === t.intervento.id; })[0];
         if (originale) originale._assegnato = true; // già pianificate in precedenza: non fanno parte del pool, restano semplicemente invariate
-        updateRowFields_('INTERVENTI', t.intervento._row, {
+        var campiPianificato = {
           stato: STATO_INTERVENTO.PIANIFICATO,
           squadraId: squadra.id,
           dataPianificata: giornoFmt,
@@ -1641,7 +1647,8 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
           ordineTappa: idx + 1,
           motivoNonPianificato: '',
           nonAutomatizzabileData: ''
-        });
+        };
+        updateRowFields_('INTERVENTI', t.intervento._row, Object.assign(campiPianificato, campiAnalisi_(t.intervento, campiPianificato)));
       });
 
       var anteprimaGiorno = formattaAnteprima_(squadra, giorno, risultato);

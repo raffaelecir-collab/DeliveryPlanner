@@ -131,6 +131,20 @@ function calcolaDurataAttivitaImport_(attivitaRaw, importoOdsRaw) {
 }
 
 /**
+ * Normalizza la colonna "Attività" del tracking esterno su uno dei tipi noti (TIPI_ATTIVITA_NOTI
+ * in Config.gs, stessa nomenclatura di LEGENDA_DURATA_ATTIVITA_ ma in forma leggibile) per poterla
+ * raggruppare in modo affidabile nel tab Analysis: un valore non riconosciuto diventa "Altro"
+ * invece di restare testo libero non standardizzato; una cella vuota resta vuota (non ancora
+ * classificato) invece di forzare "Altro".
+ */
+function normalizzaTipoAttivita_(attivitaRaw) {
+  var s = String(attivitaRaw || '').trim();
+  if (!s) return '';
+  var match = TIPI_ATTIVITA_NOTI.filter(function (t) { return t.toLowerCase() === s.toLowerCase(); })[0];
+  return match || TIPO_ATTIVITA_ALTRO;
+}
+
+/**
  * Apre il foglio esterno configurato in Regole (chiave "foglioImportEsternoId") e ne restituisce
  * la prima tab, con un errore chiaro se l'ID manca o se il foglio non è raggiungibile/condiviso
  * con l'account che esegue la Web App. Deve essere condiviso in SCRITTURA (non solo lettura):
@@ -324,16 +338,24 @@ function importaInterventiEsterni() {
       cliente: cliente,
       indirizzo: indirizzoCompleto,
       priorita: valoreColonnaImport_(row, idx, 'Urgente') === true ? PRIORITA.URGENTE : PRIORITA.NORMALE,
-      // "Data Disp." (Non Prima Del) non viene importata: nel tracking esterno questo campo si è
-      // rivelato inaffidabile e bloccava "Riempi buco"/pianificazione automatica su interventi in
-      // realtà disponibili. La scadenza resta importata, ma non è più un vincolo rigido (vedi
-      // prioritaEffettiva_ in RouteEngine.gs): se superata l'intervento diventa solo prioritario.
+      // "Data Disp." NON viene usata come "Non Prima Del" (dataRichiesta resta sempre vuota per le
+      // righe importate): nel tracking esterno si è rivelata inaffidabile come VINCOLO e bloccava
+      // "Riempi buco"/pianificazione automatica su interventi in realtà disponibili. Viene però
+      // riportata come dataDispacciamento, un campo puramente informativo (usato solo dal tab
+      // Analysis per le statistiche), quindi lo stesso problema di affidabilità non si ripresenta:
+      // nel peggiore dei casi un dato analitico è impreciso, non blocca alcuna pianificazione.
       scadenza: normalizzaDataImport_(valoreColonnaImport_(row, idx, 'Data Scadenza')),
       note: noteParti.join(' | '),
       telefono: normalizzaTelefonoImport_(valoreColonnaImport_(row, idx, 'Telefono'))
     };
     if (odsStr) payload.codiceEsterno = odsStr;
     if (esistente) payload.id = esistente.id;
+
+    var dataDispRaw = normalizzaDataImport_(valoreColonnaImport_(row, idx, 'Data Disp.'));
+    if (dataDispRaw) payload.dataDispacciamento = dataDispRaw;
+    var tipoAttivitaNormalizzato = normalizzaTipoAttivita_(attivita);
+    if (tipoAttivitaNormalizzato) payload.tipoAttivita = tipoAttivitaNormalizzato;
+    if (comune) payload.comune = comune;
 
     var importoOdsRaw = valoreColonnaImport_(row, idx, 'Importo ODS');
     var importoOds = (importoOdsRaw === '' || importoOdsRaw === null || importoOdsRaw === undefined) ? NaN : parseFloat(importoOdsRaw);
@@ -358,6 +380,10 @@ function importaInterventiEsterni() {
         payload.storiaSospensioni = aggiungiStoriaSospensione_(esistente, payload.stato,
           'Importato dal tracking esterno (Stato: ' + statoEsterno + ')');
       }
+      // Stessi campi di analisi (tab Analysis) impostati da campiAnalisi_ ovunque nel codice si
+      // cambi stato: qui l'import può portare direttamente un intervento a Pianificato/Completato/
+      // Sospeso senza passare da nessuna delle funzioni di Interventions.gs.
+      Object.assign(payload, campiAnalisi_(esistente, payload));
     }
 
     try {
