@@ -107,6 +107,7 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 | `Calendario.gs` | Calendario giorni lavorativi FISSO (Lun-Ven, festività italiane escluse) usato solo dal tab Analysis, indipendente dalla regola "giorniLavorativi" della pianificazione |
 | `Analysis.gs` | Metriche del tab Analysis (solo Admin): ricavo, tempi di lavorazione, tassi, backlog, km, distribuzione geografica |
 | `TeamView.gs` | Programmazione propria per l'account Squadra (elenco/agenda/mappa) |
+| `Documenti.gs` | Documenti allegati a ciascun Intervento, archiviati su Google Drive |
 | `Code.gs` | `doGet()` e funzioni esposte al client |
 | `Index.html` / `CSS.html` / `JS.html` | Interfaccia utente (SPA) |
 
@@ -202,9 +203,12 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    (solo data automatica, non cambia stato); il pulsante **"⊘ Annulla"**
    chiede una nota di motivazione e porta l'intervento a "Annullato" in modo
    definitivo (non viene più riproposto dalla pianificazione, a differenza
-   della sospensione). Vedi anche "Account Cliente" più sotto: lo stesso tab,
-   con questi tre pulsanti (Nota/Sospendi/Annulla) ma senza Modifica/Completa/
-   Elimina, è quello che vede un account Cliente.
+   della sospensione). Il pulsante **"📎 Documenti"** apre un popup con
+   l'elenco dei file allegati a quell'intervento (archiviati su Google Drive,
+   vedi "Documenti allegati" più sotto) e, per Admin e Cliente, un selettore
+   file per caricarne di nuovi. Vedi anche "Account Cliente" più sotto: lo
+   stesso tab, con questi quattro pulsanti (Nota/Documenti/Sospendi/Annulla)
+   ma senza Modifica/Completa/Elimina, è quello che vede un account Cliente.
 
    Sotto ogni campo indirizzo (Squadre e Interventi) c'è un link **"🗺️
    Mostra mappa"**: apre un'anteprima piccola e ridimensionabile (trascina
@@ -532,11 +536,52 @@ ancora "Da pianificare", anche se di competenza compatibile) in due viste:
 
 Da qualunque vista, un account Squadra può solo **aggiungere una nota**
 (stesso storico/popup già visto per Admin/Cliente, con "Squadra" come
-autore) o **segnare un intervento come completato** (icona ✓, senza
+autore), **segnare un intervento come completato** (icona ✓, senza
 vincoli di data: recupera anche un intervento di un giorno passato non
-ancora spuntato) — non può creare, modificare, eliminare, sospendere,
-annullare o pianificare nulla, né vedere il **Ricavo (€)** degli
-interventi (nascosto di proposito, dato non necessario sul campo).
+ancora spuntato) o **visualizzare i documenti allegati** (icona 📎, sola
+lettura — vedi sezione successiva) — non può creare, modificare, eliminare,
+sospendere, annullare, pianificare né caricare/eliminare documenti, né
+vedere il **Ricavo (€)** degli interventi (nascosto di proposito, dato non
+necessario sul campo).
+
+### Documenti allegati (Google Drive)
+
+Ogni intervento può avere documenti allegati (fatture, moduli, foto...),
+archiviati su Google Drive invece che nel foglio: il pulsante **"📎
+Documenti"** (tab Interventi per Admin/Cliente, tab "La mia squadra" per
+l'account Squadra) apre un popup con l'elenco dei file già caricati (click
+per aprirli in una nuova scheda) e, solo per **Admin e Cliente**, un
+selettore file per caricarne di nuovi o eliminare quelli esistenti; un
+account **Squadra può solo visualizzarli** (e solo quelli della propria
+squadra).
+
+**Dove vengono salvati**: alla prima volta che un documento viene caricato
+per un intervento, viene creata una sottocartella dedicata dentro la
+cartella Drive configurata nella regola **"driveCartellaRadiceId"** (tab
+Regole, solo Admin — di default quella indicata all'attivazione di questa
+funzionalità), nominata **`yyyyMMdd_ODS_Cliente`** (es.
+`20260803_IN-260803-1234_MarioRossi`): la data è la Data Dispacciamento
+dell'intervento (oggi se non ancora impostata), l'ODS è il Codice Esterno
+(**"SENZA-ODS"** se non ancora presente — capiterà spesso per gli
+interventi inseriti a mano prima che arrivi l'ODS ufficiale: la cartella
+**si rinomina da sola** non appena il Codice Esterno viene valorizzato, a
+mano o da un import successivo che lo riconcilia). L'associazione tra
+intervento e cartella è tramite un ID salvato internamente sull'intervento,
+non tramite il nome (evita ambiguità se due interventi generassero per
+caso lo stesso nome).
+
+**Chi può vedere cosa su Drive**: la cartella di ogni intervento viene
+condivisa in sola visualizzazione (non con un link pubblico) con l'elenco
+email della regola "emailClienti" e con le email della squadra assegnata a
+quell'intervento (campo "Email Account Squadra"); la condivisione viene
+verificata e aggiornata automaticamente ad ogni apertura del popup
+Documenti, così un cambio di squadra o degli elenchi email si riflette da
+solo. L'account che esegue la Web App (impostazioni di distribuzione,
+"Esegui come") deve avere accesso in scrittura alla cartella radice
+configurata, altrimenti il caricamento fallisce con un errore esplicito.
+Nessun limite di tipo o dimensione file è imposto dall'app (i limiti
+pratici sono quelli della piattaforma Apps Script/del browser per file
+molto grandi).
 
 ### Inserire righe direttamente sul Google Sheet
 

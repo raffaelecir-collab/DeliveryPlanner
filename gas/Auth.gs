@@ -22,11 +22,19 @@ function contestoUtenteCorrente_() {
   })[0];
   if (squadraMatch) return { ruolo: RUOLO.SQUADRA, squadraId: squadraMatch.id };
 
-  var riga = readAll_('REGOLE').filter(function (r) { return r.chiave === 'emailClienti'; })[0];
-  var clienti = splitList_(riga ? riga.valore : '').map(function (e) { return e.toLowerCase(); });
-  if (clienti.indexOf(email) !== -1) return { ruolo: RUOLO.CLIENTE, squadraId: null };
+  if (emailClientiConfigurate_().indexOf(email) !== -1) return { ruolo: RUOLO.CLIENTE, squadraId: null };
 
   return { ruolo: RUOLO.ADMIN, squadraId: null };
+}
+
+/**
+ * Elenco email (minuscolo) configurate nella regola "emailClienti", letta direttamente dal
+ * foglio (non tramite listaRegole_/getRegoleMappa_) per lo stesso motivo di contestoUtenteCorrente_.
+ * Riusata anche da Documenti.gs per condividere le cartelle documenti con l'account Cliente.
+ */
+function emailClientiConfigurate_() {
+  var riga = readAll_('REGOLE').filter(function (r) { return r.chiave === 'emailClienti'; })[0];
+  return splitList_(riga ? riga.valore : '').map(function (e) { return e.toLowerCase(); });
 }
 
 /** Chi non compare in nessun elenco (emailClienti, emailSquadra di una Squadra) resta Admin:
