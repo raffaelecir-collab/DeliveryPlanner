@@ -140,7 +140,7 @@ var SCHEMA = {
       { key: 'dataRichiesta', label: 'Non Prima Del (gg/mm/aaaa)', type: 'date' },
       { key: 'scadenza', label: 'Scadenza (gg/mm/aaaa)', type: 'date' },
       { key: 'stato', label: 'Stato', type: 'select', options: [STATO_INTERVENTO.DA_PIANIFICARE, STATO_INTERVENTO.PIANIFICATO, STATO_INTERVENTO.COMPLETATO, STATO_INTERVENTO.ANNULLATO, STATO_INTERVENTO.SOSPESO_YS, STATO_INTERVENTO.SOSPESO_ZP, STATO_INTERVENTO.SOSPESO_ZC], default: STATO_INTERVENTO.DA_PIANIFICARE, readonly: true },
-      { key: 'squadraId', label: 'Squadra Assegnata', type: 'select', optionsFrom: 'SQUADRE', readonly: true },
+      { key: 'squadraId', label: 'Squadra Assegnata', type: 'select', optionsFrom: 'SQUADRE', allowEmptyOption: true, help: 'Cambiare squadra qui sposta l\'intervento senza ricalcolare automaticamente l\'ordine/orario del percorso: verificare poi la programmazione della nuova squadra.' },
       { key: 'dataPianificata', label: 'Data Pianificata', type: 'date', readonly: true },
       { key: 'oraPianificata', label: 'Ora Pianificata', type: 'text', readonly: true },
       { key: 'ordineTappa', label: 'Ordine nel Percorso', type: 'number', readonly: true },

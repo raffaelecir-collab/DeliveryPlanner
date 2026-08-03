@@ -1813,7 +1813,11 @@
       el.innerHTML = '<div class="dash-empty-detail">' +
         '<div><span class="team-dot" style="background:' + (sq.colore || '#999') + ';display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;"></span><strong>' + escapeHtml(sq.nome) + '</strong></div>' +
         '<p style="margin:10px 0 0;">' + (agg.multiGiorno ? 'Nessun intervento pianificato nel periodo selezionato.' : 'Nessun intervento pianificato per questo giorno.') + '</p>' +
-        (agg.multiGiorno ? '' : '<button class="btn-primary" data-action="aggiungi-intervento" data-giorno="' + giornoUnico + '">+ Aggiungi intervento</button>') +
+        (agg.multiGiorno ? '' :
+          '<div class="dash-detail-actions" style="justify-content:center;margin:12px auto 0;">' +
+          '<button class="btn-secondary" data-action="seleziona-elenco" data-giorno="' + giornoUnico + '">📋 Seleziona da elenco</button>' +
+          '<button class="btn-primary" data-action="aggiungi-intervento" data-giorno="' + giornoUnico + '">+ Aggiungi intervento</button>' +
+          '</div>') +
         '</div>';
       return;
     }

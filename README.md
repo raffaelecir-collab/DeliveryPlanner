@@ -184,7 +184,15 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    "Attività" del tracking esterno per gli importati, da scegliere per quelli
    manuali) e **Comune** (dedotto dal tracking esterno per gli importati).
    Questi ultimi tre campi non servono alla pianificazione: alimentano solo
-   le metriche del tab **Analysis** (vedi più sotto). Il pulsante **"⏸ Sospendi"** su una riga apre un dialog che
+   le metriche del tab **Analysis** (vedi più sotto). Dalla stessa scheda
+   **"Modifica"** puoi anche cambiare la **Squadra Assegnata** di un
+   intervento già pianificato (o assegnarne una a uno "Da pianificare"):
+   utile per correggere a mano un'assegnazione senza dover rimuovere e
+   ripianificare da capo. Attenzione: cambiarla qui **sposta solo
+   l'assegnazione**, senza ricalcolare l'ordine/orario del percorso né della
+   vecchia né della nuova squadra — verifica poi la programmazione di
+   entrambe (usa eventualmente "Riempi buchi" se serve richiudere il varco
+   lasciato aperto). Il pulsante **"⏸ Sospendi"** su una riga apre un dialog che
    chiede una **nota di motivazione** (obbligatoria) e uno dei tre **stati di
    sospensione** ("Sospeso - ys", "Sospeso - zp", "Sospeso - zc"): la data
    odierna viene registrata automaticamente insieme alla nota nello **storico
@@ -244,6 +252,11 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    Interventi (icona a orologio, click per aprire il popup con l'elenco di
    tutte le voci) e compaiono anche qui, sulla tappa stessa (al passaggio del
    mouse), quando presenti. Da qui:
+   - Se la squadra è **completamente libera** nel giorno (o nell'intero
+     periodo) selezionato, il pannello mostra solo un messaggio e i due
+     bottoni **"📋 Seleziona da elenco"** e **"+ Aggiungi intervento"**
+     descritti sotto (niente "🧩 Riempi buchi", che ha senso solo quando
+     esiste già almeno una tappa ferma da cui partire).
    - **"🧩 Riempi buchi"** per una squadra/giorno: le tappe **già
      pianificate restano ferme** (stesso ordine relativo tra loro, mai
      scartate né ripianificate da zero) e vengono solo **aggiunti**
