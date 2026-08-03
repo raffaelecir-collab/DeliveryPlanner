@@ -165,7 +165,10 @@
   #toast.success { background: var(--verde); }
 
   .hidden { display: none !important; }
-  body.role-cliente .admin-only { display: none !important; }
+  body.role-cliente .admin-only, body.role-squadra .admin-only { display: none !important; }
+  body.role-squadra .hide-squadra { display: none !important; }
+  .squadra-only { display: none !important; }
+  body.role-squadra .squadra-only { display: inline-block !important; }
   .filters { margin-bottom: 14px; }
   .table-wrap { overflow-x: auto; }
 
@@ -599,4 +602,56 @@
   .an-tabella th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--dp-ink-faint); padding: 4px 8px 6px 0; border-bottom: 1px solid var(--dp-line); }
   .an-tabella td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--dp-line-soft); color: var(--dp-ink); }
   .an-tabella tr:last-child td { border-bottom: none; }
+
+  /* ---------- tab "La mia squadra" ---------- */
+  .ms-toolbar {
+    display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 14px;
+    background: var(--dp-surface-card); border: 1px solid var(--dp-line); border-radius: var(--dp-radius); padding: 14px 16px;
+  }
+  .ms-header { display: flex; align-items: center; gap: 8px; margin-right: auto; }
+  .ms-header h2 { margin: 0; font-size: 17px; font-weight: 650; color: var(--dp-ink); }
+  .ms-filtro-campo { display: flex; flex-direction: column; gap: 4px; }
+  .ms-filtro-campo label { font-size: 11px; font-weight: 620; color: var(--dp-ink-soft); text-transform: uppercase; letter-spacing: .03em; }
+  .ms-filtro-campo input[type=date] {
+    padding: 6px 8px; border: 1px solid var(--dp-line); border-radius: var(--dp-radius-sm);
+    background: var(--dp-surface-card); color: var(--dp-ink); font-size: 13px; font-family: var(--dp-mono);
+  }
+
+  .ms-subtabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .ms-subtab-btn {
+    font-family: inherit; font-size: 13px; font-weight: 620; padding: 8px 16px; border-radius: 999px;
+    border: 1px solid var(--dp-line); background: var(--dp-surface-card); color: var(--dp-ink-soft); cursor: pointer;
+  }
+  .ms-subtab-btn:hover { background: var(--dp-line-soft); }
+  .ms-subtab-btn.active { background: var(--dp-accent); color: #fff; border-color: var(--dp-accent); }
+
+  .ms-subview { display: none; }
+  .ms-subview.active { display: block; }
+
+  .ms-lista-head, .ms-riga {
+    display: grid; grid-template-columns: 60px 1.4fr 1.8fr 70px 110px 120px 90px;
+    gap: 10px; align-items: center; padding: 8px 4px; font-size: 12.5px;
+  }
+  .ms-lista-head { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--dp-ink-faint); border-bottom: 1px solid var(--dp-line); }
+  .ms-riga { border-bottom: 1px solid var(--dp-line-soft); }
+  .ms-riga.is-completato { opacity: .6; }
+  .ms-riga-ora, .ms-riga-durata { font-family: var(--dp-mono); color: var(--dp-ink); }
+  .ms-riga-cliente { font-weight: 620; color: var(--dp-ink); }
+  .ms-riga-indirizzo { color: var(--dp-ink-faint); }
+  .ms-riga-telefono a { color: var(--dp-accent); text-decoration: none; }
+  .ms-riga-telefono a:hover { text-decoration: underline; }
+
+  .ms-day-group { margin-top: 14px; }
+  .ms-day-group:first-child { margin-top: 0; }
+  .ms-day-group-head {
+    font-size: 12px; font-weight: 650; color: var(--dp-ink-soft); padding: 6px 10px;
+    background: var(--dp-line-soft); border-radius: 6px; margin-bottom: 4px;
+  }
+
+  .ms-mappa-box { width: 100%; height: 600px; border: 1px solid var(--dp-line); border-radius: var(--dp-radius); overflow: hidden; box-shadow: var(--dp-shadow); }
+
+  @media (max-width: 900px) {
+    .ms-lista-head, .ms-riga { grid-template-columns: 50px 1fr 1fr 60px; }
+    .ms-riga-telefono, .ms-lista-head span:nth-child(5) { display: none; }
+  }
 </style>

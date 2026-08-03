@@ -13,10 +13,11 @@
 
     <nav class="tabs">
       <button class="tab-btn active admin-only" data-view="dashboard">Dashboard</button>
-      <button class="tab-btn" data-view="interventi">Interventi</button>
+      <button class="tab-btn hide-squadra" data-view="interventi">Interventi</button>
       <button class="tab-btn admin-only" data-view="squadre">Squadre</button>
       <button class="tab-btn admin-only" data-view="impostazioni">Regole</button>
       <button class="tab-btn admin-only" data-view="analysis">Analysis</button>
+      <button class="tab-btn squadra-only" data-view="miasquadra">La mia squadra</button>
     </nav>
 
     <main>
@@ -253,6 +254,45 @@
             <h2>Distribuzione per Comune</h2>
             <div id="an-comune-corpo"></div>
           </div>
+        </div>
+      </section>
+
+      <!-- VISTA "LA MIA SQUADRA" (solo account Squadra) -->
+      <section class="view" id="view-miasquadra">
+        <div class="ms-toolbar">
+          <div class="ms-header">
+            <span class="team-dot" id="ms-squadra-dot"></span>
+            <h2 id="ms-squadra-nome">La mia squadra</h2>
+          </div>
+          <div class="ms-filtro-campo">
+            <label>Dal</label>
+            <input type="date" id="ms-dal">
+          </div>
+          <div class="ms-filtro-campo">
+            <label>Al</label>
+            <input type="date" id="ms-al">
+          </div>
+          <button type="button" class="btn-secondary-sm" id="btn-ms-oggi">Oggi</button>
+          <button type="button" class="btn-primary" id="btn-ms-aggiorna">Aggiorna</button>
+        </div>
+
+        <nav class="ms-subtabs">
+          <button type="button" class="ms-subtab-btn active" data-ms-view="elenco">📋 Elenco</button>
+          <button type="button" class="ms-subtab-btn" data-ms-view="agenda">🗓️ Agenda</button>
+          <button type="button" class="ms-subtab-btn" data-ms-view="mappa">🗺️ Mappa</button>
+        </nav>
+
+        <div class="ms-subview active" id="ms-view-elenco">
+          <div class="ms-lista-head">
+            <span>Ora</span><span>Cliente</span><span>Indirizzo</span><span>Durata</span><span>Telefono</span><span>Stato</span><span></span>
+          </div>
+          <div id="ms-elenco-corpo"></div>
+        </div>
+        <div class="ms-subview" id="ms-view-agenda">
+          <div id="ms-agenda-corpo"></div>
+        </div>
+        <div class="ms-subview" id="ms-view-mappa">
+          <div id="ms-mappa" class="ms-mappa-box"></div>
         </div>
       </section>
     </main>

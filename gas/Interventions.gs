@@ -4,6 +4,10 @@
 
 function listaInterventi(filtri) {
   var tutti = readAll_('INTERVENTI');
+  // Un account Squadra vede solo i propri interventi, anche chiamando questa funzione senza
+  // filtri espliciti: stessa restrizione applicata da getProgrammazioneSquadraPropria_ (TeamView.gs).
+  var ctx = contestoUtenteCorrente_();
+  if (ctx.ruolo === RUOLO.SQUADRA) tutti = tutti.filter(function (i) { return i.squadraId === ctx.squadraId; });
   if (!filtri) return tutti;
   return tutti.filter(function (i) {
     if (filtri.stato && i.stato !== filtri.stato) return false;
@@ -159,6 +163,7 @@ function intervalliSospensione_(storiaJson) {
  * (i filtri della pianificazione candidano solo "Da pianificare").
  */
 function sospendiIntervento(id, row, statoSospensione, nota) {
+  richiedeNonSquadra_();
   var esistente = trovaInterventoPerIdORiga_(id, row);
   if (!esistente) throw new Error('Intervento non trovato.');
   if (!isStatoSospeso_(statoSospensione)) throw new Error('Stato di sospensione non valido.');
@@ -179,6 +184,7 @@ function sospendiIntervento(id, row, statoSospensione, nota) {
  * giorni di sospensione dal conteggio dei tempi di lavorazione (vedi intervalliSospensione_).
  */
 function terminaSospensione(id, row) {
+  richiedeNonSquadra_();
   var esistente = trovaInterventoPerIdORiga_(id, row);
   if (!esistente) throw new Error('Intervento non trovato.');
   var campi = {
@@ -197,6 +203,7 @@ function terminaSospensione(id, row) {
  * e reversibile con "Fine sospensione"). Usata anche dall'account Cliente.
  */
 function annullaIntervento(id, row, nota) {
+  richiedeNonSquadra_();
   var esistente = trovaInterventoPerIdORiga_(id, row);
   if (!esistente) throw new Error('Intervento non trovato.');
   if (!nota) throw new Error('La nota di motivazione è obbligatoria.');
@@ -211,13 +218,31 @@ function annullaIntervento(id, row, nota) {
 
 /**
  * Aggiunge una nota libera (data odierna) allo storico di un intervento, senza toccarne stato
- * o programmazione: usata dalla Dashboard per annotare gli interventi già pianificati.
+ * o programmazione: usata dalla Dashboard (Admin) per annotare gli interventi già pianificati, e
+ * dagli account Cliente/Squadra dai rispettivi tab. Un account Squadra può farlo solo sui propri
+ * interventi (verificaAccessoSquadraIntervento_); Admin e Cliente restano senza restrizioni.
  */
 function aggiungiNotaIntervento(id, row, nota) {
   var esistente = trovaInterventoPerIdORiga_(id, row);
   if (!esistente) throw new Error('Intervento non trovato.');
   if (!nota) throw new Error('La nota è obbligatoria.');
+  verificaAccessoSquadraIntervento_(esistente);
   var campi = { storiaSospensioni: aggiungiStoriaSospensione_(esistente, '', nota) };
+  updateRowFields_('INTERVENTI', esistente._row, Object.assign(campi, campiAnalisi_(esistente, campi)));
+  return true;
+}
+
+/**
+ * Segna come completato un intervento della PROPRIA squadra (account Squadra): a differenza di
+ * segnaCompletato (Admin), qui non serve che sia "Pianificato" né che sia oggi — un tecnico può
+ * recuperare e spuntare anche un intervento di un giorno passato che non aveva ancora segnato.
+ */
+function segnaCompletatoSquadraPropria(id, row) {
+  var squadraId = contestoSquadraCorrente_();
+  var esistente = trovaInterventoPerIdORiga_(id, row);
+  if (!esistente) throw new Error('Intervento non trovato.');
+  if (esistente.squadraId !== squadraId) throw new Error('Operazione non consentita: intervento non assegnato alla tua squadra.');
+  var campi = { stato: STATO_INTERVENTO.COMPLETATO };
   updateRowFields_('INTERVENTI', esistente._row, Object.assign(campi, campiAnalisi_(esistente, campi)));
   return true;
 }

@@ -51,10 +51,13 @@ var PRIORITA = {
 /**
  * Ruoli account: Admin ha accesso completo; Cliente vede solo il tab Interventi e può solo
  * aggiungere note, sospendere o annullare gli interventi (mai crearli/modificarli/eliminarli/
- * pianificarli/importarli). Il ruolo si determina dall'email dell'account Google che esegue la
- * Web App confrontata con la regola "emailClienti" (vedi Auth.gs).
+ * pianificarli/importarli); Squadra vede solo la PROPRIA programmazione (elenco/agenda/mappa) e
+ * può solo aggiungere note o segnare un proprio intervento come completato. Il ruolo si determina
+ * dall'email dell'account Google che esegue la Web App: confrontata con la regola "emailClienti"
+ * per il Cliente, con il campo "emailSquadra" di ciascuna Squadra per il ruolo Squadra (vedi
+ * Auth.gs).
  */
-var RUOLO = { ADMIN: 'Admin', CLIENTE: 'Cliente' };
+var RUOLO = { ADMIN: 'Admin', CLIENTE: 'Cliente', SQUADRA: 'Squadra' };
 
 var STATO_INTERVENTO = {
   DA_PIANIFICARE: 'Da pianificare',
@@ -114,7 +117,8 @@ var SCHEMA = {
       { key: 'attiva', label: 'Attiva', type: 'checkbox', default: true },
       { key: 'giorniIndisponibili', label: 'Giorni Settimanali Non Disponibili', type: 'giorni', help: 'Oltre ai giorni lavorativi generali (impostati in Regole), seleziona eventuali giorni della settimana in cui QUESTA squadra in particolare non è disponibile (es. part-time). Nessuna selezione = segue il calendario standard.' },
       { key: 'feriePeriodi', label: 'Periodi di Ferie/Assenza', type: 'ferie', help: 'Intervalli di date (Dal/Al) in cui la squadra è completamente non disponibile: durante questi periodi non le viene assegnato alcun intervento, né manualmente né nella pianificazione automatica.' },
-      { key: 'produzioneTarget', label: 'Target Produzione Giornaliera (€)', type: 'number', help: 'Ricavo giornaliero che la squadra dovrebbe idealmente raggiungere. Le assegnazioni tengono conto del ricavo di ogni intervento (tra gli altri fattori) per avvicinarsi a questo valore, ma continuano comunque a riempire tutte le ore disponibili del turno anche oltre il target. Lascia vuoto se non vuoi tracciare un target per questa squadra.' }
+      { key: 'produzioneTarget', label: 'Target Produzione Giornaliera (€)', type: 'number', help: 'Ricavo giornaliero che la squadra dovrebbe idealmente raggiungere. Le assegnazioni tengono conto del ricavo di ogni intervento (tra gli altri fattori) per avvicinarsi a questo valore, ma continuano comunque a riempire tutte le ore disponibili del turno anche oltre il target. Lascia vuoto se non vuoi tracciare un target per questa squadra.' },
+      { key: 'emailSquadra', label: 'Email Account Squadra', type: 'text', help: 'Email (una o più, separate da virgola) dell\'account/i Google autorizzati a vedere SOLO la programmazione di QUESTA squadra (tab dedicato, elenco/agenda/mappa): può aggiungere note e segnare i propri interventi come completati, nient\'altro. Lascia vuoto per non dare accesso a nessuno con questo ruolo per questa squadra.' }
     ]
   },
   INTERVENTI: {

@@ -106,6 +106,7 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 | `RouteEngine.gs` | Motore di ottimizzazione percorso (inserimento più economico + 2-opt, scheduling con pausa pranzo, dati per la Dashboard e riempimento buchi) |
 | `Calendario.gs` | Calendario giorni lavorativi FISSO (Lun-Ven, festività italiane escluse) usato solo dal tab Analysis, indipendente dalla regola "giorniLavorativi" della pianificazione |
 | `Analysis.gs` | Metriche del tab Analysis (solo Admin): ricavo, tempi di lavorazione, tassi, backlog, km, distribuzione geografica |
+| `TeamView.gs` | Programmazione propria per l'account Squadra (elenco/agenda/mappa) |
 | `Code.gs` | `doGet()` e funzioni esposte al client |
 | `Index.html` / `CSS.html` / `JS.html` | Interfaccia utente (SPA) |
 
@@ -167,6 +168,8 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    pianificazione (né manuale né automatica). Puoi anche impostare un
    **Target Produzione Giornaliera (€)**: un obiettivo di ricavo che la
    squadra dovrebbe idealmente raggiungere in un giorno (vedi più sotto).
+   Il campo **Email Account Squadra** dà accesso al tab dedicato "Account
+   Squadra" più sotto: vedi quella sezione per i dettagli.
 2. Tab **Interventi**: inserisci gli interventi da pianificare (cliente,
    indirizzo — geocodificato automaticamente —, competenza richiesta,
    priorità, durata stimata, finestra oraria, **telefono** del cliente per
@@ -499,6 +502,42 @@ Le card disponibili:
   usata in Dashboard) sommato su tutti i giorni del periodo.
 - **Distribuzione per Comune**: numero di interventi dispacciati per Comune
   (richiede che il campo Comune sia valorizzato).
+
+### Account Squadra (accesso ristretto alla propria programmazione)
+
+Terzo ruolo, pensato per i tecnici sul campo: a differenza del Cliente (che
+vede tutti gli Interventi) un account Squadra vede **solo la programmazione
+della propria squadra**, in un tab dedicato "La mia squadra" — tutti gli
+altri tab (Dashboard, Interventi, Squadre, Regole, Analysis) restano
+nascosti, e le relative funzioni sono bloccate anche lato server.
+
+**Come attivarlo**: nel tab Squadre (solo Admin), apri la scheda della
+squadra e compila **"Email Account Squadra"** con una o più email (separate
+da virgola) degli account Google da autorizzare — vedono *solo* quella
+squadra. A differenza del Cliente (un elenco email unico e globale in
+Regole), qui l'associazione è per singola squadra: la stessa email non può
+appartenere contemporaneamente a due squadre diverse. Come sempre, l'account
+deve anche avere accesso alla Web App dalle impostazioni di distribuzione di
+Apps Script.
+
+Il tab "La mia squadra" si apre su **oggi** (modificabile: Dal/Al liberi, per
+tornare indietro nel tempo e rivedere il lavoro già completato) e mostra gli
+Interventi già assegnati alla squadra (Pianificato o Completato — non quelli
+ancora "Da pianificare", anche se di competenza compatibile) in tre viste:
+- **📋 Elenco**: lista piatta ordinata per data/ora.
+- **🗓️ Agenda**: le stesse tappe raggruppate per giornata.
+- **🗺️ Mappa**: un pin per intervento (Leaflet/OpenStreetMap); **cliccandolo
+  si apre un popup con il pulsante "🧭 Naviga"**, che apre Google Maps con le
+  indicazioni stradali verso quel punto (su mobile in genere propone di
+  aprire l'app Maps installata).
+
+Da qualunque vista, un account Squadra può solo **aggiungere una nota**
+(stesso storico/popup già visto per Admin/Cliente, con "Squadra" come
+autore) o **segnare un intervento come completato** (icona ✓, senza
+vincoli di data: recupera anche un intervento di un giorno passato non
+ancora spuntato) — non può creare, modificare, eliminare, sospendere,
+annullare o pianificare nulla, né vedere il **Ricavo (€)** degli
+interventi (nascosto di proposito, dato non necessario sul campo).
 
 ### Inserire righe direttamente sul Google Sheet
 

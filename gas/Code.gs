@@ -24,17 +24,25 @@ function include(nomeFile) {
  */
 function getBootstrapData() {
   inizializzaApp();
-  var ruolo = ruoloUtenteCorrente_();
+  var ctx = contestoUtenteCorrente_();
+  var ruolo = ctx.ruolo;
   var schemaClient = {};
-  Object.keys(SCHEMA).forEach(function (k) {
-    if (ruolo === RUOLO.CLIENTE && k !== 'INTERVENTI') return;
-    schemaClient[k] = { label: SCHEMA[k].label, fields: SCHEMA[k].fields };
-  });
+  if (ruolo === RUOLO.ADMIN || ruolo === RUOLO.CLIENTE) {
+    Object.keys(SCHEMA).forEach(function (k) {
+      if (ruolo === RUOLO.CLIENTE && k !== 'INTERVENTI') return;
+      schemaClient[k] = { label: SCHEMA[k].label, fields: SCHEMA[k].fields };
+    });
+  }
+  // Un account Squadra non vede l'elenco squadre (nemmeno la propria, a parte id/nome/colore già
+  // restituiti da getProgrammazioneSquadraPropria): niente indirizzi/email/competenze di NESSUNA
+  // squadra, incluse le altre, nel payload iniziale.
+  var squadre = ruolo === RUOLO.SQUADRA ? [] : readAll_('SQUADRE');
   return {
     schema: schemaClient,
-    squadre: readAll_('SQUADRE'),
+    squadre: squadre,
     utente: Session.getActiveUser().getEmail() || '',
-    ruolo: ruolo
+    ruolo: ruolo,
+    squadraId: ctx.squadraId || ''
   };
 }
 

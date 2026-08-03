@@ -2,10 +2,12 @@
 (function () {
   'use strict';
 
-  var state = { schema: {}, squadre: [], utente: '', ruolo: 'Admin' };
+  var state = { schema: {}, squadre: [], utente: '', ruolo: 'Admin', squadraId: '' };
   var modalState = { schemaKey: null, editObj: null };
   var pianState = { squadraId: null, giorno: null, disponibili: [], pianificati: [], pianificatiAltrove: [], ordineCorrente: [], anteprima: null, ignoraTettoViaggio: false };
   var analysisState = { caricato: false, dati: null, ricavoVista: 'settimanale', tempiVista: 'cumulativo', nuoviVista: 'cumulativo' };
+  var msState = { vista: 'elenco', dati: null };
+  var msMapInstance = null, msLayerGroup = null;
 
   var SAVE_FN = { SQUADRE: 'salvaSquadra', INTERVENTI: 'salvaIntervento' };
   var DELETE_FN = { SQUADRE: 'eliminaSquadra', INTERVENTI: 'eliminaIntervento' };
@@ -206,6 +208,7 @@
     if (view === 'squadre') loadSquadre();
     if (view === 'impostazioni') { loadRegole(); loadLog(); }
     if (view === 'analysis' && !analysisState.caricato) caricaAnalysis();
+    if (view === 'miasquadra') caricaMiaSquadra();
   }
 
   // ---------- modale generico basato su schema ----------
@@ -1523,10 +1526,10 @@
   }
 
   function caricaDashboard() {
-    // L'account Cliente non vede la Dashboard (né le funzioni di pianificazione sottostanti,
+    // Cliente e Squadra non vedono la Dashboard (né le funzioni di pianificazione sottostanti,
     // bloccate anche lato server): niente da ricaricare qui, i chiamanti esistenti proseguono
     // comunque la loro catena .then()/.catch() invariati.
-    if (state.ruolo === 'Cliente') return Promise.resolve();
+    if (state.ruolo === 'Cliente' || state.ruolo === 'Squadra') return Promise.resolve();
     var dal = getDashDal(), al = getDashAl();
     if (!dal || !al) {
       // Difensivo: se le date non sono ancora valorizzate (es. setupDashboardTab non è ancora
@@ -2126,6 +2129,161 @@
     }));
   }
 
+  // ---------- "La mia squadra" (solo account Squadra) ----------
+  function setupSquadraTab() {
+    var oggi = new Date();
+    document.getElementById('ms-dal').value = toInputDate(oggi);
+    document.getElementById('ms-al').value = toInputDate(oggi);
+
+    document.querySelectorAll('.ms-subtab-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.ms-subtab-btn').forEach(function (b) { b.classList.toggle('active', b === btn); });
+        msState.vista = btn.dataset.msView;
+        document.querySelectorAll('.ms-subview').forEach(function (v) { v.classList.toggle('active', v.id === 'ms-view-' + msState.vista); });
+        if (msState.vista === 'mappa') renderMsMappa_();
+      });
+    });
+
+    on('btn-ms-oggi', 'click', function () {
+      var o = new Date();
+      document.getElementById('ms-dal').value = toInputDate(o);
+      document.getElementById('ms-al').value = toInputDate(o);
+      caricaMiaSquadra();
+    });
+    on('btn-ms-aggiorna', 'click', caricaMiaSquadra);
+
+    wireMsAzioni_('#ms-elenco-corpo');
+    wireMsAzioni_('#ms-agenda-corpo');
+  }
+
+  /** Delega i click su Nota/Vedi note/Completa: riusa gli stessi dialog/azioni già usati nel tab Interventi. */
+  function wireMsAzioni_(selettore) {
+    onQuery(selettore, 'click', function (e) {
+      var btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      var row = parseInt(btn.dataset.row, 10);
+      var obj = ((msState.dati && msState.dati.interventi) || []).filter(function (i) { return i._row === row; })[0];
+      if (!obj) return;
+      var action = btn.dataset.action;
+      if (action === 'nota') { apriNotaIntervento(obj); return; }
+      if (action === 'vedi-note') { apriListaNote(obj); return; }
+      if (action === 'completa') { completaInterventoSquadra_(obj); return; }
+    });
+  }
+
+  function completaInterventoSquadra_(obj) {
+    callServer('segnaCompletatoSquadraPropria', obj.id, obj._row).then(function () {
+      toast('Intervento segnato come completato.', 'success');
+      caricaMiaSquadra();
+    }).catch(function (err) { toast(err.message || String(err), 'error'); });
+  }
+
+  function caricaMiaSquadra() {
+    var dal = document.getElementById('ms-dal').value, al = document.getElementById('ms-al').value;
+    if (!dal || !al) { toast('Seleziona un intervallo Dal/Al.', 'error'); return Promise.resolve(); }
+    mostraCaricamento('ms-elenco-corpo', 'ms-agenda-corpo');
+    return callServer('getProgrammazioneSquadraPropria', fromInputDate(dal), fromInputDate(al)).then(function (dati) {
+      msState.dati = dati;
+      renderMiaSquadra();
+    }).catch(function (err) {
+      toast(err.message || String(err), 'error');
+    }).then(function () { nascondiCaricamento('ms-elenco-corpo', 'ms-agenda-corpo'); });
+  }
+
+  function renderMiaSquadra() {
+    if (!msState.dati) return;
+    document.getElementById('ms-squadra-nome').textContent = msState.dati.squadra.nome;
+    var dot = document.getElementById('ms-squadra-dot');
+    if (dot) dot.style.background = msState.dati.squadra.colore || '#999';
+    renderMsElenco_();
+    renderMsAgenda_();
+    if (msState.vista === 'mappa') renderMsMappa_();
+  }
+
+  /** Riga condivisa da vista Elenco e Agenda: stato, storico note (icona cliccabile) e azioni Nota/Completa. */
+  function msRigaIntervento_(t) {
+    var storia = [];
+    try { storia = JSON.parse(t.storiaSospensioni || '[]'); } catch (e) { storia = []; }
+    if (!Array.isArray(storia)) storia = [];
+    var storiaHtml = storia.length
+      ? '<button class="btn-icon" data-action="vedi-note" data-row="' + t._row + '" title="Vedi tutte le note">' + ICONA_STORIA_ + '</button>'
+      : '';
+    var completato = t.stato === 'Completato';
+    var azioni = '<button class="btn-icon" data-action="nota" data-row="' + t._row + '" title="Aggiungi nota">' + ICONA_NOTA_ + '</button>' + storiaHtml;
+    if (!completato) {
+      azioni += '<button class="btn-icon good" data-action="completa" data-row="' + t._row + '" title="Segna come completato">' + ICONA_CHECK_ + '</button>';
+    }
+    return '<div class="ms-riga' + (completato ? ' is-completato' : '') + '">' +
+      '<span class="ms-riga-ora">' + escapeHtml(t.oraPianificata || '') + '</span>' +
+      '<span class="ms-riga-cliente">' + escapeHtml(t.cliente) + '</span>' +
+      '<span class="ms-riga-indirizzo">' + escapeHtml(t.indirizzo || '') + '</span>' +
+      '<span class="ms-riga-durata">' + (t.durataMinuti || 0) + ' min</span>' +
+      '<span class="ms-riga-telefono">' + (t.telefono ? '<a href="tel:' + escapeHtml(t.telefono) + '">' + escapeHtml(t.telefono) + '</a>' : '—') + '</span>' +
+      '<span><span class="badge ' + (CLASSE_BADGE_STATO_[t.stato] || 'badge-stato-dapianificare') + '">' + escapeHtml(t.stato || '') + '</span></span>' +
+      '<span class="row-actions">' + azioni + '</span>' +
+    '</div>';
+  }
+
+  function renderMsElenco_() {
+    var el = document.getElementById('ms-elenco-corpo');
+    var lista = msState.dati.interventi || [];
+    el.innerHTML = lista.length ? lista.map(msRigaIntervento_).join('') : '<div class="empty-hint">Nessun intervento nel periodo selezionato.</div>';
+  }
+
+  function renderMsAgenda_() {
+    var el = document.getElementById('ms-agenda-corpo');
+    var lista = msState.dati.interventi || [];
+    if (!lista.length) { el.innerHTML = '<div class="empty-hint">Nessun intervento nel periodo selezionato.</div>'; return; }
+    var perGiorno = {};
+    var ordineGiorni = [];
+    lista.forEach(function (t) {
+      var g = t.dataPianificata || '(senza data)';
+      if (!perGiorno[g]) { perGiorno[g] = []; ordineGiorni.push(g); }
+      perGiorno[g].push(t);
+    });
+    el.innerHTML = ordineGiorni.map(function (g) {
+      return '<div class="ms-day-group">' +
+        '<div class="ms-day-group-head">' + escapeHtml(g) + ' — ' + perGiorno[g].length + ' interventi</div>' +
+        perGiorno[g].map(msRigaIntervento_).join('') +
+      '</div>';
+    }).join('');
+  }
+
+  function renderMsMappa_() {
+    return caricaLeaflet_().then(function () {
+      if (!msMapInstance) {
+        msMapInstance = L.map('ms-mappa').setView([45.46, 9.19], 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(msMapInstance);
+        msLayerGroup = L.layerGroup().addTo(msMapInstance);
+      }
+      msLayerGroup.clearLayers();
+      var punti = [];
+      ((msState.dati && msState.dati.interventi) || []).forEach(function (t) {
+        if (!isNumClient(t.lat) || !isNumClient(t.lng)) return;
+        var completato = t.stato === 'Completato';
+        var colore = completato ? '#1B6B7C' : '#3D6FB4';
+        var icon = L.divIcon({
+          className: '',
+          html: '<div style="background:' + colore + ';width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);"></div>',
+          iconSize: [16, 16], iconAnchor: [8, 8]
+        });
+        var navUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + t.lat + ',' + t.lng;
+        var popup = '<b>' + escapeHtml(t.cliente) + '</b><br>' + escapeHtml(t.indirizzo || '') + '<br>' +
+          escapeHtml(t.dataPianificata || '') + (t.oraPianificata ? ' · ' + escapeHtml(t.oraPianificata) : '') + '<br>' +
+          'Stato: ' + escapeHtml(t.stato || '') +
+          '<br><a href="' + navUrl + '" target="_blank" rel="noopener" class="btn small" style="display:inline-block;margin-top:6px;">🧭 Naviga</a>';
+        L.marker([t.lat, t.lng], { icon: icon }).addTo(msLayerGroup).bindPopup(popup);
+        punti.push([t.lat, t.lng]);
+      });
+      if (punti.length) msMapInstance.fitBounds(punti, { padding: [30, 30] });
+      setTimeout(function () { if (msMapInstance) msMapInstance.invalidateSize(); }, 60);
+    }).catch(function (err) {
+      toast('Impossibile caricare la mappa (verifica la connessione a internet o la rete/proxy in uso).', 'error');
+    });
+  }
+
   // ---------- bootstrap ----------
   // Ogni setup viene isolato: se una parte fallisce (es. un elemento mancante perché
   // un file HTML non è stato aggiornato/copiato insieme agli altri) non deve impedire
@@ -2147,6 +2305,7 @@
     safeRun_('squadre', setupSquadreTab);
     safeRun_('regole', setupRegoleTab);
     safeRun_('analysis', setupAnalysisTab);
+    safeRun_('squadra-view', setupSquadraTab);
 
     mostraCaricamento('dash-team-list', 'dash-detail');
     callServer('getBootstrapData').then(function (data) {
@@ -2154,14 +2313,20 @@
       state.squadre = data.squadre;
       state.utente = data.utente;
       state.ruolo = data.ruolo || 'Admin';
+      state.squadraId = data.squadraId || '';
       document.getElementById('utente-corrente').textContent = data.utente;
       applicaRuolo_(state.ruolo);
-      popolaSelectFiltri();
-      populaSelectSquadra();
       if (state.ruolo === 'Cliente') {
+        popolaSelectFiltri();
+        populaSelectSquadra();
         nascondiCaricamento('dash-team-list', 'dash-detail');
         mostraTab('interventi');
+      } else if (state.ruolo === 'Squadra') {
+        nascondiCaricamento('dash-team-list', 'dash-detail');
+        mostraTab('miasquadra');
       } else {
+        popolaSelectFiltri();
+        populaSelectSquadra();
         renderSquadre();
         caricaDashboard();
       }
@@ -2175,6 +2340,7 @@
    *  stesse operazioni restano comunque bloccate anche lato server, questo è solo per l'interfaccia). */
   function applicaRuolo_(ruolo) {
     document.body.classList.toggle('role-cliente', ruolo === 'Cliente');
+    document.body.classList.toggle('role-squadra', ruolo === 'Squadra');
   }
 
   document.addEventListener('DOMContentLoaded', init);
