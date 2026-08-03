@@ -6,7 +6,7 @@
   var modalState = { schemaKey: null, editObj: null };
   var pianState = { squadraId: null, giorno: null, disponibili: [], pianificati: [], pianificatiAltrove: [], ordineCorrente: [], anteprima: null, ignoraTettoViaggio: false };
   var analysisState = { caricato: false, dati: null, ricavoVista: 'settimanale', tempiVista: 'cumulativo', nuoviVista: 'cumulativo' };
-  var msState = { vista: 'elenco', dati: null };
+  var msState = { vista: 'agenda', dati: null };
   var msMapInstance = null, msLayerGroup = null;
 
   var SAVE_FN = { SQUADRE: 'salvaSquadra', INTERVENTI: 'salvaIntervento' };
@@ -2152,7 +2152,6 @@
     });
     on('btn-ms-aggiorna', 'click', caricaMiaSquadra);
 
-    wireMsAzioni_('#ms-elenco-corpo');
     wireMsAzioni_('#ms-agenda-corpo');
   }
 
@@ -2181,13 +2180,13 @@
   function caricaMiaSquadra() {
     var dal = document.getElementById('ms-dal').value, al = document.getElementById('ms-al').value;
     if (!dal || !al) { toast('Seleziona un intervallo Dal/Al.', 'error'); return Promise.resolve(); }
-    mostraCaricamento('ms-elenco-corpo', 'ms-agenda-corpo');
+    mostraCaricamento('ms-agenda-corpo');
     return callServer('getProgrammazioneSquadraPropria', fromInputDate(dal), fromInputDate(al)).then(function (dati) {
       msState.dati = dati;
       renderMiaSquadra();
     }).catch(function (err) {
       toast(err.message || String(err), 'error');
-    }).then(function () { nascondiCaricamento('ms-elenco-corpo', 'ms-agenda-corpo'); });
+    }).then(function () { nascondiCaricamento('ms-agenda-corpo'); });
   }
 
   function renderMiaSquadra() {
@@ -2195,12 +2194,11 @@
     document.getElementById('ms-squadra-nome').textContent = msState.dati.squadra.nome;
     var dot = document.getElementById('ms-squadra-dot');
     if (dot) dot.style.background = msState.dati.squadra.colore || '#999';
-    renderMsElenco_();
     renderMsAgenda_();
     if (msState.vista === 'mappa') renderMsMappa_();
   }
 
-  /** Riga condivisa da vista Elenco e Agenda: stato, storico note (icona cliccabile) e azioni Nota/Completa. */
+  /** Riga usata dalla vista Agenda: stato, storico note (icona cliccabile) e azioni Nota/Completa. */
   function msRigaIntervento_(t) {
     var storia = [];
     try { storia = JSON.parse(t.storiaSospensioni || '[]'); } catch (e) { storia = []; }
@@ -2222,12 +2220,6 @@
       '<span class="ms-riga-stato"><span class="badge ' + (CLASSE_BADGE_STATO_[t.stato] || 'badge-stato-dapianificare') + '">' + escapeHtml(t.stato || '') + '</span></span>' +
       '<span class="row-actions">' + azioni + '</span>' +
     '</div>';
-  }
-
-  function renderMsElenco_() {
-    var el = document.getElementById('ms-elenco-corpo');
-    var lista = msState.dati.interventi || [];
-    el.innerHTML = lista.length ? lista.map(msRigaIntervento_).join('') : '<div class="empty-hint">Nessun intervento nel periodo selezionato.</div>';
   }
 
   function renderMsAgenda_() {

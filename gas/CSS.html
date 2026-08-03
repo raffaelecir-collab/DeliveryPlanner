@@ -629,8 +629,7 @@
   .ms-subview { display: none; }
   .ms-subview.active { display: block; }
 
-  /* Vista Elenco/Agenda: card impilate (di default), diventano righe di tabella da tablet in su. */
-  .ms-lista-head { display: none; }
+  /* Vista Agenda: card impilate (di default), diventano righe di tabella da tablet in su. */
   .ms-riga {
     display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
     padding: 12px; margin-bottom: 8px; border: 1px solid var(--dp-line); border-radius: var(--dp-radius);
@@ -666,12 +665,11 @@
     .ms-toolbar > button { flex: 0 0 auto; padding-top: 9px; padding-bottom: 9px; }
     .ms-subtabs { max-width: 420px; }
 
-    .ms-lista-head, .ms-riga {
+    .ms-riga {
       display: grid; grid-template-columns: 60px 1.4fr 1.8fr 70px 110px 120px 90px;
       gap: 10px; align-items: center; padding: 8px 4px; font-size: 12.5px;
+      border: none; border-bottom: 1px solid var(--dp-line-soft); border-radius: 0; margin-bottom: 0; background: transparent;
     }
-    .ms-lista-head { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--dp-ink-faint); border-bottom: 1px solid var(--dp-line); }
-    .ms-riga { border: none; border-bottom: 1px solid var(--dp-line-soft); border-radius: 0; margin-bottom: 0; background: transparent; }
     .ms-riga-ora, .ms-riga-cliente, .ms-riga-stato, .ms-riga-indirizzo, .ms-riga-durata, .ms-riga-telefono, .ms-riga > .row-actions {
       order: initial; flex-basis: auto; margin-left: 0; margin-top: 0; padding-top: 0; border-top: none;
     }

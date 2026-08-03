@@ -523,9 +523,8 @@ Apps Script.
 Il tab "La mia squadra" si apre su **oggi** (modificabile: Dal/Al liberi, per
 tornare indietro nel tempo e rivedere il lavoro già completato) e mostra gli
 Interventi già assegnati alla squadra (Pianificato o Completato — non quelli
-ancora "Da pianificare", anche se di competenza compatibile) in tre viste:
-- **📋 Elenco**: lista piatta ordinata per data/ora.
-- **🗓️ Agenda**: le stesse tappe raggruppate per giornata.
+ancora "Da pianificare", anche se di competenza compatibile) in due viste:
+- **🗓️ Agenda**: le tappe raggruppate per giornata, ordinate per ora.
 - **🗺️ Mappa**: un pin per intervento (Leaflet/OpenStreetMap); **cliccandolo
   si apre un popup con il pulsante "🧭 Naviga"**, che apre Google Maps con le
   indicazioni stradali verso quel punto (su mobile in genere propone di
