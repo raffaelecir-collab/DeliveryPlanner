@@ -244,14 +244,15 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    durata, telefono); con un intervallo di più giorni, le stesse tappe
    **raggruppate per giornata**, ciascuna con il proprio riepilogo e le
    proprie azioni (un giorno è comunque un percorso indipendente dagli
-   altri). Accanto a ogni tappa, l'icona a foglio **"📝"** apre un piccolo
-   dialog per aggiungere una **nota** (data odierna registrata
-   automaticamente, come per la sospensione): non cambia stato né
-   programmazione, serve solo per annotazioni libere sull'intervento già
-   pianificato. Le note si accumulano nello stesso storico visibile nel tab
-   Interventi (icona a orologio, click per aprire il popup con l'elenco di
-   tutte le voci) e compaiono anche qui, sulla tappa stessa (al passaggio del
-   mouse), quando presenti. Da qui:
+   altri). Accanto a ogni tappa, l'icona **"✓"** la segna direttamente come
+   **completata** (stessa azione, senza dover passare dal tab Interventi),
+   l'icona a foglio **"📝"** apre un piccolo dialog per aggiungere una
+   **nota** (data odierna registrata automaticamente, come per la
+   sospensione): non cambia stato né programmazione, serve solo per
+   annotazioni libere sull'intervento già pianificato. Le note si accumulano
+   nello stesso storico visibile nel tab Interventi (icona a orologio, click
+   per aprire il popup con l'elenco di tutte le voci) e compaiono anche qui,
+   sulla tappa stessa (al passaggio del mouse), quando presenti. Da qui:
    - Se la squadra è **completamente libera** nel giorno (o nell'intero
      periodo) selezionato, il pannello mostra solo un messaggio e i due
      bottoni **"📋 Seleziona da elenco"** e **"+ Aggiungi intervento"**

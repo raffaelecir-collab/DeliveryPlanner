@@ -1796,6 +1796,7 @@
       '<span class="dash-stop-durata">' + (t.durataMinuti || 0) + ' min</span>' +
       '<span class="dash-stop-telefono">' + escapeHtml(t.telefono || '—') + '</span>' +
       '<span class="row-actions">' + storiaHtml +
+        '<button class="btn-icon good" title="Segna come completato" data-action="completa-tappa" data-id="' + t.id + '" data-row="' + t._row + '">' + ICONA_CHECK_ + '</button>' +
         '<button class="btn-icon" title="Aggiungi nota" data-action="nota-tappa" data-id="' + t.id + '" data-row="' + t._row + '" data-cliente="' + escapeHtml(t.cliente) + '">' + ICONA_NOTA_ + '</button>' +
         '<button class="btn-icon danger" title="Rimuovi dal percorso" data-action="rimuovi-tappa" data-id="' + t.id + '" data-row="' + t._row + '">' + ICONA_CESTINO_ + '</button></span>' +
     '</div>';
@@ -1865,6 +1866,13 @@
       toast('Intervento rimosso: torna "Da pianificare".', 'success');
       caricaDashboard();
     }).catch(function (err) { toast('Errore nella rimozione: ' + (err.message || err), 'error'); });
+  }
+
+  function dashCompletaTappa_(id, row) {
+    callServer('segnaCompletato', id, row).then(function () {
+      toast('Intervento segnato come completato.', 'success');
+      caricaDashboard();
+    }).catch(function (err) { toast('Errore: ' + (err.message || err), 'error'); });
   }
 
   /**
@@ -1970,6 +1978,8 @@
       var squadra = state.squadre.filter(function (s) { return s.id === dashState.selezionata; })[0];
       if (action === 'rimuovi-tappa') {
         dashRimuoviTappa_(btn.dataset.id, btn.dataset.row);
+      } else if (action === 'completa-tappa') {
+        dashCompletaTappa_(btn.dataset.id, btn.dataset.row);
       } else if (action === 'nota-tappa') {
         apriNotaIntervento({ id: btn.dataset.id, _row: parseInt(btn.dataset.row, 10), cliente: btn.dataset.cliente });
       } else if (action === 'riempi-buchi') {
