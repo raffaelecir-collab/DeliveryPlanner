@@ -14,9 +14,16 @@
  * accesso, così un cambio di squadra o un aggiornamento degli elenchi email si riflette da solo.
  */
 
+/**
+ * Legge la regola "driveCartellaRadiceId" direttamente dal foglio (non tramite
+ * listaRegole_/getRegoleMappa_, che sono protette da richiedeAdmin_): questa funzione deve poter
+ * essere chiamata anche da account Cliente/Squadra per vedere/caricare i documenti, quindi non
+ * può passare da una funzione riservata all'Admin — stesso motivo di emailClientiConfigurate_
+ * in Auth.gs.
+ */
 function cartellaRadiceDocumenti_() {
-  var regole = getRegoleMappa_();
-  var id = regole.driveCartellaRadiceId ? String(regole.driveCartellaRadiceId).trim() : '';
+  var riga = readAll_('REGOLE').filter(function (r) { return r.chiave === 'driveCartellaRadiceId'; })[0];
+  var id = riga && riga.valore ? String(riga.valore).trim() : '';
   if (!id) throw new Error('Nessuna cartella Drive configurata per i documenti (regola "driveCartellaRadiceId", tab Regole).');
   try {
     return DriveApp.getFolderById(id);
