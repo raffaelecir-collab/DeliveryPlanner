@@ -581,7 +581,28 @@ solo. L'account che esegue la Web App (impostazioni di distribuzione,
 configurata, altrimenti il caricamento fallisce con un errore esplicito.
 Nessun limite di tipo o dimensione file è imposto dall'app (i limiti
 pratici sono quelli della piattaforma Apps Script/del browser per file
-molto grandi).
+molto grandi). Si possono selezionare e caricare **più file
+contemporaneamente** (il selettore accetta selezione multipla): vengono
+inviati uno alla volta in sequenza, e un eventuale errore su un file non
+blocca gli altri.
+
+**Se al primo caricamento compare un errore di autorizzazione** del tipo
+*"Non disponi dell'autorizzazione necessaria per chiamare
+DriveApp.getFolderById... auth/drive"*: è normale la prima volta che si usa
+questa funzionalità, perché aggiunge un nuovo servizio (Google Drive) allo
+script, che richiede un'autorizzazione più ampia rispetto a quella già
+concessa in precedenza. Per risolvere (lo fa una volta sola l'account che
+esegue la Web App, cioè quello indicato in "Esegui come"):
+1. Apri l'editor Apps Script del progetto (da Estensioni → Apps Script sul
+   foglio Google, o direttamente da script.google.com).
+2. Scegli una qualunque funzione dal menu a tendina in alto (es.
+   `cartellaRadiceDocumenti_`) e premi **Esegui**.
+3. Comparirà una richiesta di autorizzazione: scegli il tuo account, poi
+   (se compare l'avviso "Google non ha verificato questa app", normale per
+   uno script personale/interno) clicca **Avanzate** → **Vai al progetto
+   (nome progetto), non sicuro** → **Consenti**.
+4. Ricarica la Web App: da qui in poi il caricamento documenti funziona
+   senza dover ripetere questo passaggio.
 
 ### Inserire righe direttamente sul Google Sheet
 

@@ -837,25 +837,52 @@
       : '<div class="empty-hint">Nessun documento allegato.</div>';
   }
 
+  /** Legge un file scelto dall'utente e lo invia al server, restituendo l'elenco documenti aggiornato. */
+  function leggiEInviaDocumento_(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var base64 = String(reader.result).split(',')[1] || '';
+        callServer('caricaDocumentoIntervento', documentiState.id, documentiState.row, file.name, file.type || 'application/octet-stream', base64)
+          .then(resolve).catch(reject);
+      };
+      reader.onerror = function () { reject(new Error('Errore nella lettura del file "' + file.name + '".')); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /** Carica in sequenza tutti i file selezionati (anche più di uno): un errore su un file non blocca gli altri. */
   function salvaDocumentoUpload_() {
     var input = document.getElementById('documenti-file-input');
-    var file = input.files[0];
-    if (!file) { toast('Seleziona un file.', 'error'); return; }
+    var files = Array.prototype.slice.call(input.files || []);
+    if (!files.length) { toast('Seleziona almeno un file.', 'error'); return; }
     var btn = document.getElementById('btn-carica-documento');
+    var testoOriginale = btn.textContent;
     btn.disabled = true;
-    var reader = new FileReader();
-    reader.onload = function () {
-      var base64 = String(reader.result).split(',')[1] || '';
-      callServer('caricaDocumentoIntervento', documentiState.id, documentiState.row, file.name, file.type || 'application/octet-stream', base64)
-        .then(function (lista) {
-          toast('Documento caricato.', 'success');
-          input.value = '';
-          renderListaDocumenti_(lista);
-        }).catch(function (err) { toast(err.message || String(err), 'error'); })
-        .then(function () { btn.disabled = false; });
-    };
-    reader.onerror = function () { toast('Errore nella lettura del file.', 'error'); btn.disabled = false; };
-    reader.readAsDataURL(file);
+    var errori = [];
+    var indice = 0;
+
+    function caricaProssimo() {
+      if (indice >= files.length) {
+        btn.disabled = false;
+        btn.textContent = testoOriginale;
+        input.value = '';
+        if (errori.length) toast(errori.length + ' di ' + files.length + ' file non caricati: ' + errori.join('; '), 'error');
+        else toast(files.length > 1 ? 'Tutti i file caricati.' : 'Documento caricato.', 'success');
+        return;
+      }
+      var f = files[indice];
+      if (files.length > 1) btn.textContent = 'Carica (' + (indice + 1) + '/' + files.length + ')…';
+      leggiEInviaDocumento_(f).then(function (lista) {
+        renderListaDocumenti_(lista);
+      }).catch(function (err) {
+        errori.push(f.name);
+      }).then(function () {
+        indice++;
+        caricaProssimo();
+      });
+    }
+    caricaProssimo();
   }
 
   // ---------- dialog: nota intervento (dalla Dashboard) ----------
