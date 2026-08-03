@@ -2219,7 +2219,7 @@
       '<span class="ms-riga-indirizzo">' + escapeHtml(t.indirizzo || '') + '</span>' +
       '<span class="ms-riga-durata">' + (t.durataMinuti || 0) + ' min</span>' +
       '<span class="ms-riga-telefono">' + (t.telefono ? '<a href="tel:' + escapeHtml(t.telefono) + '">' + escapeHtml(t.telefono) + '</a>' : '—') + '</span>' +
-      '<span><span class="badge ' + (CLASSE_BADGE_STATO_[t.stato] || 'badge-stato-dapianificare') + '">' + escapeHtml(t.stato || '') + '</span></span>' +
+      '<span class="ms-riga-stato"><span class="badge ' + (CLASSE_BADGE_STATO_[t.stato] || 'badge-stato-dapianificare') + '">' + escapeHtml(t.stato || '') + '</span></span>' +
       '<span class="row-actions">' + azioni + '</span>' +
     '</div>';
   }

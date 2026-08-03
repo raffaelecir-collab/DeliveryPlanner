@@ -603,24 +603,25 @@
   .an-tabella td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--dp-line-soft); color: var(--dp-ink); }
   .an-tabella tr:last-child td { border-bottom: none; }
 
-  /* ---------- tab "La mia squadra" ---------- */
+  /* ---------- tab "La mia squadra" (mobile-first: i tecnici la usano soprattutto dal telefono) ---------- */
   .ms-toolbar {
-    display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 14px;
-    background: var(--dp-surface-card); border: 1px solid var(--dp-line); border-radius: var(--dp-radius); padding: 14px 16px;
+    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-bottom: 14px;
+    background: var(--dp-surface-card); border: 1px solid var(--dp-line); border-radius: var(--dp-radius); padding: 12px 14px;
   }
-  .ms-header { display: flex; align-items: center; gap: 8px; margin-right: auto; }
-  .ms-header h2 { margin: 0; font-size: 17px; font-weight: 650; color: var(--dp-ink); }
-  .ms-filtro-campo { display: flex; flex-direction: column; gap: 4px; }
+  .ms-header { display: flex; align-items: center; gap: 8px; flex: 1 1 100%; }
+  .ms-header h2 { margin: 0; font-size: 16px; font-weight: 650; color: var(--dp-ink); }
+  .ms-filtro-campo { display: flex; flex-direction: column; gap: 4px; flex: 1 1 calc(50% - 5px); min-width: 120px; }
   .ms-filtro-campo label { font-size: 11px; font-weight: 620; color: var(--dp-ink-soft); text-transform: uppercase; letter-spacing: .03em; }
   .ms-filtro-campo input[type=date] {
-    padding: 6px 8px; border: 1px solid var(--dp-line); border-radius: var(--dp-radius-sm);
-    background: var(--dp-surface-card); color: var(--dp-ink); font-size: 13px; font-family: var(--dp-mono);
+    padding: 9px 8px; border: 1px solid var(--dp-line); border-radius: var(--dp-radius-sm); width: 100%;
+    background: var(--dp-surface-card); color: var(--dp-ink); font-size: 14px; font-family: var(--dp-mono);
   }
+  .ms-toolbar > button { flex: 1 1 calc(50% - 5px); padding-top: 10px; padding-bottom: 10px; }
 
   .ms-subtabs { display: flex; gap: 6px; margin-bottom: 12px; }
   .ms-subtab-btn {
-    font-family: inherit; font-size: 13px; font-weight: 620; padding: 8px 16px; border-radius: 999px;
-    border: 1px solid var(--dp-line); background: var(--dp-surface-card); color: var(--dp-ink-soft); cursor: pointer;
+    flex: 1; font-family: inherit; font-size: 13px; font-weight: 620; padding: 11px 8px; border-radius: 10px;
+    border: 1px solid var(--dp-line); background: var(--dp-surface-card); color: var(--dp-ink-soft); cursor: pointer; text-align: center;
   }
   .ms-subtab-btn:hover { background: var(--dp-line-soft); }
   .ms-subtab-btn.active { background: var(--dp-accent); color: #fff; border-color: var(--dp-accent); }
@@ -628,30 +629,53 @@
   .ms-subview { display: none; }
   .ms-subview.active { display: block; }
 
-  .ms-lista-head, .ms-riga {
-    display: grid; grid-template-columns: 60px 1.4fr 1.8fr 70px 110px 120px 90px;
-    gap: 10px; align-items: center; padding: 8px 4px; font-size: 12.5px;
+  /* Vista Elenco/Agenda: card impilate (di default), diventano righe di tabella da tablet in su. */
+  .ms-lista-head { display: none; }
+  .ms-riga {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
+    padding: 12px; margin-bottom: 8px; border: 1px solid var(--dp-line); border-radius: var(--dp-radius);
+    background: var(--dp-surface-card); font-size: 13px;
   }
-  .ms-lista-head { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--dp-ink-faint); border-bottom: 1px solid var(--dp-line); }
-  .ms-riga { border-bottom: 1px solid var(--dp-line-soft); }
   .ms-riga.is-completato { opacity: .6; }
-  .ms-riga-ora, .ms-riga-durata { font-family: var(--dp-mono); color: var(--dp-ink); }
-  .ms-riga-cliente { font-weight: 620; color: var(--dp-ink); }
-  .ms-riga-indirizzo { color: var(--dp-ink-faint); }
-  .ms-riga-telefono a { color: var(--dp-accent); text-decoration: none; }
+  .ms-riga-ora { order: 1; font-family: var(--dp-mono); font-weight: 700; color: var(--dp-ink); }
+  .ms-riga-cliente { order: 2; font-weight: 620; color: var(--dp-ink); }
+  .ms-riga-stato { order: 3; margin-left: auto; }
+  .ms-riga-indirizzo { order: 4; flex-basis: 100%; color: var(--dp-ink-faint); font-size: 12px; }
+  .ms-riga-durata { order: 5; font-family: var(--dp-mono); font-size: 12px; color: var(--dp-ink-soft); }
+  .ms-riga-telefono { order: 6; font-size: 12px; margin-left: auto; }
+  .ms-riga-telefono a { color: var(--dp-accent); text-decoration: none; font-weight: 620; }
   .ms-riga-telefono a:hover { text-decoration: underline; }
+  .ms-riga > .row-actions { order: 7; flex-basis: 100%; justify-content: flex-end; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--dp-line-soft); }
+  /* Bersagli touch più larghi delle icone standard (32px) quando si è sul campo da telefono. */
+  .ms-riga .btn-icon { width: 40px; height: 40px; }
 
   .ms-day-group { margin-top: 14px; }
   .ms-day-group:first-child { margin-top: 0; }
   .ms-day-group-head {
     font-size: 12px; font-weight: 650; color: var(--dp-ink-soft); padding: 6px 10px;
-    background: var(--dp-line-soft); border-radius: 6px; margin-bottom: 4px;
+    background: var(--dp-line-soft); border-radius: 6px; margin-bottom: 8px;
   }
 
-  .ms-mappa-box { width: 100%; height: 600px; border: 1px solid var(--dp-line); border-radius: var(--dp-radius); overflow: hidden; box-shadow: var(--dp-shadow); }
+  .ms-mappa-box { width: 100%; height: 65vh; min-height: 340px; border: 1px solid var(--dp-line); border-radius: var(--dp-radius); overflow: hidden; box-shadow: var(--dp-shadow); }
 
-  @media (max-width: 900px) {
-    .ms-lista-head, .ms-riga { grid-template-columns: 50px 1fr 1fr 60px; }
-    .ms-riga-telefono, .ms-lista-head span:nth-child(5) { display: none; }
+  @media (min-width: 720px) {
+    .ms-toolbar { flex-wrap: nowrap; }
+    .ms-header { flex: 0 0 auto; margin-right: auto; }
+    .ms-filtro-campo { flex: 0 0 auto; min-width: 0; }
+    .ms-filtro-campo input[type=date] { width: auto; }
+    .ms-toolbar > button { flex: 0 0 auto; padding-top: 9px; padding-bottom: 9px; }
+    .ms-subtabs { max-width: 420px; }
+
+    .ms-lista-head, .ms-riga {
+      display: grid; grid-template-columns: 60px 1.4fr 1.8fr 70px 110px 120px 90px;
+      gap: 10px; align-items: center; padding: 8px 4px; font-size: 12.5px;
+    }
+    .ms-lista-head { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--dp-ink-faint); border-bottom: 1px solid var(--dp-line); }
+    .ms-riga { border: none; border-bottom: 1px solid var(--dp-line-soft); border-radius: 0; margin-bottom: 0; background: transparent; }
+    .ms-riga-ora, .ms-riga-cliente, .ms-riga-stato, .ms-riga-indirizzo, .ms-riga-durata, .ms-riga-telefono, .ms-riga > .row-actions {
+      order: initial; flex-basis: auto; margin-left: 0; margin-top: 0; padding-top: 0; border-top: none;
+    }
+    .ms-riga .btn-icon { width: 32px; height: 32px; }
+    .ms-mappa-box { height: 600px; }
   }
 </style>
