@@ -1584,11 +1584,18 @@
     return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
   }
 
-  /** Tappe di una squadra in un giorno (yyyy-mm-dd), ordinate per ordineTappa — dai dati già caricati per l'intervallo corrente. */
+  /**
+   * Tappe di una squadra in un giorno (yyyy-mm-dd), dai dati già caricati per l'intervallo
+   * corrente. Ordinate per orario reale (oraPianificata), non per ordineTappa: quest'ultimo non è
+   * affidabile per una tappa arrivata a "Pianificato" dall'import esterno o riassegnata a mano a
+   * un'altra squadra da "Modifica" (stesso motivo esteso nella nota di calcolaRiempimentoBuco_ in
+   * RouteEngine.gs) — mostrarle nell'ordine dell'orario vero evita una lista visivamente
+   * "disordinata" anche prima che un "Riempi buchi" normalizzi l'ordineTappa sul foglio.
+   */
   function datiSquadraGiorno_(squadraId, giornoInput) {
     var giornoStr = fromInputDate(giornoInput);
     return dashState.righe.filter(function (r) { return r.squadraId === squadraId && r.dataPianificata === giornoStr; })
-      .sort(function (a, b) { return (a.ordineTappa || 0) - (b.ordineTappa || 0); });
+      .sort(function (a, b) { return timeToMinutesClient(a.oraPianificata) - timeToMinutesClient(b.oraPianificata); });
   }
 
   /** Km indicativi del giro di un giorno (partenza → tappe in ordine → rientro), a scopo di stima rapida in lista/mappa — non è l'esito del motore di ottimizzazione. */

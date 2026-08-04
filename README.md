@@ -744,8 +744,12 @@ Cosa succede per ogni riga compilata (Nome Cliente + Indirizzo valorizzati):
     tab Dashboard, si può rimuovere/completare/annullare, o spostare su
     un'altra squadra/giorno dalla mappa di selezione) — con l'unica
     differenza che l'import **non ricalcola il percorso** di quella
-    squadra/giorno, quindi vale la pena controllare (o passare da "Riempi
-    buchi") che non si sovrapponga ad altre tappe già confermate;
+    squadra/giorno: l'orario riportato è quello del tracking esterno così
+    com'è, non verificato contro le altre tappe. "Riempi buchi" resta comunque
+    al sicuro da sovrapposizioni anche su questi dati (ordina sempre le tappe
+    già pianificate per l'orario reale, non per l'ordine con cui sono state
+    importate), ma un doppio appuntamento inserito per errore nel tracking
+    esterno sulla stessa fascia oraria va comunque corretto a mano;
   - in ogni altro caso (es. "Giacente") → **Da pianificare**, e sarà il
     motore a deciderne la pianificazione.
 

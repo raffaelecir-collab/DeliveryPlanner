@@ -217,8 +217,13 @@ function trovaOCreaColonnaMarcatore_(sheet, headerRow, lastCol) {
  * pianificato a tutti gli effetti — compare nel tab Programmazione, si può rimuovere/completare/
  * annullare o spostare su un'altra squadra/giorno dalla mappa di selezione, esattamente come una
  * pianificazione fatta dalla Web App — con l'unica differenza che l'import NON ricalcola né
- * inserisce la tappa nel percorso ottimizzato di quella squadra/giorno: va verificato a mano (o
- * con "Riempi buco") che non si sovrapponga ad altri interventi già confermati.
+ * inserisce la tappa nel percorso ottimizzato di quella squadra/giorno: l'orario riportato è
+ * quello del tracking esterno così com'è, non verificato contro le altre tappe. Non serve
+ * assegnargli a mano un ordineTappa dopo l'import: "Riempi buco" e "Pianifica intervallo"
+ * ordinano sempre le tappe già pianificate per l'orario reale (oraPianificata), non per
+ * ordineTappa (che l'import non imposta), quindi restano al sicuro da sovrapposizioni anche su
+ * questi dati — un doppio appuntamento inserito per errore nel tracking esterno sulla stessa
+ * fascia oraria va comunque corretto a mano.
  *
  * "Urgente" (TRUE/FALSE) diventa priorità Urgente/Normale; "Data Scadenza" viene riportata come
  * scadenza dell'Intervento (non è un vincolo rigido: se supera la scadenza, l'intervento non

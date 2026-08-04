@@ -858,7 +858,11 @@ function getContestoPianificazione(squadraId, giornoStr) {
   var pianificati = tutti.filter(function (i) {
     return i.squadraId === squadraId && i.dataPianificata === giornoFmt && i.stato === STATO_INTERVENTO.PIANIFICATO;
   });
-  pianificati.sort(function (a, b) { return (a.ordineTappa || 0) - (b.ordineTappa || 0); });
+  // Ordina per orario reale (non per ordineTappa): un intervento pianificato dall'import esterno
+  // o riassegnato a mano a un'altra squadra non ha un ordineTappa affidabile (vedi
+  // calcolaRiempimentoBuco_ per il motivo esteso), quindi qui l'ordine cronologico effettivo è
+  // l'unico criterio sempre corretto per mostrare la lista.
+  pianificati.sort(function (a, b) { return timeToMinutes_(a.oraPianificata) - timeToMinutes_(b.oraPianificata); });
 
   // Interventi già pianificati ma per un'altra squadra e/o un altro giorno: inclusi (con
   // l'indicazione di dove si trovano attualmente) così, dalla mappa di selezione, è possibile
@@ -900,7 +904,8 @@ function getPercorsiGiorno(giornoStr) {
     gruppi[i.squadraId].tappe.push(i);
   });
   var risultato = Object.keys(gruppi).map(function (k) { return gruppi[k]; });
-  risultato.forEach(function (g) { g.tappe.sort(function (a, b) { return (a.ordineTappa || 0) - (b.ordineTappa || 0); }); });
+  // Vedi nota in getContestoPianificazione: ordinamento per orario reale, non per ordineTappa.
+  risultato.forEach(function (g) { g.tappe.sort(function (a, b) { return timeToMinutes_(a.oraPianificata) - timeToMinutes_(b.oraPianificata); }); });
   return risultato;
 }
 
@@ -1100,7 +1105,8 @@ function getProgrammazione(dataInizioStr, dataFineStr) {
     var an = squadreMap[a.squadraId] ? squadreMap[a.squadraId].nome : (a.squadraId || '');
     var bn = squadreMap[b.squadraId] ? squadreMap[b.squadraId].nome : (b.squadraId || '');
     if (an !== bn) return an < bn ? -1 : 1;
-    return (a.ordineTappa || 0) - (b.ordineTappa || 0);
+    // Orario reale, non ordineTappa: vedi nota in getContestoPianificazione.
+    return timeToMinutes_(a.oraPianificata) - timeToMinutes_(b.oraPianificata);
   });
 
   return righe.map(function (i) {
@@ -1150,9 +1156,21 @@ function calcolaRiempimentoBuco_(squadraId, giornoStr, vincolaOrariFissati) {
   var giornoFmt = formatDateStr_(giorno);
 
   var tuttiInterventi = assicuraIdTutti_('INTERVENTI');
+  // Ordina per orario reale (oraPianificata), NON per ordineTappa: quest'ultimo è affidabile solo
+  // per le tappe scritte dal motore stesso (che lo mantiene sempre coerente con l'orario). Un
+  // intervento portato a "Pianificato" dall'import esterno (importaInterventiEsterni, che non
+  // imposta mai ordineTappa) o riassegnato a mano a un'altra squadra da "Modifica" (che lascia
+  // l'ordineTappa della vecchia squadra) può avere un ordineTappa assente o senza più senso per
+  // questa squadra/giorno. Le funzioni di riempimento sotto (riempiBucoSenzaSpostare_,
+  // estendiPercorsoEsistente_) trattano `giaPianificati` come ancore già in ordine cronologico: se
+  // quell'assunzione viene violata, possono calcolare "buchi" sbagliati e inserire un nuovo
+  // intervento sovrapposto a uno già fisso, oppure risultare in uno spostamento enorme e
+  // apparentemente immotivato delle tappe esistenti. Ordinare qui per l'orario vero, sempre
+  // disponibile e sempre corretto, rende l'intera pipeline robusta indipendentemente da come la
+  // tappa è arrivata a "Pianificato".
   var giaPianificati = tuttiInterventi.filter(function (i) {
     return i.squadraId === squadraId && i.dataPianificata === giornoFmt && i.stato === STATO_INTERVENTO.PIANIFICATO;
-  }).sort(function (a, b) { return (a.ordineTappa || 0) - (b.ordineTappa || 0); });
+  }).sort(function (a, b) { return timeToMinutes_(a.oraPianificata) - timeToMinutes_(b.oraPianificata); });
 
   // A differenza della selezione manuale (che non applica alcun controllo su "Non Prima Del"), qui
   // questo campo è un vincolo rigido: un intervento richiesto per una data futura non viene
@@ -1589,9 +1607,10 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
       // precedente di pianificaIntervallo, o pianificati a mano): restano fissi, questa
       // funzione può solo aggiungere altri interventi nei buchi residui, mai spostarli o
       // toglierli per far posto a candidati "migliori" nel confronto di oggi.
+      // Orario reale, non ordineTappa: stesso motivo esteso nella nota di calcolaRiempimentoBuco_.
       var giaPianificatiOggi = tuttiInterventi.filter(function (i) {
         return i.squadraId === squadra.id && i.dataPianificata === giornoFmt && i.stato === STATO_INTERVENTO.PIANIFICATO;
-      }).sort(function (a, b) { return (a.ordineTappa || 0) - (b.ordineTappa || 0); });
+      }).sort(function (a, b) { return timeToMinutes_(a.oraPianificata) - timeToMinutes_(b.oraPianificata); });
 
       // Anche senza nessun candidato nuovo, se la squadra ha già un percorso per questo giorno
       // va comunque riportato (non "libera"): solo se non c'è NÉ un percorso esistente NÉ
