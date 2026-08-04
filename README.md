@@ -447,9 +447,12 @@ aggiornato automaticamente ogni 25 secondi mentre la pagina resta aperta (non
 arrivare). Cliccando la campanella si apre l'elenco delle notifiche più
 recenti (**Cliente**, **Ods**, evento, data/ora) e tutte quelle mostrate
 vengono segnate come lette. **Cliccando una notifica** si passa
-automaticamente al tab Interventi, si azzerano i filtri attivi (per non
-rischiare che nascondano la riga) e la riga dell'intervento coinvolto viene
-evidenziata e messa in vista.
+automaticamente al tab Interventi con un **filtro attivo su quel solo
+intervento** (mostrato come chip "Filtro: Cliente — Ods" sopra l'elenco):
+la lista mostra solo quella riga, indipendentemente dagli altri filtri
+stato/squadra/ricerca. Si torna alla lista normale premendo la **✕** sul
+chip, oppure semplicemente toccando uno degli altri filtri (stato, squadra o
+ricerca), che lo disattiva automaticamente.
 
 Genera una notifica ogni evento rilevante sul ciclo di vita di un intervento:
 nuova nota, sospensione/fine sospensione/annullamento (con la nota), il

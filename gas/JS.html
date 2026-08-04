@@ -604,8 +604,18 @@
       (s.stato ? ' — ' + escapeHtml(s.stato) : '') + (s.nota ? ': ' + escapeHtml(s.nota) : '');
   }
 
+  /**
+   * Se valorizzato (da un click su una notifica, vedi vaiAIntervento_), la lista mostra SOLO
+   * questo intervento, ignorando stato/squadra/ricerca — rimosso esplicitamente col tasto ✕ del
+   * chip filtro, o implicitamente non appena l'utente tocca uno degli altri filtri.
+   */
+  var interventiFiltroSingoloId = null;
+
   /** Interventi visibili nella lista, filtrati da stato/squadra/ricerca correnti — tutto istantaneo, senza round-trip al server. */
   function interventiFiltrati_() {
+    if (interventiFiltroSingoloId) {
+      return state.interventi.filter(function (i) { return i.id === interventiFiltroSingoloId; });
+    }
     var stato = document.getElementById('filtro-stato').value;
     var squadraId = document.getElementById('filtro-squadra').value;
     var q = document.getElementById('interventi-search').value.trim().toLowerCase();
@@ -615,6 +625,30 @@
       if (q && (i.cliente || '').toLowerCase().indexOf(q) === -1 && (i.indirizzo || '').toLowerCase().indexOf(q) === -1 && (i.codiceEsterno || '').toLowerCase().indexOf(q) === -1) return false;
       return true;
     });
+  }
+
+  /** Attiva il filtro "un solo intervento" (mostra il chip) e aggiorna subito la lista. */
+  function impostaFiltroSingoloIntervento_(id, label) {
+    interventiFiltroSingoloId = id;
+    var chip = document.getElementById('filtro-singolo-chip');
+    var testo = document.getElementById('filtro-singolo-testo');
+    if (testo) testo.textContent = 'Filtro: ' + label;
+    if (chip) chip.classList.remove('hidden');
+    renderInterventi();
+  }
+
+  /** Disattiva il filtro "un solo intervento" (nasconde il chip) e torna alla lista normale secondo gli altri filtri. */
+  function rimuoviFiltroSingoloIntervento_() {
+    if (!interventiFiltroSingoloId) return;
+    interventiFiltroSingoloId = null;
+    var chip = document.getElementById('filtro-singolo-chip');
+    if (chip) chip.classList.add('hidden');
+    renderInterventi();
+  }
+
+  /** Wrapper per i filtri normali (stato/squadra/ricerca): toccarli esce dal filtro "un solo intervento" attivato da una notifica. */
+  function onCambiaFiltroNormale_() {
+    if (interventiFiltroSingoloId) rimuoviFiltroSingoloIntervento_(); else renderInterventi();
   }
 
   function renderInterventi() {
@@ -699,9 +733,10 @@
 
   function setupInterventiTab() {
     on('btn-nuovo-intervento', 'click', function () { openModal('INTERVENTI', null); });
-    on('filtro-stato', 'change', renderInterventi);
-    on('filtro-squadra', 'change', renderInterventi);
-    on('interventi-search', 'input', renderInterventi);
+    on('filtro-stato', 'change', onCambiaFiltroNormale_);
+    on('filtro-squadra', 'change', onCambiaFiltroNormale_);
+    on('interventi-search', 'input', onCambiaFiltroNormale_);
+    on('btn-rimuovi-filtro-singolo', 'click', rimuoviFiltroSingoloIntervento_);
     on('btn-importa-esterno', 'click', function (e) {
       var btn = e.currentTarget;
       btn.disabled = true;
@@ -2504,28 +2539,22 @@
   }
 
   /**
-   * Passa al tab Interventi, ricarica l'elenco fresco dal server (non basta mostraTab: qui serve
-   * essere sicuri che la riga sia già nel DOM prima di cercarla), azzera i filtri (per non
-   * nascondere la riga per stato/squadra/ricerca) e mette in evidenza la riga dell'intervento
-   * della notifica cliccata.
+   * Passa al tab Interventi, ricarica l'elenco fresco dal server (per essere sicuri che
+   * l'intervento della notifica ci sia davvero) e applica il filtro "un solo intervento"
+   * (impostaFiltroSingoloIntervento_): la lista mostra SOLO quella riga, invece di scorrere in
+   * mezzo a tutte le altre.
    */
   function vaiAIntervento_(row, id) {
     chiudiPannelloNotifiche_();
     mostraTab('interventi');
-    var filtroStato = document.getElementById('filtro-stato');
-    var filtroSquadra = document.getElementById('filtro-squadra');
-    var ricerca = document.getElementById('interventi-search');
-    if (filtroStato) filtroStato.value = '';
-    if (filtroSquadra) filtroSquadra.value = '';
-    if (ricerca) ricerca.value = '';
     loadInterventi().then(function () {
       // Preferisce l'id (stabile) al numero di riga fisica: quest'ultimo può essersi spostato nel
       // frattempo se un'altra riga sopra è stata eliminata dopo che questa notifica è stata creata.
-      var riga = id ? document.querySelector('.int-row[data-id="' + CSS.escape(id) + '"]') : null;
-      if (!riga && row) riga = document.querySelector('.int-row[data-row="' + row + '"]');
-      if (!riga) { toast('Intervento non trovato (potrebbe essere stato eliminato).', 'error'); return; }
-      riga.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      riga.classList.remove('int-row-flash'); void riga.offsetWidth; riga.classList.add('int-row-flash');
+      var intervento = id ? state.interventi.filter(function (i) { return i.id === id; })[0] : null;
+      if (!intervento && row) intervento = state.interventi.filter(function (i) { return i._row === row; })[0];
+      if (!intervento) { toast('Intervento non trovato (potrebbe essere stato eliminato).', 'error'); return; }
+      var label = (intervento.cliente || '(cliente sconosciuto)') + ' — ' + (intervento.codiceEsterno || 'senza ODS');
+      impostaFiltroSingoloIntervento_(intervento.id, label);
     });
   }
 
