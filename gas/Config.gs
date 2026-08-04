@@ -8,7 +8,8 @@ var SHEET_NAMES = {
   SQUADRE: 'Squadre',
   INTERVENTI: 'Interventi',
   REGOLE: 'Regole',
-  LOG: 'LogPianificazione'
+  LOG: 'LogPianificazione',
+  NOTIFICHE: 'Notifiche'
 };
 
 /**
@@ -182,6 +183,29 @@ var SCHEMA = {
       { key: 'giorno', label: 'Giorno Pianificato', type: 'text' },
       { key: 'tappe', label: 'Numero Tappe', type: 'number' },
       { key: 'dettagli', label: 'Dettagli', type: 'text' }
+    ]
+  },
+  /**
+   * Log interno (non un tab dell'interfaccia) che alimenta la campanella notifiche lato
+   * Admin/Cliente (Notifiche.gs): una riga per ciascun destinatario di ciascun evento su un
+   * intervento (nuova nota, cambio stato, riassegnazione squadra...). Non esposto nello
+   * schemaClient generico (vedi Code.gs) perché non ha un form di modifica dedicato.
+   */
+  NOTIFICHE: {
+    sheetName: SHEET_NAMES.NOTIFICHE,
+    key: 'NOTIFICHE',
+    label: 'Notifiche',
+    idPrefix: 'NF',
+    fields: [
+      { key: 'id', label: 'ID', type: 'text', readonly: true },
+      { key: 'timestamp', label: 'Data/Ora', type: 'text' },
+      { key: 'interventoId', label: 'Intervento ID', type: 'text' },
+      { key: 'interventoRow', label: 'Intervento Riga', type: 'number' },
+      { key: 'codiceEsterno', label: 'Ods', type: 'text' },
+      { key: 'cliente', label: 'Cliente', type: 'text' },
+      { key: 'evento', label: 'Evento', type: 'text' },
+      { key: 'destinatario', label: 'Destinatario', type: 'text' },
+      { key: 'letto', label: 'Letto', type: 'checkbox', default: false }
     ]
   }
 };

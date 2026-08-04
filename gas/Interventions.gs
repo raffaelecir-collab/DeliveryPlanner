@@ -39,7 +39,24 @@ function salvaIntervento(intervento) {
     intervento.dataDispacciamento = formatDateStr_(dataOggi_());
   }
 
-  return upsertRow_('INTERVENTI', intervento);
+  var salvato = upsertRow_('INTERVENTI', intervento);
+  // Notifica solo la riassegnazione di squadra su un intervento GIÀ esistente (campo "Squadra
+  // Assegnata" del form di Modifica): unico cambio davvero rilevante che può passare da questa
+  // funzione generica (gli altri campi editabili qui, es. indirizzo/telefono/ricavo, non sono
+  // eventi di ciclo di vita). Non notifica la creazione di un nuovo intervento.
+  if (esistente && esistente.squadraId !== salvato.squadraId) {
+    var nomeNuovaSquadra = salvato.squadraId ? nomeSquadraPerId_(salvato.squadraId) : null;
+    var evento = !nomeNuovaSquadra ? 'Squadra assegnata rimossa'
+      : (esistente.squadraId ? 'Riassegnato alla squadra "' + nomeNuovaSquadra + '"' : 'Assegnato alla squadra "' + nomeNuovaSquadra + '"');
+    creaNotificaIntervento_(salvato, evento, RUOLO.ADMIN);
+  }
+  return salvato;
+}
+
+/** Nome di una Squadra dal suo id, o null se non trovata (squadra eliminata nel frattempo). */
+function nomeSquadraPerId_(squadraId) {
+  var s = readAll_('SQUADRE').filter(function (sq) { return sq.id === squadraId; })[0];
+  return s ? s.nome : null;
 }
 
 /** Trova una riga per id, con fallback sul numero di riga fisica se l'id è assente (riga inserita a mano). */
@@ -101,6 +118,7 @@ function ripianificaIntervento(id, row) {
     nonAutomatizzabileData: esistente.dataPianificata || ''
   };
   updateRowFields_('INTERVENTI', esistente._row, Object.assign(campi, campiAnalisi_(esistente, campi)));
+  creaNotificaIntervento_(esistente, 'Rimosso dalla programmazione: torna "Da pianificare"', RUOLO.ADMIN);
   return true;
 }
 
@@ -110,6 +128,7 @@ function segnaCompletato(id, row) {
   if (!esistente) throw new Error('Intervento non trovato.');
   var campi = { stato: STATO_INTERVENTO.COMPLETATO };
   updateRowFields_('INTERVENTI', esistente._row, Object.assign(campi, campiAnalisi_(esistente, campi)));
+  creaNotificaIntervento_(esistente, 'Completato', RUOLO.ADMIN);
   return true;
 }
 
@@ -174,6 +193,7 @@ function sospendiIntervento(id, row, statoSospensione, nota) {
     squadraId: '', dataPianificata: '', oraPianificata: '', ordineTappa: '', motivoNonPianificato: ''
   };
   updateRowFields_('INTERVENTI', esistente._row, Object.assign(campi, campiAnalisi_(esistente, campi)));
+  creaNotificaIntervento_(esistente, statoSospensione + ': ' + troncaTesto_(nota, 80));
   return true;
 }
 
@@ -193,6 +213,7 @@ function terminaSospensione(id, row) {
     storiaSospensioni: aggiungiStoriaSospensione_(esistente, STATO_INTERVENTO.DA_PIANIFICARE, 'Fine sospensione')
   };
   updateRowFields_('INTERVENTI', esistente._row, Object.assign(campi, campiAnalisi_(esistente, campi)));
+  creaNotificaIntervento_(esistente, 'Fine sospensione: torna "Da pianificare"');
   return true;
 }
 
@@ -213,6 +234,7 @@ function annullaIntervento(id, row, nota) {
     squadraId: '', dataPianificata: '', oraPianificata: '', ordineTappa: '', motivoNonPianificato: ''
   };
   updateRowFields_('INTERVENTI', esistente._row, Object.assign(campi, campiAnalisi_(esistente, campi)));
+  creaNotificaIntervento_(esistente, 'Annullato: ' + troncaTesto_(nota, 80));
   return true;
 }
 
@@ -229,6 +251,7 @@ function aggiungiNotaIntervento(id, row, nota) {
   verificaAccessoSquadraIntervento_(esistente);
   var campi = { storiaSospensioni: aggiungiStoriaSospensione_(esistente, '', nota) };
   updateRowFields_('INTERVENTI', esistente._row, Object.assign(campi, campiAnalisi_(esistente, campi)));
+  creaNotificaIntervento_(esistente, 'Nuova nota: ' + troncaTesto_(nota, 80));
   return true;
 }
 
@@ -244,5 +267,6 @@ function segnaCompletatoSquadraPropria(id, row) {
   if (esistente.squadraId !== squadraId) throw new Error('Operazione non consentita: intervento non assegnato alla tua squadra.');
   var campi = { stato: STATO_INTERVENTO.COMPLETATO };
   updateRowFields_('INTERVENTI', esistente._row, Object.assign(campi, campiAnalisi_(esistente, campi)));
+  creaNotificaIntervento_(esistente, 'Completato dalla squadra', RUOLO.SQUADRA);
   return true;
 }

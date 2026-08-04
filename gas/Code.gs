@@ -29,6 +29,9 @@ function getBootstrapData() {
   var schemaClient = {};
   if (ruolo === RUOLO.ADMIN || ruolo === RUOLO.CLIENTE) {
     Object.keys(SCHEMA).forEach(function (k) {
+      // NOTIFICHE è un log interno per la campanella (Notifiche.gs), senza un form di modifica
+      // dedicato: non ha senso esporlo nello schema generico usato per generare i form.
+      if (k === 'NOTIFICHE') return;
       if (ruolo === RUOLO.CLIENTE && k !== 'INTERVENTI') return;
       schemaClient[k] = { label: SCHEMA[k].label, fields: SCHEMA[k].fields };
     });

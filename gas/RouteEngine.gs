@@ -1040,11 +1040,17 @@ function confermaPercorso(squadraId, giornoStr, interventoIdsOrdinati, ignoraTet
         nonAutomatizzabileData: anteprima.giorno
       };
       updateRowFields_('INTERVENTI', i._row, Object.assign(campiRimosso, campiAnalisi_(i, campiRimosso)));
+      creaNotificaIntervento_(i, 'Rimosso dalla programmazione: torna "Da pianificare"', RUOLO.ADMIN);
     }
   });
 
   anteprima.tappe.forEach(function (t, idx) {
     var it = tuttiInterventi.filter(function (i) { return i.id === t.interventoId; })[0];
+    // Notifica solo se questo è un piazzamento NUOVO (prima "Da pianificare" o su un'altra
+    // squadra/giorno): una tappa già confermata qui che resta sulla stessa squadra/giorno, solo
+    // riordinata o con orario leggermente aggiustato dal ricalcolo, non è un evento di ciclo di
+    // vita da notificare.
+    var eraGiaQui = it.stato === STATO_INTERVENTO.PIANIFICATO && it.squadraId === squadraId && it.dataPianificata === anteprima.giorno;
     var campiPianificato = {
       stato: STATO_INTERVENTO.PIANIFICATO,
       squadraId: squadraId,
@@ -1055,6 +1061,9 @@ function confermaPercorso(squadraId, giornoStr, interventoIdsOrdinati, ignoraTet
       nonAutomatizzabileData: ''
     };
     updateRowFields_('INTERVENTI', it._row, Object.assign(campiPianificato, campiAnalisi_(it, campiPianificato)));
+    if (!eraGiaQui) {
+      creaNotificaIntervento_(it, 'Pianificato per il ' + anteprima.giorno + ' alle ' + t.oraInizio + ' (' + anteprima.squadraNome + ')', RUOLO.ADMIN);
+    }
   });
 
   anteprima.nonIncluse.forEach(function (n) {
@@ -1271,6 +1280,10 @@ function riempiBucoGiorno(squadraId, giornoStr, consentiSpostamento) {
 
   var risultato = calcolo.risultato;
   risultato.tappe.forEach(function (t, idx) {
+    // Le tappe già pianificate in precedenza (calcolo.giaPianificati) restano "Pianificato":
+    // notifica solo i candidati NUOVI appena inseriti nel buco (erano "Da pianificare" prima di
+    // questa chiamata).
+    var eraGiaPianificato = t.intervento.stato === STATO_INTERVENTO.PIANIFICATO;
     var campiPianificato = {
       stato: STATO_INTERVENTO.PIANIFICATO,
       squadraId: calcolo.squadra.id,
@@ -1281,6 +1294,9 @@ function riempiBucoGiorno(squadraId, giornoStr, consentiSpostamento) {
       nonAutomatizzabileData: ''
     };
     updateRowFields_('INTERVENTI', t.intervento._row, Object.assign(campiPianificato, campiAnalisi_(t.intervento, campiPianificato)));
+    if (!eraGiaPianificato) {
+      creaNotificaIntervento_(t.intervento, 'Pianificato per il ' + giornoFmt + ' alle ' + t.oraInizio + ' (' + calcolo.squadra.nome + ')', RUOLO.ADMIN);
+    }
   });
   risultato.nonIncluse.forEach(function (n) {
     var campiNonIncluso = {
@@ -1321,6 +1337,7 @@ function creaEPianificaIntervento(intervento, squadraId, giornoStr, oraStr) {
   intervento.nonAutomatizzabileData = '';
   Object.assign(intervento, campiAnalisi_(null, intervento));
   var salvato = salvaIntervento(intervento);
+  creaNotificaIntervento_(salvato, 'Creato e pianificato per il ' + giornoFmt + ' alle ' + oraStr + ' (' + squadra.nome + ')', RUOLO.ADMIN);
 
   var tappeGiorno = readAll_('INTERVENTI').filter(function (i) {
     return i.squadraId === squadraId && i.dataPianificata === giornoFmt && i.stato === STATO_INTERVENTO.PIANIFICATO;
@@ -1668,6 +1685,12 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
           nonAutomatizzabileData: ''
         };
         updateRowFields_('INTERVENTI', t.intervento._row, Object.assign(campiPianificato, campiAnalisi_(t.intervento, campiPianificato)));
+        // `originale` esiste solo per un intervento preso dal pool (era "Da pianificare"): una
+        // tappa già pianificata in precedenza (giaPianificatiOggi) non è mai nel pool, quindi
+        // resta correttamente esclusa dalla notifica.
+        if (originale) {
+          creaNotificaIntervento_(t.intervento, 'Pianificato per il ' + giornoFmt + ' alle ' + t.oraInizio + ' (' + squadra.nome + ')', RUOLO.ADMIN);
+        }
       });
 
       var anteprimaGiorno = formattaAnteprima_(squadra, giorno, risultato);

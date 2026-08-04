@@ -8,6 +8,7 @@
   var analysisState = { caricato: false, dati: null, ricavoVista: 'settimanale', tempiVista: 'cumulativo', nuoviVista: 'cumulativo' };
   var msState = { vista: 'agenda', dati: null };
   var msMapInstance = null, msLayerGroup = null;
+  var notificheState = { aperto: false, pollTimer: null };
 
   var SAVE_FN = { SQUADRE: 'salvaSquadra', INTERVENTI: 'salvaIntervento' };
   var DELETE_FN = { SQUADRE: 'eliminaSquadra', INTERVENTI: 'eliminaIntervento' };
@@ -666,7 +667,7 @@
       if (isAdmin) {
         azioniHtml += '<button class="btn-icon danger" data-action="elimina" data-row="' + i._row + '" title="Elimina definitivamente">' + ICONA_CESTINO_ + '</button>';
       }
-      return '<div class="int-row' + (i.stato === 'Annullato' ? ' is-annullato' : '') + '">' +
+      return '<div class="int-row' + (i.stato === 'Annullato' ? ' is-annullato' : '') + '" data-row="' + i._row + '" data-id="' + escapeHtml(i.id || '') + '">' +
         '<div><div class="int-cliente">' + escapeHtml(i.cliente) + '</div><div class="int-indirizzo">' + escapeHtml(i.indirizzo || '') + '</div></div>' +
         '<div class="int-competenza' + (i.competenza ? '' : ' any') + '">' + escapeHtml(i.competenza || 'Qualsiasi') + '</div>' +
         '<div><span class="badge ' + (CLASSE_BADGE_PRIORITA_[i.priorita] || 'badge-normale') + '">' + escapeHtml(i.priorita || '') + '</span></div>' +
@@ -2426,6 +2427,7 @@
       state.squadraId = data.squadraId || '';
       document.getElementById('utente-corrente').textContent = data.utente;
       applicaRuolo_(state.ruolo);
+      safeRun_('notifiche', setupNotifiche);
       if (state.ruolo === 'Cliente') {
         popolaSelectFiltri();
         populaSelectSquadra();
@@ -2444,6 +2446,106 @@
       toast('Errore di inizializzazione: ' + (err.message || err), 'error');
       nascondiCaricamento('dash-team-list', 'dash-detail');
     });
+  }
+
+  // ---------- campanella notifiche (Admin/Cliente) ----------
+
+  function renderNotificheBadge_(nonLette) {
+    var badge = document.getElementById('notifiche-badge');
+    if (!badge) return;
+    badge.textContent = nonLette > 99 ? '99+' : String(nonLette);
+    badge.classList.toggle('hidden', !nonLette);
+  }
+
+  function renderNotificheLista_(notifiche) {
+    var lista = document.getElementById('notifiche-lista');
+    if (!lista) return;
+    if (!notifiche.length) {
+      lista.innerHTML = '<div class="notifiche-vuoto">Nessuna notifica.</div>';
+      return;
+    }
+    lista.innerHTML = notifiche.map(function (n) {
+      return '<button type="button" class="notifica-riga' + (n.letto ? '' : ' non-letta') + '" data-row="' + n.interventoRow + '" data-id="' + escapeHtml(n.interventoId || '') + '">' +
+        '<div class="notifica-riga-head"><span>' + escapeHtml(n.cliente || '(cliente sconosciuto)') + '</span>' +
+        '<span class="notifica-riga-ods">' + escapeHtml(n.codiceEsterno || 'senza ODS') + '</span></div>' +
+        '<div class="notifica-riga-evento">' + escapeHtml(n.evento) + '</div>' +
+        '<div class="notifica-riga-ora">' + escapeHtml(n.timestamp || '') + '</div>' +
+      '</button>';
+    }).join('');
+  }
+
+  /** Ricarica badge (e lista, se il pannello è aperto) dal server: chiamata all'avvio e in polling periodico. */
+  function caricaNotifiche() {
+    if (state.ruolo !== 'Admin' && state.ruolo !== 'Cliente') return Promise.resolve();
+    return callServer('getNotifiche').then(function (esito) {
+      renderNotificheBadge_(esito.nonLette);
+      if (notificheState.aperto) renderNotificheLista_(esito.notifiche);
+    }).catch(function (err) { console.warn('Errore caricamento notifiche:', err); });
+  }
+
+  function apriPannelloNotifiche_() {
+    var pannello = document.getElementById('notifiche-pannello');
+    if (!pannello) return;
+    notificheState.aperto = true;
+    pannello.classList.remove('hidden');
+    callServer('getNotifiche').then(function (esito) {
+      renderNotificheLista_(esito.notifiche);
+      return callServer('segnaNotificheLette');
+    }).then(function () {
+      renderNotificheBadge_(0);
+    }).catch(function (err) { toast('Errore nel caricamento delle notifiche: ' + (err.message || err), 'error'); });
+  }
+
+  function chiudiPannelloNotifiche_() {
+    var pannello = document.getElementById('notifiche-pannello');
+    if (!pannello) return;
+    notificheState.aperto = false;
+    pannello.classList.add('hidden');
+  }
+
+  /**
+   * Passa al tab Interventi, ricarica l'elenco fresco dal server (non basta mostraTab: qui serve
+   * essere sicuri che la riga sia già nel DOM prima di cercarla), azzera i filtri (per non
+   * nascondere la riga per stato/squadra/ricerca) e mette in evidenza la riga dell'intervento
+   * della notifica cliccata.
+   */
+  function vaiAIntervento_(row, id) {
+    chiudiPannelloNotifiche_();
+    mostraTab('interventi');
+    var filtroStato = document.getElementById('filtro-stato');
+    var filtroSquadra = document.getElementById('filtro-squadra');
+    var ricerca = document.getElementById('interventi-search');
+    if (filtroStato) filtroStato.value = '';
+    if (filtroSquadra) filtroSquadra.value = '';
+    if (ricerca) ricerca.value = '';
+    loadInterventi().then(function () {
+      // Preferisce l'id (stabile) al numero di riga fisica: quest'ultimo può essersi spostato nel
+      // frattempo se un'altra riga sopra è stata eliminata dopo che questa notifica è stata creata.
+      var riga = id ? document.querySelector('.int-row[data-id="' + CSS.escape(id) + '"]') : null;
+      if (!riga && row) riga = document.querySelector('.int-row[data-row="' + row + '"]');
+      if (!riga) { toast('Intervento non trovato (potrebbe essere stato eliminato).', 'error'); return; }
+      riga.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      riga.classList.remove('int-row-flash'); void riga.offsetWidth; riga.classList.add('int-row-flash');
+    });
+  }
+
+  function setupNotifiche() {
+    if (state.ruolo !== 'Admin' && state.ruolo !== 'Cliente') return;
+    on('btn-notifiche', 'click', function (e) {
+      e.stopPropagation();
+      if (notificheState.aperto) chiudiPannelloNotifiche_(); else apriPannelloNotifiche_();
+    });
+    onQuery('#notifiche-lista', 'click', function (e) {
+      var btn = e.target.closest('.notifica-riga');
+      if (!btn) return;
+      vaiAIntervento_(btn.dataset.row ? parseInt(btn.dataset.row, 10) : null, btn.dataset.id);
+    });
+    document.addEventListener('click', function (e) {
+      var wrap = document.querySelector('.notifiche-wrap');
+      if (notificheState.aperto && wrap && !wrap.contains(e.target)) chiudiPannelloNotifiche_();
+    });
+    caricaNotifiche();
+    notificheState.pollTimer = setInterval(caricaNotifiche, 25000);
   }
 
   /** Nasconde tab/pulsanti riservati all'Admin quando l'account attivo è Cliente (vedi Auth.gs: le

@@ -108,6 +108,7 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 | `Analysis.gs` | Metriche del tab Analysis (solo Admin): ricavo, tempi di lavorazione, tassi, backlog, km, distribuzione geografica |
 | `TeamView.gs` | Programmazione propria per l'account Squadra (elenco/agenda/mappa) |
 | `Documenti.gs` | Documenti allegati a ciascun Intervento, archiviati su Google Drive |
+| `Notifiche.gs` | Centro notifiche per la campanella Admin/Cliente (nuova nota, cambio stato, riassegnazione squadra...) |
 | `Code.gs` | `doGet()` e funzioni esposte al client |
 | `Index.html` / `CSS.html` / `JS.html` | Interfaccia utente (SPA) |
 
@@ -435,6 +436,37 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 Ogni percorso confermato (in entrambe le modalità) viene registrato nel
 foglio `LogPianificazione` (visibile in fondo al tab Regole), utile per
 tracciare chi ha pianificato cosa e quando.
+
+### Campanella notifiche (Admin e Cliente)
+
+In alto a destra, accanto all'account collegato, Admin e Cliente hanno una
+**campanella 🔔** (assente per l'account Squadra, che non ha un tab dedicato
+per riceverle): un pallino rosso mostra quante notifiche non lette ci sono,
+aggiornato automaticamente ogni 25 secondi mentre la pagina resta aperta (non
+è un push: bisogna avere la Web App aperta in una scheda per vederle
+arrivare). Cliccando la campanella si apre l'elenco delle notifiche più
+recenti (**Cliente**, **Ods**, evento, data/ora) e tutte quelle mostrate
+vengono segnate come lette. **Cliccando una notifica** si passa
+automaticamente al tab Interventi, si azzerano i filtri attivi (per non
+rischiare che nascondano la riga) e la riga dell'intervento coinvolto viene
+evidenziata e messa in vista.
+
+Genera una notifica ogni evento rilevante sul ciclo di vita di un intervento:
+nuova nota, sospensione/fine sospensione/annullamento (con la nota), il
+completamento (da Admin o da una Squadra), la rimozione dalla programmazione
+("Rimuovi"), l'assegnazione/riassegnazione della Squadra e ogni nuova
+pianificazione (manuale, "Riempi buchi", pianificazione automatica su
+intervallo, o la creazione al volo di un intervento imprevisto). Non genera
+notifiche per le semplici modifiche ai campi anagrafici (indirizzo, telefono,
+ricavo...), per non affollare l'elenco di eventi poco rilevanti. **Chi manda
+non riceve mai la notifica della propria stessa azione**: una modifica
+dell'Admin notifica il Cliente e viceversa; un'azione di un account Squadra
+(che non ha una campanella) notifica sia Admin sia Cliente.
+
+"Letto"/"non letto" è per **ruolo**, non per singolo indirizzo email — come
+il resto dell'app, Admin e Cliente sono account condivisi, non utenti
+singoli: se più persone usano lo stesso account Cliente, aprire la
+campanella da una di esse segna come lette le notifiche per tutte.
 
 ### Account Cliente (accesso ristretto)
 

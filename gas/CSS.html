@@ -21,6 +21,40 @@
   header.topbar h1 { font-size: 18px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 8px; }
   header.topbar h1 .logo { width: 26px; height: 26px; border-radius: 6px; background: linear-gradient(135deg, var(--blu), var(--verde)); display: inline-block; }
   header.topbar .utente { color: var(--grigio-600); font-size: 12px; }
+  .topbar-right { display: flex; align-items: center; gap: 14px; }
+
+  .notifiche-wrap { position: relative; }
+  .btn-notifiche {
+    position: relative; border: none; background: none; cursor: pointer; font-size: 19px;
+    line-height: 1; padding: 6px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .btn-notifiche:hover { background: var(--grigio-100); }
+  .notifiche-badge {
+    position: absolute; top: 0; right: 0; min-width: 16px; height: 16px; padding: 0 3px;
+    border-radius: 999px; background: var(--rosso); color: #fff; font-size: 10px; font-weight: 700;
+    line-height: 16px; text-align: center;
+  }
+  .notifiche-badge.hidden { display: none; }
+  .notifiche-pannello {
+    position: absolute; top: calc(100% + 8px); right: 0; width: 340px; max-width: calc(100vw - 32px);
+    background: #fff; border: 1px solid var(--grigio-200); border-radius: var(--radius); box-shadow: var(--ombra);
+    z-index: 30; overflow: hidden;
+  }
+  .notifiche-pannello.hidden { display: none; }
+  .notifiche-pannello-head { padding: 10px 14px; font-size: 13px; font-weight: 650; border-bottom: 1px solid var(--grigio-200); }
+  .notifiche-lista { max-height: 360px; overflow-y: auto; }
+  .notifiche-vuoto { padding: 22px 14px; text-align: center; color: var(--grigio-600); font-size: 12.5px; }
+  .notifica-riga {
+    display: block; width: 100%; text-align: left; border: none; background: none; cursor: pointer;
+    padding: 10px 14px; border-bottom: 1px solid var(--grigio-100); font-family: inherit;
+  }
+  .notifica-riga:hover { background: var(--grigio-100); }
+  .notifica-riga.non-letta { background: #eef4ff; }
+  .notifica-riga.non-letta:hover { background: #e4edff; }
+  .notifica-riga-head { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 650; color: var(--grigio-900); }
+  .notifica-riga-ods { color: var(--grigio-600); font-weight: 500; }
+  .notifica-riga-evento { font-size: 12.5px; margin-top: 3px; color: var(--grigio-900); }
+  .notifica-riga-ora { font-size: 10.5px; color: var(--grigio-600); margin-top: 4px; }
 
   nav.tabs { display: flex; gap: 4px; background: #fff; border-bottom: 1px solid var(--grigio-200); padding: 0 20px; position: sticky; top: 60px; z-index: 19; overflow-x: auto; }
   nav.tabs button { border: none; background: none; padding: 14px 16px; font-size: 14px; font-weight: 500; color: var(--grigio-600); cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
@@ -174,8 +208,16 @@
 
   @media (prefers-color-scheme: dark) {
     html, body { background: #17181a; color: #e8eaed; }
-    header.topbar, nav.tabs, .card, .summary-card, .board-day, #modal-box { background: #232427; }
-    header.topbar, nav.tabs { border-color: #35363a; }
+    header.topbar, nav.tabs, .card, .summary-card, .board-day, #modal-box, .notifiche-pannello { background: #232427; }
+    header.topbar, nav.tabs, .notifiche-pannello { border-color: #35363a; }
+    .btn-notifiche:hover { background: #2c2d30; }
+    .notifiche-pannello-head { border-color: #35363a; }
+    .notifica-riga { border-color: #2c2d30; }
+    .notifica-riga:hover { background: #2a2b2e; }
+    .notifica-riga.non-letta { background: #1b2a44; }
+    .notifica-riga.non-letta:hover { background: #203354; }
+    .notifica-riga-head { color: #e8eaed; }
+    .notifica-riga-evento { color: #e8eaed; }
     table th { border-color: #35363a; color: #9aa0a6; }
     table td { border-color: #2c2d30; }
     table tr:hover td { background: #2a2b2e; }
@@ -397,6 +439,11 @@
   .int-row:last-child { border-bottom: none; }
   .int-row:hover { background: var(--dp-line-soft); }
   .int-row.is-annullato { opacity: .55; }
+  .int-row.int-row-flash { animation: int-row-flash-anim 1.8s ease-out; }
+  @keyframes int-row-flash-anim {
+    0%, 15% { background: #fff3cd; }
+    100% { background: transparent; }
+  }
 
   .int-cliente { font-weight: 620; color: var(--dp-ink); }
   .int-indirizzo { font-size: 12px; color: var(--dp-ink-faint); margin-top: 1px; }

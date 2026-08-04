@@ -8,7 +8,18 @@
   <div id="app">
     <header class="topbar">
       <h1><span class="logo"></span> Delivery Planner</h1>
-      <span class="utente" id="utente-corrente"></span>
+      <div class="topbar-right">
+        <span class="utente" id="utente-corrente"></span>
+        <div class="notifiche-wrap hide-squadra">
+          <button type="button" id="btn-notifiche" class="btn-notifiche" title="Notifiche">
+            🔔<span class="notifiche-badge hidden" id="notifiche-badge">0</span>
+          </button>
+          <div class="notifiche-pannello hidden" id="notifiche-pannello">
+            <div class="notifiche-pannello-head">Notifiche</div>
+            <div class="notifiche-lista" id="notifiche-lista"></div>
+          </div>
+        </div>
+      </div>
     </header>
 
     <nav class="tabs">
