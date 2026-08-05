@@ -1694,10 +1694,10 @@
       __dbgSnapshot('dopo renderDashTeamList');
       try { renderDashDetail(); __dbg('renderDashDetail OK'); } catch (e) { __dbg('renderDashDetail ERRORE', e.message, e.stack); throw e; }
       __dbgSnapshot('dopo renderDashDetail');
-      // In vista "stato" la mappa mostra tutti gli interventi indipendentemente dal Dal/Al: la
-      // ricarica qui tiene quella vista aggiornata dopo un'azione (conferma percorso, riempi
-      // buchi, ecc.) senza dover disattivarla e riattivarla a mano.
-      return dashState.mapMode === 'stato' ? loadInterventi().then(renderDashMap) : renderDashMap();
+      // In vista "Per stato"/"Per tipologia" la mappa mostra tutti gli interventi indipendentemente
+      // dal Dal/Al: la ricarica qui tiene quella vista aggiornata dopo un'azione (conferma
+      // percorso, riempi buchi, ecc.) senza dover disattivarla e riattivarla a mano.
+      return (dashState.mapMode === 'stato' || dashState.mapMode === 'tipologia') ? loadInterventi().then(renderDashMap) : renderDashMap();
     }).catch(function (err) {
       __dbg('caricaDashboard ERRORE', err && (err.message || err), err && err.stack);
       toast('Errore nel caricamento della dashboard: ' + (err.message || err), 'error');
@@ -1734,9 +1734,43 @@
   var COLORE_STATO_MAPPA_ = {
     'Da pianificare': '#B4740E',
     'Pianificato': '#2E7D5B',
-    'Completato': '#1B6B7C',
-    'Annullato': '#9aa0a6'
+    'Completato': '#1B6B7C'
   };
+
+  /**
+   * Colore per "Tipo Attività" (stessi valori noti di TIPI_ATTIVITA_NOTI/TIPO_ATTIVITA_ALTRO in
+   * Config.gs — tenuti qui in forma di elenco ordinato, non di semplice oggetto, così la legenda
+   * generata da renderLegendaTipologia_ segue sempre lo stesso ordine). "(non specificato)" copre
+   * gli interventi creati a mano senza questo campo (mai gli importati, per cui è dedotto
+   * automaticamente dal tracking esterno).
+   */
+  var TIPOLOGIA_MAPPA_ = [
+    { label: 'Installazione Periferica', colore: '#4285F4' },
+    { label: 'Installazione WiComm', colore: '#34A853' },
+    { label: 'Manutenzione Correttiva', colore: '#EA4335' },
+    { label: 'Manutenzione Ispettiva', colore: '#FBBC05' },
+    { label: 'Smontaggio', colore: '#9C27B0' },
+    { label: 'Integrazione Impianto', colore: '#00ACC1' },
+    { label: 'Scarico Immagini', colore: '#FF7043' },
+    { label: 'Installazione Filare', colore: '#5C6BC0' },
+    { label: 'Altro', colore: '#8D6E63' },
+    { label: '(non specificato)', colore: '#9aa0a6' }
+  ];
+  var COLORE_TIPOLOGIA_MAPPA_ = {};
+  TIPOLOGIA_MAPPA_.forEach(function (t) { COLORE_TIPOLOGIA_MAPPA_[t.label] = t.colore; });
+
+  /** Un intervento sospeso o annullato non compare in NESSUNA vista mappa "tutti gli interventi": non è più un lavoro attivo da mostrare sul territorio. */
+  function interventoVisibileInMappa_(i) {
+    return i.stato !== 'Annullato' && !isStatoSospesoClient_(i.stato);
+  }
+
+  function renderLegendaTipologia_() {
+    var el = document.getElementById('dash-map-legenda-tipologia');
+    if (!el || el.childElementCount) return; // costruita una volta sola, è sempre la stessa
+    el.innerHTML = TIPOLOGIA_MAPPA_.map(function (t) {
+      return '<span><span class="legenda-dot" style="background:' + t.colore + '"></span> ' + escapeHtml(t.label) + '</span>';
+    }).join('') + '<span class="legenda-nota">(sospesi e annullati non sono mostrati in mappa)</span>';
+  }
 
   function renderDashMap() {
     __dbg('renderDashMap: chiamata', 'dashMapInstance esistente=' + !!dashMapInstance);
@@ -1752,6 +1786,7 @@
       }
       dashLayerGroup.clearLayers();
       if (dashState.mapMode === 'stato') renderDashMapStato_();
+      else if (dashState.mapMode === 'tipologia') renderDashMapTipologia_();
       else renderDashMapPercorsi_();
       __dbgSnapshot('renderDashMap: dopo disegno layer, prima di invalidateSize');
       setTimeout(function () {
@@ -1794,11 +1829,11 @@
     if (tuttiPunti.length) dashMapInstance.fitBounds(tuttiPunti, { padding: [30, 30] });
   }
 
-  /** Vista "Tutti gli interventi": ogni intervento geocodificato (indipendentemente dal Dal/Al scelto), colorato per stato. */
+  /** Vista "Per stato": ogni intervento geocodificato ATTIVO (indipendentemente dal Dal/Al scelto), colorato per stato — sospesi e annullati non sono lavoro attivo sul territorio, non compaiono. */
   function renderDashMapStato_() {
     var tuttiPunti = [];
     (state.interventi || []).forEach(function (i) {
-      if (!isNumClient(i.lat) || !isNumClient(i.lng)) return;
+      if (!isNumClient(i.lat) || !isNumClient(i.lng) || !interventoVisibileInMappa_(i)) return;
       var colore = COLORE_STATO_MAPPA_[i.stato] || '#999';
       var icon = L.divIcon({
         className: '',
@@ -1814,12 +1849,37 @@
     if (tuttiPunti.length) dashMapInstance.fitBounds(tuttiPunti, { padding: [30, 30] });
   }
 
+  /** Vista "Per tipologia": stessi interventi attivi di renderDashMapStato_, colorati per Tipo Attività invece che per stato. */
+  function renderDashMapTipologia_() {
+    renderLegendaTipologia_();
+    var tuttiPunti = [];
+    (state.interventi || []).forEach(function (i) {
+      if (!isNumClient(i.lat) || !isNumClient(i.lng) || !interventoVisibileInMappa_(i)) return;
+      var etichetta = i.tipoAttivita || '(non specificato)';
+      var colore = COLORE_TIPOLOGIA_MAPPA_[etichetta] || COLORE_TIPOLOGIA_MAPPA_['(non specificato)'];
+      var icon = L.divIcon({
+        className: '',
+        html: '<div style="background:' + colore + ';width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);"></div>',
+        iconSize: [14, 14], iconAnchor: [7, 7]
+      });
+      var popup = '<b>' + escapeHtml(i.cliente) + '</b><br>' + escapeHtml(i.indirizzo || '') + '<br>Tipo attività: ' + escapeHtml(etichetta) +
+        '<br>Stato: ' + escapeHtml(i.stato || '');
+      L.marker([i.lat, i.lng], { icon: icon }).addTo(dashLayerGroup).bindPopup(popup);
+      tuttiPunti.push([i.lat, i.lng]);
+    });
+    if (tuttiPunti.length) dashMapInstance.fitBounds(tuttiPunti, { padding: [30, 30] });
+  }
+
   function setMapMode(mode) {
     dashState.mapMode = mode;
     document.querySelectorAll('.map-mode-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.mapMode === mode); });
-    var legenda = document.getElementById('dash-map-legenda');
-    if (legenda) legenda.classList.toggle('hidden', mode !== 'stato');
-    if (mode === 'stato') loadInterventi().then(renderDashMap);
+    var legendaStato = document.getElementById('dash-map-legenda-stato');
+    var legendaTipologia = document.getElementById('dash-map-legenda-tipologia');
+    if (legendaStato) legendaStato.classList.toggle('hidden', mode !== 'stato');
+    if (legendaTipologia) legendaTipologia.classList.toggle('hidden', mode !== 'tipologia');
+    // Le viste "Per stato"/"Per tipologia" mostrano TUTTI gli interventi attivi (indipendentemente
+    // dal Dal/Al scelto): serve l'elenco completo appena aggiornato, non solo quello dell'intervallo.
+    if (mode === 'stato' || mode === 'tipologia') loadInterventi().then(renderDashMap);
     else renderDashMap();
   }
 
