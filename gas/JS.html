@@ -1697,6 +1697,51 @@
     return tot;
   }
 
+  /** Stessi indici di GIORNI_SETTIMANA (Config.gs/RouteEngine.gs) usati per squadraDisponibileGiorno_: Date.getDay() -> abbreviazione. */
+  var GIORNI_SETTIMANA_CLIENT_ = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
+
+  function squadraInFerieClient_(squadra, giornoInput) {
+    if (!squadra.feriePeriodi) return false;
+    var periodi;
+    try { periodi = JSON.parse(squadra.feriePeriodi); } catch (e) { return false; }
+    if (!Array.isArray(periodi)) return false;
+    var giorno = parseDateStrClient(giornoInput);
+    if (!giorno) return false;
+    return periodi.some(function (p) {
+      var dal = parseDateStrClient(p.dal), al = parseDateStrClient(p.al);
+      return dal && al && giorno >= dal && giorno <= al;
+    });
+  }
+
+  function giornoRiposoSettimanaleClient_(squadra, giornoInput) {
+    var giorno = parseDateStrClient(giornoInput);
+    if (!giorno) return false;
+    var giorniOff = splitListClient(squadra.giorniIndisponibili);
+    return giorniOff.indexOf(GIORNI_SETTIMANA_CLIENT_[giorno.getDay()]) !== -1;
+  }
+
+  /**
+   * Motivo esplicito per cui la squadra risulta libera nel periodo selezionato (ferie/assenza o
+   * giorno di riposo settimanale), o null se non è imputabile a nessuno dei due — nel qual caso
+   * resta il messaggio generico "nessun intervento pianificato". Un periodo con ALMENO un giorno
+   * effettivamente disponibile (in cui la squadra potrebbe semplicemente non avere ancora nulla
+   * assegnato) NON viene attribuito a ferie/riposo: sarebbe fuorviante.
+   */
+  function motivoSquadraLiberaClient_(squadra, giorniRange) {
+    var motivi = giorniRange.map(function (g) {
+      if (squadraInFerieClient_(squadra, g)) return 'ferie';
+      if (giornoRiposoSettimanaleClient_(squadra, g)) return 'riposo';
+      return null;
+    });
+    if (motivi.some(function (m) { return !m; })) return null;
+    if (giorniRange.length === 1) {
+      return motivi[0] === 'ferie' ? '🏖️ La squadra è in ferie/assente in questa data.' : '📅 È il giorno di riposo settimanale di questa squadra.';
+    }
+    if (motivi.every(function (m) { return m === 'ferie'; })) return '🏖️ La squadra è in ferie/assente per l\'intero periodo selezionato.';
+    if (motivi.every(function (m) { return m === 'riposo'; })) return '📅 La squadra non lavora in nessuno dei giorni del periodo selezionato (riposo settimanale).';
+    return '🏖️ La squadra non è disponibile per l\'intero periodo selezionato (ferie e/o giorni di riposo settimanale).';
+  }
+
   function aggregatoSquadraDash_(squadra, giorniRange) {
     var giorniConDati = [], produzione = 0, km = 0, interventi = 0;
     giorniRange.forEach(function (gInput) {
@@ -1965,9 +2010,10 @@
     var giornoUnico = giorniRange[0];
 
     if (!agg.giorniConDati.length) {
+      var motivoLibera = motivoSquadraLiberaClient_(sq, giorniRange);
       el.innerHTML = '<div class="dash-empty-detail">' +
         '<div><span class="team-dot" style="background:' + (sq.colore || '#999') + ';display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;"></span><strong>' + escapeHtml(sq.nome) + '</strong></div>' +
-        '<p style="margin:10px 0 0;">' + (agg.multiGiorno ? 'Nessun intervento pianificato nel periodo selezionato.' : 'Nessun intervento pianificato per questo giorno.') + '</p>' +
+        '<p style="margin:10px 0 0;">' + (motivoLibera || (agg.multiGiorno ? 'Nessun intervento pianificato nel periodo selezionato.' : 'Nessun intervento pianificato per questo giorno.')) + '</p>' +
         (agg.multiGiorno ? '' :
           '<div class="dash-detail-actions" style="justify-content:center;margin:12px auto 0;">' +
           '<button class="btn-secondary" data-action="seleziona-elenco" data-giorno="' + giornoUnico + '">📋 Seleziona da elenco</button>' +

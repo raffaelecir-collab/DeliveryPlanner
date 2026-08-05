@@ -266,7 +266,16 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      periodo) selezionato, il pannello mostra solo un messaggio e i due
      bottoni **"📋 Seleziona da elenco"** e **"+ Aggiungi intervento"**
      descritti sotto (niente "🧩 Riempi buchi", che ha senso solo quando
-     esiste già almeno una tappa ferma da cui partire).
+     esiste già almeno una tappa ferma da cui partire). Se il motivo
+     dell'assenza di interventi è che la squadra è in **ferie/assente** o è
+     il suo **giorno di riposo settimanale** (vedi indisponibilità squadra
+     più sopra), il messaggio lo dice esplicitamente ("🏖️ La squadra è in
+     ferie/assente..." o "📅 È il giorno di riposo settimanale...") invece
+     del generico "Nessun intervento pianificato" — su un intervallo di più
+     giorni, solo se **tutti** i giorni selezionati sono coperti da
+     ferie/riposo (altrimenti potrebbe semplicemente non avere ancora nulla
+     assegnato in un giorno in cui è disponibile, e il messaggio resta
+     quello generico per non essere fuorviante).
    - **"🧩 Riempi buchi"** per una squadra/giorno: le tappe **già
      pianificate restano ferme** (stesso ordine relativo tra loro, mai
      scartate né ripianificate da zero) e vengono solo **aggiunti**
