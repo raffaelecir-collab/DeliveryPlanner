@@ -479,6 +479,26 @@
       </div>
     </div>
 
+    <div id="dlg-modifica-orario" class="dlg-overlay hidden">
+      <div class="dlg-box">
+        <div class="dlg-head">
+          <h3 id="dlg-modifica-orario-titolo">Modifica orario</h3>
+          <button type="button" class="dlg-close" data-close-dlg="dlg-modifica-orario">✕</button>
+        </div>
+        <form id="form-modifica-orario">
+          <div class="field">
+            <label>Nuovo orario di inizio *</label>
+            <input type="time" id="modifica-orario-input">
+          </div>
+          <p class="field-help">La durata (<span id="modifica-orario-durata"></span>) resta invariata: l'orario di fine si ricalcola da solo. Se il nuovo orario si sovrappone a un'altra tappa già pianificata, verrà chiesto se risolvere lo spostando in avanti le tappe successive oppure lasciare la sovrapposizione.</p>
+        </form>
+        <div class="modal-actions">
+          <button type="button" class="btn secondary" data-close-dlg="dlg-modifica-orario">Annulla</button>
+          <button type="button" class="btn" id="btn-salva-modifica-orario">Salva orario</button>
+        </div>
+      </div>
+    </div>
+
     <div id="dlg-lista-note" class="dlg-overlay hidden">
       <div class="dlg-box">
         <div class="dlg-head">

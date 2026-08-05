@@ -549,11 +549,18 @@
 
   .dash-stop-list { border-top: 1px solid var(--dp-line); margin-top: 4px; }
   .dash-stop-row {
-    display: grid; grid-template-columns: 60px 1.5fr 1.8fr 80px 110px 130px;
+    display: grid; grid-template-columns: 78px 1.5fr 1.8fr 80px 110px 130px;
     gap: 10px; align-items: center; padding: 8px 4px; border-bottom: 1px solid var(--dp-line-soft); font-size: 12.5px;
   }
   .dash-stop-row-head { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--dp-ink-faint); }
   .dash-stop-ora, .dash-stop-durata, .dash-stop-telefono { font-family: var(--dp-mono); color: var(--dp-ink); }
+  .dash-stop-ora-btn {
+    border: 1px dashed transparent; background: none; padding: 2px 4px; border-radius: var(--dp-radius-sm);
+    cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font-size: inherit;
+  }
+  .dash-stop-ora-btn svg { opacity: .45; flex-shrink: 0; }
+  .dash-stop-ora-btn:hover { border-color: var(--dp-line); background: var(--dp-line-soft); }
+  .dash-stop-ora-btn:hover svg { opacity: .9; }
   .dash-stop-cliente { font-weight: 620; color: var(--dp-ink); }
   .dash-stop-indirizzo { color: var(--dp-ink-faint); }
   .dash-empty-detail { text-align: center; padding: 30px 0; color: var(--dp-ink-soft); }

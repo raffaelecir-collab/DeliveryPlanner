@@ -1349,6 +1349,115 @@ function creaEPianificaIntervento(intervento, squadraId, giornoStr, oraStr) {
   return salvato;
 }
 
+// ---------- modifica manuale dell'orario di inizio di una tappa già pianificata ----------
+
+/**
+ * Nucleo condiviso da anteprimaSpostaOrarioTappa (sola lettura) e spostaOrarioTappa (che scrive
+ * davvero): calcola l'esito di uno spostamento manuale dell'orario di INIZIO di una tappa già
+ * pianificata. La durata (durataMinuti) resta quella già impostata sull'intervento — non è
+ * modificabile qui — quindi il nuovo orario di fine è sempre inizio+durata, calcolato in
+ * automatico. Nessun controllo su orario di lavoro/pausa pranzo/finestra oraria del cliente: è un
+ * override esplicito dell'utente, come "+ Aggiungi intervento" — l'unico controllo è la
+ * sovrapposizione con le altre tappe della stessa squadra/giorno.
+ *
+ * Le tappe vengono considerate nel loro ordine cronologico ORIGINALE (prima di questo
+ * spostamento): quelle che nell'ordine originale vengono PRIMA della tappa spostata non sono mai
+ * toccate da questa funzione; quelle che vengono DOPO possono essere spinte in avanti "a
+ * cascata" (ognuna non prima del proprio orario originale, ma nemmeno prima della fine di quella
+ * che la precede) per fare posto, se l'utente sceglie di risolvere la sovrapposizione.
+ *
+ * Un'eventuale sovrapposizione con una tappa PRECEDENTE (mai spostata da questa funzione, per
+ * costruzione) non può essere risolta spostando le tappe successive: viene comunque segnalata in
+ * `accavallamentiNonRisolvibili`, così l'utente lo sa prima di decidere, ma resta sempre presente
+ * sia scegliendo "risolvi" sia "lascia" — occorre eventualmente spostare a mano anche quella tappa.
+ */
+function calcolaSpostamentoOrarioTappa_(id, row, nuovaOraInizioStr) {
+  if (!/^([01]?\d|2[0-3]):[0-5]\d$/.test(nuovaOraInizioStr || '')) throw new Error('Ora non valida (usa il formato HH:mm).');
+  var target = trovaInterventoPerIdORiga_(id, row);
+  if (!target) throw new Error('Intervento non trovato.');
+  if (target.stato !== STATO_INTERVENTO.PIANIFICATO) throw new Error('Solo un intervento già pianificato può avere l\'orario spostato da qui.');
+
+  var tappeGiorno = readAll_('INTERVENTI').filter(function (i) {
+    return i.squadraId === target.squadraId && i.dataPianificata === target.dataPianificata && i.stato === STATO_INTERVENTO.PIANIFICATO;
+  }).sort(function (a, b) { return timeToMinutes_(a.oraPianificata) - timeToMinutes_(b.oraPianificata); });
+
+  var idxTarget = tappeGiorno.findIndex(function (i) { return target.id ? i.id === target.id : i._row === target._row; });
+  var nuovoInizio = timeToMinutes_(nuovaOraInizioStr);
+  var nuovaDurata = target.durataMinuti || 60;
+  var nuovaFine = nuovoInizio + nuovaDurata;
+
+  var prima = tappeGiorno.slice(0, idxTarget);
+  var dopo = tappeGiorno.slice(idxTarget + 1);
+
+  var accavallamentiNonRisolvibili = prima.filter(function (i) {
+    var inizio = timeToMinutes_(i.oraPianificata);
+    var fine = inizio + (i.durataMinuti || 60);
+    return nuovoInizio < fine && nuovaFine > inizio;
+  }).map(function (i) {
+    return { interventoId: i.id, cliente: i.cliente, oraInizio: i.oraPianificata, oraFine: minutesToTime_(timeToMinutes_(i.oraPianificata) + (i.durataMinuti || 60)) };
+  });
+
+  // Cascata in avanti sulle tappe successive: ciascuna non inizia mai prima del proprio orario
+  // originale, ma nemmeno prima che finisca quella che la precede in questo nuovo ordine.
+  var cursor = nuovaFine;
+  var dopoCascata = dopo.map(function (i) {
+    var inizioOriginale = timeToMinutes_(i.oraPianificata);
+    var nuovoInizioTappa = Math.max(cursor, inizioOriginale);
+    var durata = i.durataMinuti || 60;
+    cursor = nuovoInizioTappa + durata;
+    return {
+      interventoId: i.id, _row: i._row, cliente: i.cliente,
+      oraOriginale: i.oraPianificata, oraNuova: minutesToTime_(nuovoInizioTappa),
+      spostata: nuovoInizioTappa !== inizioOriginale
+    };
+  });
+
+  return {
+    target: { interventoId: target.id, _row: target._row, cliente: target.cliente, oraOriginale: target.oraPianificata, oraNuova: nuovaOraInizioStr },
+    spostamenti: dopoCascata.filter(function (t) { return t.spostata; }),
+    accavallamentiNonRisolvibili: accavallamentiNonRisolvibili
+  };
+}
+
+/** Sola lettura: calcola l'esito di uno spostamento manuale di orario senza scrivere nulla, per chiedere conferma prima (vedi calcolaSpostamentoOrarioTappa_). */
+function anteprimaSpostaOrarioTappa(id, row, nuovaOraInizioStr) {
+  richiedeAdmin_();
+  return calcolaSpostamentoOrarioTappa_(id, row, nuovaOraInizioStr);
+}
+
+/**
+ * Scrive lo spostamento manuale dell'orario di inizio calcolato da calcolaSpostamentoOrarioTappa_.
+ * Se `risolviAccavallamento` è true, applica anche la cascata sulle tappe successive spostate
+ * (vedi `spostamenti`); se false, sposta solo la tappa richiesta lasciando invariate le altre
+ * (anche se questo lascia una sovrapposizione). Ricalcola infine ordineTappa per l'intera
+ * squadra/giorno in base all'orario reale (stesso motivo di calcolaRiempimentoBuco_/
+ * pianificaIntervallo: un ordineTappa coerente con l'orario evita che un futuro "Riempi buco"
+ * ragioni su un ordine sbagliato).
+ */
+function spostaOrarioTappa(id, row, nuovaOraInizioStr, risolviAccavallamento) {
+  richiedeAdmin_();
+  var target = trovaInterventoPerIdORiga_(id, row);
+  var esito = calcolaSpostamentoOrarioTappa_(id, row, nuovaOraInizioStr);
+
+  updateRowFields_('INTERVENTI', esito.target._row, { oraPianificata: nuovaOraInizioStr });
+  creaNotificaIntervento_(target, 'Orario spostato a ' + nuovaOraInizioStr + ' (era ' + esito.target.oraOriginale + ')', RUOLO.ADMIN);
+
+  if (risolviAccavallamento) {
+    esito.spostamenti.forEach(function (t) {
+      updateRowFields_('INTERVENTI', t._row, { oraPianificata: t.oraNuova });
+    });
+  }
+
+  var tappeAggiornate = readAll_('INTERVENTI').filter(function (i) {
+    return i.squadraId === target.squadraId && i.dataPianificata === target.dataPianificata && i.stato === STATO_INTERVENTO.PIANIFICATO;
+  }).sort(function (a, b) { return timeToMinutes_(a.oraPianificata) - timeToMinutes_(b.oraPianificata); });
+  tappeAggiornate.forEach(function (i, idx) {
+    updateRowFields_('INTERVENTI', i._row, { ordineTappa: idx + 1 });
+  });
+
+  return { ok: true, accavallamentiNonRisolvibili: esito.accavallamentiNonRisolvibili };
+}
+
 // ---------- pianificazione automatica su un intervallo di giorni (una squadra) ----------
 
 function addDays_(date, n) {

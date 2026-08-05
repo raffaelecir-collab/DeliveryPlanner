@@ -329,6 +329,22 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      intervento imprevisto durante un giro già in corso. L'intervento entra
      nella posizione corretta dell'elenco in base all'orario indicato (non
      necessariamente in coda).
+   - **Modifica orario** (cliccando l'orario stesso, con l'icona ✏️ accanto)
+     su una tappa già pianificata: puoi cambiare **solo l'orario di
+     inizio** — la durata resta quella già impostata sull'intervento, e
+     l'orario di fine si ricalcola da solo. Nessun controllo su orario di
+     lavoro/pausa pranzo/finestra oraria del cliente (override esplicito,
+     come "+ Aggiungi intervento"): l'unico controllo è la sovrapposizione
+     con le altre tappe della stessa squadra/giorno. Se il nuovo orario si
+     sovrappone ad altre tappe **successive** (nell'ordine cronologico
+     precedente alla modifica), viene chiesto se **risolvere** lo
+     spostandole in avanti a cascata (ciascuna non prima del proprio
+     orario originale, né prima della fine di quella che la precede) o
+     **lasciare la sovrapposizione** com'è; una sovrapposizione con una
+     tappa **precedente** non viene invece mai risolta automaticamente
+     (va corretta a mano se necessario), perché questa funzione sposta
+     solo le tappe successive, mai quelle già passate nell'ordine del
+     giorno.
    - **Rimuovi** (icona cestino) su una singola tappa: l'intervento torna
      semplicemente "Da pianificare" — **non** viene ripianificato né il buco
      lasciato aperto viene ricoperto in automatico: è una scelta esplicita

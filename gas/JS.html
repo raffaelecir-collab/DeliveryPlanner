@@ -786,6 +786,7 @@
     });
     on('btn-salva-sospendi', 'click', salvaSospendiIntervento);
     on('btn-salva-nota-intervento', 'click', salvaNotaIntervento);
+    on('btn-salva-modifica-orario', 'click', salvaModificaOrarioTappa_);
     on('btn-salva-annulla', 'click', salvaAnnullaIntervento);
     on('btn-carica-documento', 'click', salvaDocumentoUpload_);
     onQuery('#dlg-documenti-lista', 'click', function (e) {
@@ -940,6 +941,55 @@
     callServer('aggiungiNotaIntervento', notaInterventoState.id, notaInterventoState.row, nota).then(function () {
       toast('Nota aggiunta.', 'success');
       document.getElementById('dlg-nota-intervento').classList.add('hidden');
+      loadInterventi();
+      caricaDashboard();
+    }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () { btn.disabled = false; });
+  }
+
+  // ---------- dialog: modifica orario di inizio di una tappa già pianificata (dalla Dashboard) ----------
+  var modificaOrarioState = { id: null, row: null };
+
+  function apriModificaOrarioTappa_(t) {
+    modificaOrarioState.id = t.id;
+    modificaOrarioState.row = t.row;
+    document.getElementById('dlg-modifica-orario-titolo').textContent = 'Modifica orario — ' + t.cliente;
+    document.getElementById('modifica-orario-input').value = t.ora || '';
+    document.getElementById('modifica-orario-durata').textContent = (t.durata || 60) + ' min';
+    document.getElementById('dlg-modifica-orario').classList.remove('hidden');
+  }
+
+  /**
+   * Chiede prima un'anteprima al server (anteprimaSpostaOrarioTappa): se il nuovo orario si
+   * sovrappone ad altre tappe, chiede conferma su come procedere (stesso pattern di
+   * riempiBucoGiornoClick) prima di scrivere davvero (spostaOrarioTappa).
+   */
+  function salvaModificaOrarioTappa_() {
+    var nuovaOra = document.getElementById('modifica-orario-input').value;
+    if (!nuovaOra) { toast('Indica il nuovo orario di inizio.', 'error'); return; }
+    var btn = document.getElementById('btn-salva-modifica-orario');
+    btn.disabled = true;
+    callServer('anteprimaSpostaOrarioTappa', modificaOrarioState.id, modificaOrarioState.row, nuovaOra).then(function (esito) {
+      var risolviAccavallamento = true;
+      if (esito.spostamenti.length || esito.accavallamentiNonRisolvibili.length) {
+        var messaggio = 'Impostando l\'inizio alle ' + nuovaOra + ', questo intervento si sovrapporrebbe ad altre tappe già pianificate.';
+        if (esito.spostamenti.length) {
+          var righe = esito.spostamenti.map(function (s) { return '- ' + s.cliente + ': ' + s.oraOriginale + ' → ' + s.oraNuova; });
+          messaggio += '\n\nPremi OK per risolvere spostando in avanti le tappe successive:\n' + righe.join('\n') +
+            '\n\noppure Annulla per lasciare la sovrapposizione (nessuna tappa verrà spostata).';
+        } else {
+          messaggio += '\n\nNessuna tappa successiva da spostare per risolverla (il conflitto è con una tappa precedente, vedi sotto): premi OK o Annulla, il risultato non cambia.';
+        }
+        if (esito.accavallamentiNonRisolvibili.length) {
+          messaggio += '\n\n⚠ Si sovrappone anche a intervento/i PRECEDENTI (' +
+            esito.accavallamentiNonRisolvibili.map(function (a) { return a.cliente + ' ' + a.oraInizio + '-' + a.oraFine; }).join(', ') +
+            '): questa sovrapposizione non si risolve spostando le tappe successive, va corretta a mano se necessario.';
+        }
+        risolviAccavallamento = window.confirm(messaggio);
+      }
+      return callServer('spostaOrarioTappa', modificaOrarioState.id, modificaOrarioState.row, nuovaOra, risolviAccavallamento);
+    }).then(function () {
+      toast('Orario aggiornato.', 'success');
+      document.getElementById('dlg-modifica-orario').classList.add('hidden');
       loadInterventi();
       caricaDashboard();
     }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () { btn.disabled = false; });
@@ -1893,7 +1943,7 @@
         '</span></span>'
       : '';
     return '<div class="dash-stop-row">' +
-      '<span class="dash-stop-ora">' + escapeHtml(t.oraPianificata || '') + '</span>' +
+      '<button type="button" class="dash-stop-ora dash-stop-ora-btn" title="Modifica orario di inizio" data-action="modifica-orario" data-id="' + t.id + '" data-row="' + t._row + '" data-cliente="' + escapeHtml(t.cliente) + '" data-ora="' + escapeHtml(t.oraPianificata || '') + '" data-durata="' + (t.durataMinuti || 60) + '">' + escapeHtml(t.oraPianificata || '') + ' ' + ICONA_MATITA_ + '</button>' +
       '<span class="dash-stop-cliente">' + escapeHtml(t.cliente) + '</span>' +
       '<span class="dash-stop-indirizzo">' + escapeHtml(t.indirizzo || '') + '</span>' +
       '<span class="dash-stop-durata">' + (t.durataMinuti || 0) + ' min</span>' +
@@ -2085,6 +2135,8 @@
         dashCompletaTappa_(btn.dataset.id, btn.dataset.row);
       } else if (action === 'nota-tappa') {
         apriNotaIntervento({ id: btn.dataset.id, _row: parseInt(btn.dataset.row, 10), cliente: btn.dataset.cliente });
+      } else if (action === 'modifica-orario') {
+        apriModificaOrarioTappa_({ id: btn.dataset.id, row: parseInt(btn.dataset.row, 10), cliente: btn.dataset.cliente, ora: btn.dataset.ora, durata: parseInt(btn.dataset.durata, 10) });
       } else if (action === 'riempi-buchi') {
         if (!window.confirm('Ripianificare "' + (squadra ? squadra.nome : dashState.selezionata) + '" per il ' + giornoStr + ' includendo eventuali interventi disponibili per riempire le ore libere?')) return;
         riempiBucoGiornoClick(dashState.selezionata, giornoStr);
