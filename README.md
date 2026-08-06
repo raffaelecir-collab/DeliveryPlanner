@@ -237,17 +237,19 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    percorso di ogni squadra per ciascun giorno dell'intervallo, con quella
    selezionata in evidenza e le altre attenuate; **"📍 Per stato"** e
    **"🏷️ Per tipologia"** mostrano invece, indipendentemente dal Dal/Al
-   scelto, ogni intervento geocodificato **attivo** — colorato rispettivamente
-   per **Stato** (Da pianificare/Pianificato/Completato, legenda sotto la
+   scelto, ogni intervento geocodificato colorato rispettivamente per
+   **Stato** (Da pianificare/Pianificato/Completato, legenda sotto la
    mappa) o per **Tipo Attività** (Installazione Periferica, Installazione
    WiComm, Manutenzione Correttiva, Manutenzione Ispettiva, Smontaggio,
    Integrazione Impianto, Scarico Immagini, Installazione Filare, Altro,
    "(non specificato)" per chi non lo ha valorizzato — legenda sotto la
    mappa) — utile per una visione d'insieme del territorio, non solo di ciò
    che è già pianificato. **Un intervento Sospeso o Annullato non compare
-   mai in queste due viste** (non è più lavoro attivo da mostrare sul
-   territorio) — resta comunque visibile e gestibile dal tab Interventi.
-   Cliccando una squadra
+   mai in nessuna delle due viste** (non è più lavoro attivo da mostrare sul
+   territorio); **"Per tipologia" nasconde anche i Completati** (mostra solo
+   il lavoro ancora da fare o in corso, non lo storico — per quello c'è
+   "Per stato") — resta comunque tutto visibile e gestibile dal tab
+   Interventi. Cliccando una squadra
    nell'elenco la selezioni e il pannello sotto la mappa mostra il dettaglio: con un solo
    giorno selezionato, la lista piatta delle tappe (ora, cliente, indirizzo,
    durata, telefono); con un intervallo di più giorni, le stesse tappe

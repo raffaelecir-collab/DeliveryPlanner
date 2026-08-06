@@ -1865,7 +1865,7 @@
     if (!el || el.childElementCount) return; // costruita una volta sola, è sempre la stessa
     el.innerHTML = TIPOLOGIA_MAPPA_.map(function (t) {
       return '<span><span class="legenda-dot" style="background:' + t.colore + '"></span> ' + escapeHtml(t.label) + '</span>';
-    }).join('') + '<span class="legenda-nota">(sospesi e annullati non sono mostrati in mappa)</span>';
+    }).join('') + '<span class="legenda-nota">(sospesi, annullati e completati non sono mostrati in questa vista)</span>';
   }
 
   function renderDashMap() {
@@ -1950,7 +1950,10 @@
     renderLegendaTipologia_();
     var tuttiPunti = [];
     (state.interventi || []).forEach(function (i) {
-      if (!isNumClient(i.lat) || !isNumClient(i.lng) || !interventoVisibileInMappa_(i)) return;
+      // Solo per questa vista, oltre a sospesi/annullati (interventoVisibileInMappa_) si nasconde
+      // anche il Completato: qui interessa solo il lavoro ancora da fare/in corso per tipologia,
+      // non lo storico di quanto già eseguito (che invece resta visibile in "Per stato").
+      if (!isNumClient(i.lat) || !isNumClient(i.lng) || !interventoVisibileInMappa_(i) || i.stato === 'Completato') return;
       var etichetta = i.tipoAttivita || '(non specificato)';
       var colore = COLORE_TIPOLOGIA_MAPPA_[etichetta] || COLORE_TIPOLOGIA_MAPPA_['(non specificato)'];
       var icon = L.divIcon({
