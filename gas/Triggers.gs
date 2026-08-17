@@ -33,6 +33,41 @@ function installaTriggerGeocodificaDaMenu() {
     : 'La geocodifica automatica era già attiva su questo foglio.');
 }
 
+var NOME_HANDLER_TRIGGER_PRIORITA_ = 'aggiornaPrioritaTriggerHandler_';
+
+/**
+ * Crea un trigger a orario (una volta al giorno, verso le 5 del mattino) che rinfresca le
+ * Priorità automatiche (vedi aggiornaPrioritaAutomaticheGiornaliero_ in Interventions.gs), se non
+ * già presente. Facoltativo: inizializzaApp (Setup.gs) chiama comunque la stessa funzione ad ogni
+ * apertura della Web App, quindi questo trigger serve solo a tenerle fresche anche nei giorni in
+ * cui nessuno apre la Web App (utile prima di una pianificazione automatica mattutina).
+ */
+function installaTriggerAggiornaPriorita_() {
+  var giaPresente = ScriptApp.getProjectTriggers().some(function (t) {
+    return t.getHandlerFunction() === NOME_HANDLER_TRIGGER_PRIORITA_;
+  });
+  if (giaPresente) return false;
+  ScriptApp.newTrigger(NOME_HANDLER_TRIGGER_PRIORITA_)
+    .timeBased()
+    .everyDays(1)
+    .atHour(5)
+    .create();
+  return true;
+}
+
+/** Wrapper per il menu del foglio: installa il trigger (se assente) e mostra un alert. */
+function installaTriggerAggiornaPrioritaDaMenu() {
+  var creato = installaTriggerAggiornaPriorita_();
+  SpreadsheetApp.getUi().alert(creato
+    ? 'Aggiornamento giornaliero attivato: ogni notte verso le 5 le Priorità automatiche (Tipi Attività SM01-SM05) verranno rinfrescate in base alla Scadenza. Vengono comunque aggiornate anche ad ogni apertura della Web App, indipendentemente da questo trigger.'
+    : 'Il trigger di aggiornamento giornaliero era già attivo su questo foglio.');
+}
+
+/** Funzione richiamata dal trigger a orario installato da installaTriggerAggiornaPriorita_. */
+function aggiornaPrioritaTriggerHandler_() {
+  aggiornaPrioritaAutomaticheGiornaliero_();
+}
+
 /**
  * Elenco { field, colIndex, latColIndex, lngColIndex } dei campi indirizzo di uno
  * schema (quelli con mapPreview/mapCoordFields in Config.gs), con le posizioni di

@@ -16,6 +16,41 @@ function listaInterventi(filtri) {
   });
 }
 
+/**
+ * Scadenza automatica per un Tipo Attività noto (vedi GIORNI_LAVORATIVI_SCADENZA_ in Config.gs),
+ * in base a Data Dispacciamento: SM01/SM02/SM04/SM05 vengono SEMPRE ricalcolati (non modificabili
+ * a mano: si aggiornano da soli se cambia la Data Dispacciamento). SM03 ha solo un valore di
+ * DEFAULT (dispacciamento + 90gg lavorativi), applicato solo se la Scadenza non è già stata
+ * impostata (a mano o da un salvataggio precedente) — una volta presente non viene mai più
+ * sovrascritto. Per qualunque altro Tipo Attività (Altro, Intervento a vuoto, non specificato)
+ * restituisce null: nessun automatismo, il chiamante lascia il campo così com'è (interamente
+ * manuale, come prima di questa funzione).
+ */
+function calcolaScadenzaAutomatica_(tipoAttivita, dataDispacciamento, scadenzaAttuale) {
+  var giorni = GIORNI_LAVORATIVI_SCADENZA_[tipoAttivita];
+  if (!giorni || !dataDispacciamento) return null;
+  if (tipoAttivita === 'SM03') {
+    return scadenzaAttuale ? null : aggiungiGiorniLavorativi_(dataDispacciamento, giorni);
+  }
+  return aggiungiGiorniLavorativi_(dataDispacciamento, giorni);
+}
+
+/**
+ * Priorità automatica in base ai giorni lavorativi rimanenti alla Scadenza (stessa soglia usata
+ * da aggiornaPrioritaAutomaticheGiornaliero_): scaduta o a 0-1 giorni lavorativi → Urgente, a 2-3
+ * → Alta, a 4-7 → Normale, oltre 7 → Bassa. Si applica solo ai Tipi Attività con una regola di
+ * Scadenza nota (GIORNI_LAVORATIVI_SCADENZA_: SM01-SM05) E una Scadenza effettivamente presente;
+ * altrimenti restituisce null (nessun automatismo, come oggi).
+ */
+function calcolaPrioritaAutomatica_(tipoAttivita, scadenza) {
+  if (!GIORNI_LAVORATIVI_SCADENZA_[tipoAttivita] || !scadenza) return null;
+  var rimanenti = giorniLavorativiTra_(formatDateStr_(dataOggi_()), scadenza, []);
+  if (rimanenti <= 1) return PRIORITA.URGENTE;
+  if (rimanenti <= 3) return PRIORITA.ALTA;
+  if (rimanenti <= 7) return PRIORITA.NORMALE;
+  return PRIORITA.BASSA;
+}
+
 function salvaIntervento(intervento) {
   richiedeAdmin_();
   if (!intervento.cliente) throw new Error('Il cliente è obbligatorio.');
@@ -37,6 +72,39 @@ function salvaIntervento(intervento) {
   // specificata — usata dal tab Analysis come base dei tempi di lavorazione.
   if (!esistente && !intervento.dataDispacciamento) {
     intervento.dataDispacciamento = formatDateStr_(dataOggi_());
+  }
+
+  // Scadenza automatica (vedi calcolaScadenzaAutomatica_): calcolata PRIMA della priorità, che ne
+  // dipende. Usa il tipo attività/data dispacciamento EFFETTIVI (quelli sottomessi ora, o quelli
+  // già salvati se questo salvataggio non li tocca).
+  var tipoAttivitaEffettivo = intervento.tipoAttivita !== undefined && intervento.tipoAttivita !== ''
+    ? intervento.tipoAttivita : (esistente ? esistente.tipoAttivita : '');
+  var dataDispEffettiva = intervento.dataDispacciamento || (esistente && esistente.dataDispacciamento) || '';
+  var scadenzaSottomessa = intervento.scadenza !== undefined ? intervento.scadenza : (esistente ? esistente.scadenza : '');
+  var scadenzaAuto = calcolaScadenzaAutomatica_(tipoAttivitaEffettivo, dataDispEffettiva, scadenzaSottomessa);
+  if (scadenzaAuto !== null) intervento.scadenza = scadenzaAuto;
+  var scadenzaFinale = intervento.scadenza !== undefined ? intervento.scadenza : scadenzaSottomessa;
+
+  // Priorità automatica (vedi calcolaPrioritaAutomatica_): rispetta un override manuale precedente
+  // (prioritaManuale=true), a meno che questo stesso salvataggio non stia deliberatamente
+  // cambiando la priorità a un valore diverso da quello già salvato (in tal caso resta un
+  // override manuale, semplicemente aggiornato). Su un intervento nuovo (esistente assente) si
+  // applica sempre il calcolo automatico quando idoneo, ignorando il default di schema sottomesso.
+  var prioritaAuto = calcolaPrioritaAutomatica_(tipoAttivitaEffettivo, scadenzaFinale);
+  if (prioritaAuto !== null) {
+    var prioritaSottomessa = intervento.priorita;
+    var eraManuale = !!(esistente && esistente.prioritaManuale);
+    var cambiataOraAMano = esistente && prioritaSottomessa !== undefined && prioritaSottomessa !== esistente.priorita;
+    if (eraManuale) {
+      intervento.priorita = cambiataOraAMano ? prioritaSottomessa : esistente.priorita;
+      intervento.prioritaManuale = true;
+    } else if (cambiataOraAMano) {
+      intervento.priorita = prioritaSottomessa;
+      intervento.prioritaManuale = true;
+    } else {
+      intervento.priorita = prioritaAuto;
+      intervento.prioritaManuale = false;
+    }
   }
 
   var salvato = upsertRow_('INTERVENTI', intervento);
@@ -311,4 +379,29 @@ function segnaCompletatoSquadraPropria(id, row) {
   updateRowFields_('INTERVENTI', esistente._row, Object.assign(campi, campiAnalisi_(esistente, campi)));
   creaNotificaIntervento_(esistente, 'Completato dalla squadra', RUOLO.SQUADRA);
   return true;
+}
+
+/**
+ * Ricalcola la Priorità automatica (vedi calcolaPrioritaAutomatica_) di tutti gli Interventi
+ * idonei (Tipo Attività SM01-SM05 con una Scadenza, Priorità non forzata a mano) e riscrive solo
+ * quelli il cui valore risulta cambiato: a differenza della Scadenza (fissa una volta calcolata),
+ * la Priorità dipende dalla distanza odierna dalla Scadenza e quindi va rinfrescata
+ * periodicamente anche SENZA che nessuno tocchi l'intervento. Chiamata sia da inizializzaApp
+ * (quindi ad ogni apertura della Web App) sia da un trigger giornaliero opzionale (vedi
+ * Triggers.gs), così resta aggiornata anche nei giorni in cui nessuno apre la Web App. Non tocca
+ * mai gli Interventi Completati o Annullati (priorità non più rilevante), né quelli con
+ * Priorità già forzata a mano (prioritaManuale).
+ */
+function aggiornaPrioritaAutomaticheGiornaliero_() {
+  var aggiornati = 0;
+  readAll_('INTERVENTI').forEach(function (i) {
+    if (i.prioritaManuale) return;
+    if (i.stato === STATO_INTERVENTO.COMPLETATO || i.stato === STATO_INTERVENTO.ANNULLATO) return;
+    var prioritaAuto = calcolaPrioritaAutomatica_(i.tipoAttivita, i.scadenza);
+    if (prioritaAuto !== null && prioritaAuto !== i.priorita) {
+      updateRowFields_('INTERVENTI', i._row, { priorita: prioritaAuto });
+      aggiornati++;
+    }
+  });
+  return aggiornati;
 }

@@ -57,6 +57,7 @@ var GIORNI_SETTIMANA = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
  * LEGENDA_TIPO_ATTIVITA_, mostrato lato client da un pulsante "Legenda" accanto al campo.
  */
 var TIPI_ATTIVITA_NOTI = ['SM01', 'SM02', 'SM03', 'SM04', 'SM05'];
+var TIPO_ATTIVITA_VUOTO = 'Intervento a vuoto';
 var TIPO_ATTIVITA_ALTRO = 'Altro';
 
 /** Significato esteso di ciascun codice Tipo Attività, mostrato in una legenda lato client. */
@@ -67,6 +68,16 @@ var LEGENDA_TIPO_ATTIVITA_ = {
   SM04: 'Smontaggio',
   SM05: 'Sopralluogo'
 };
+
+/**
+ * Giorni lavorativi aggiunti a "Data Dispacciamento" per calcolare la Scadenza automatica di un
+ * Intervento (vedi calcolaScadenzaAutomatica_ in Interventions.gs), per Tipo Attività: SM01/SM04/
+ * SM05 e SM03 sono qui solo per riferimento, la differenza di comportamento (SM03 è solo un
+ * DEFAULT, mai più ricalcolato una volta impostato/modificato) è in calcolaScadenzaAutomatica_
+ * stesso, non in questa mappa. "Altro", "Intervento a vuoto" e nessun tipo scelto non compaiono
+ * qui: per quelli la Scadenza resta sempre interamente manuale.
+ */
+var GIORNI_LAVORATIVI_SCADENZA_ = { SM01: 7, SM02: 3, SM03: 90, SM04: 7, SM05: 7 };
 
 /**
  * Definizione campi per ciascun foglio. L'ordine dei campi determina
@@ -112,12 +123,13 @@ var SCHEMA = {
       { key: 'lat', label: 'Lat', type: 'number', readonly: true },
       { key: 'lng', label: 'Lng', type: 'number', readonly: true },
       { key: 'competenza', label: 'Competenza Richiesta', type: 'text', help: 'Vuoto = qualsiasi squadra' },
-      { key: 'priorita', label: 'Priorità', type: 'select', options: [PRIORITA.URGENTE, PRIORITA.ALTA, PRIORITA.NORMALE, PRIORITA.BASSA], default: PRIORITA.NORMALE },
+      { key: 'priorita', label: 'Priorità', type: 'select', options: [PRIORITA.URGENTE, PRIORITA.ALTA, PRIORITA.NORMALE, PRIORITA.BASSA], default: PRIORITA.NORMALE, help: 'Per i Tipi Attività SM01-SM05 con una Scadenza si aggiorna da sola in base ai giorni lavorativi rimanenti (scaduta o ≤1gg: Urgente · ≤3gg: Alta · ≤7gg: Normale · oltre: Bassa): puoi comunque forzarla qui a un valore diverso, da quel momento resta quella scelta e non viene più sovrascritta in automatico.' },
+      { key: 'prioritaManuale', label: 'Priorità Manuale', type: 'checkbox', default: false, readonly: true, help: 'Impostato automaticamente non appena la Priorità viene cambiata a mano su un intervento altrimenti automatico: da quel momento non viene più ricalcolata in automatico.' },
       { key: 'durataMinuti', label: 'Durata Stimata (minuti)', type: 'number', default: 60 },
       { key: 'finestraInizio', label: 'Finestra Oraria - Inizio (HH:mm)', type: 'text', default: '00:00' },
       { key: 'finestraFine', label: 'Finestra Oraria - Fine (HH:mm)', type: 'text', default: '23:59' },
       { key: 'dataRichiesta', label: 'Non Prima Del (gg/mm/aaaa)', type: 'date' },
-      { key: 'scadenza', label: 'Scadenza (gg/mm/aaaa)', type: 'date' },
+      { key: 'scadenza', label: 'Scadenza (gg/mm/aaaa)', type: 'date', help: 'SM01/SM04/SM05: Data Dispacciamento + 7 giorni lavorativi · SM02: +3 giorni lavorativi — calcolate in automatico, non modificabili qui. SM03: +90 giorni lavorativi di default, ma modificabile liberamente (una volta impostata, un successivo import non la sovrascrive più). Per "Altro", "Intervento a vuoto" o nessun Tipo Attività scelto resta interamente manuale/facoltativa.' },
       { key: 'stato', label: 'Stato', type: 'select', options: [STATO_INTERVENTO.DA_PIANIFICARE, STATO_INTERVENTO.PIANIFICATO, STATO_INTERVENTO.COMPLETATO, STATO_INTERVENTO.ANNULLATO, STATO_INTERVENTO.SOSPESO_YS, STATO_INTERVENTO.SOSPESO_ZP, STATO_INTERVENTO.SOSPESO_ZC], default: STATO_INTERVENTO.DA_PIANIFICARE, readonly: true },
       { key: 'squadraId', label: 'Squadra Assegnata', type: 'select', optionsFrom: 'SQUADRE', allowEmptyOption: true, help: 'Cambiare squadra qui sposta l\'intervento senza ricalcolare automaticamente l\'ordine/orario del percorso: verificare poi la programmazione della nuova squadra.' },
       { key: 'dataPianificata', label: 'Data Pianificata', type: 'date', readonly: true },
@@ -137,7 +149,7 @@ var SCHEMA = {
       { key: 'storiaSospensioni', label: 'Storico Note e Sospensioni', type: 'text', readonly: true, help: 'Cronologia (data, autore Admin/Cliente, eventuale stato, nota) di ogni nota libera o sospensione/annullamento registrata su questo intervento, a mano (da Admin o da Cliente) o da import.' },
       { key: 'operatore', label: 'Op.', type: 'text', help: 'Sigla o nome dell\'operatore, per uso libero.' },
       { key: 'dataDispacciamento', label: 'Data Dispacciamento', type: 'date', help: 'Data in cui l\'intervento è stato ricevuto/dispacciato: per gli interventi importati è la "Data Disp." del tracking esterno; per quelli creati a mano nella Web App viene impostata di default alla data odierna al primo salvataggio (modificabile). Usata come base per le metriche del tab Analysis (tempi di lavorazione, nuovi interventi dispacciati nel tempo).' },
-      { key: 'tipoAttivita', label: 'Tipo Attività', type: 'select', options: TIPI_ATTIVITA_NOTI.concat([TIPO_ATTIVITA_ALTRO]), allowEmptyOption: true, help: 'Categoria dell\'intervento (SM01-SM05, vedi pulsante Legenda): per quelli importati viene dedotta automaticamente dalla colonna "Tipo di ordine" del tracking esterno; per quelli creati a mano va scelta qui (facoltativo). Usata per raggruppare le metriche del tab Analysis.' },
+      { key: 'tipoAttivita', label: 'Tipo Attività', type: 'select', options: TIPI_ATTIVITA_NOTI.concat([TIPO_ATTIVITA_VUOTO, TIPO_ATTIVITA_ALTRO]), allowEmptyOption: true, help: 'Categoria dell\'intervento (SM01-SM05, vedi pulsante Legenda): per quelli importati viene dedotta automaticamente dalla colonna "Tipo di ordine" del tracking esterno; per quelli creati a mano va scelta qui (facoltativo). Determina anche il calcolo automatico di Scadenza e Priorità (vedi quei campi). Usata per raggruppare le metriche del tab Analysis.' },
       { key: 'comune', label: 'Comune', type: 'text', help: 'Comune dell\'indirizzo (per gli interventi importati, dedotto dalla colonna "Località" del tracking esterno): usato per la distribuzione geografica nel tab Analysis. Per gli interventi creati a mano è facoltativo.' },
       { key: 'primoEventoData', label: 'Data Primo Evento', type: 'date', readonly: true, help: 'Impostata automaticamente la prima volta che succede qualcosa su questo intervento dopo la creazione (nota, sospensione, cambio stato...): usata per calcolare il "Tempo di prima lavorazione" nel tab Analysis.' },
       { key: 'dataPrimoPianificato', label: 'Data Primo Pianificato', type: 'date', readonly: true, help: 'Impostata automaticamente la prima volta che l\'intervento passa a stato "Pianificato": usata per calcolare il "Tempo di lavorazione medio" nel tab Analysis.' },

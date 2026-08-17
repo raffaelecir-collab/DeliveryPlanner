@@ -58,6 +58,24 @@ function isGiornoLavorativoAnalisi_(date) {
 }
 
 /**
+ * Aggiunge N giorni lavorativi (stesso calendario fisso Lun-Ven + festività italiane escluse di
+ * isGiornoLavorativoAnalisi_) a una data 'dd/MM/yyyy': usata per calcolare automaticamente la
+ * Scadenza di un Intervento da "Data Dispacciamento" (vedi calcolaScadenzaAutomatica_ in
+ * Interventions.gs). Il giorno di partenza (dataStr) stesso non viene mai contato, anche se
+ * lavorativo: si parte sempre a contare dal giorno successivo.
+ */
+function aggiungiGiorniLavorativi_(dataStr, n) {
+  var d = parseDateStr_(dataStr);
+  if (!d) return '';
+  var rimanenti = n;
+  while (rimanenti > 0) {
+    d = addDays_(d, 1);
+    if (isGiornoLavorativoAnalisi_(d)) rimanenti--;
+  }
+  return formatDateStr_(d);
+}
+
+/**
  * Conta i giorni lavorativi nell'intervallo [dataInizio, dataFine) (fine esclusa), escludendo
  * anche i giorni ricadenti in uno degli `intervalliEsclusi` (es. i periodi di sospensione di un
  * intervento — vedi intervalliSospensione_ in Interventions.gs), ciascuno nella forma

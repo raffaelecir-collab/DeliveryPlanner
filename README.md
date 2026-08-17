@@ -99,12 +99,12 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 | `Auth.gs` | Ruolo Admin/Cliente dell'account che esegue la Web App e guardia usata dalle funzioni riservate all'Admin |
 | `SheetService.gs` | Lettura/scrittura generica dei fogli basata sullo schema |
 | `Geocoding.gs` | Conversione indirizzo → coordinate (con cache) |
-| `Triggers.gs` | Trigger installabile: geocodifica automatica quando un indirizzo viene scritto direttamente sul foglio |
+| `Triggers.gs` | Trigger installabili: geocodifica automatica su modifica foglio, aggiornamento giornaliero facoltativo delle Priorità automatiche |
 | `Setup.gs` | Inizializzazione struttura fogli, menu, dati di esempio |
-| `Teams.gs` / `Interventions.gs` / `Rules.gs` / `Listino.gs` | CRUD (con geocodifica automatica su Squadre/Interventi) |
+| `Teams.gs` / `Interventions.gs` / `Rules.gs` / `Listino.gs` | CRUD (con geocodifica automatica su Squadre/Interventi, calcolo automatico di Scadenza/Priorità su Interventi) |
 | `Import.gs` | Import di Interventi da un file Excel (.xlsx) del tracking Sicuritalia caricato dal browser |
 | `RouteEngine.gs` | Motore di ottimizzazione percorso (inserimento più economico + 2-opt, scheduling con pausa pranzo, dati per la Dashboard e riempimento buchi) |
-| `Calendario.gs` | Calendario giorni lavorativi FISSO (Lun-Ven, festività italiane escluse) usato solo dal tab Analysis, indipendente dalla regola "giorniLavorativi" della pianificazione |
+| `Calendario.gs` | Calendario giorni lavorativi FISSO (Lun-Ven, festività italiane escluse): usato dal tab Analysis e per calcolare automaticamente la Scadenza degli Interventi (SM01-SM05), indipendente dalla regola "giorniLavorativi" della pianificazione |
 | `Analysis.gs` | Metriche del tab Analysis (solo Admin): ricavo, tempi di lavorazione, tassi, backlog, km, distribuzione geografica |
 | `TeamView.gs` | Programmazione propria per l'account Squadra (elenco/agenda/mappa) |
 | `Documenti.gs` | Documenti allegati a ciascun Intervento, archiviati su Google Drive |
@@ -187,30 +187,58 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    squadra dovrebbe idealmente raggiungere in un giorno (vedi più sotto).
    Il campo **Email Account Squadra** dà accesso al tab dedicato "Account
    Squadra" più sotto: vedi quella sezione per i dettagli.
-2. Tab **Interventi**: inserisci gli interventi da pianificare (cliente,
-   indirizzo — geocodificato automaticamente —, competenza richiesta,
-   priorità, durata stimata, finestra oraria, **telefono** del cliente per
-   contattarlo sul campo, eventuale non-prima-del/scadenza informativi,
-   **Codice Esterno (Ods)** (normalmente compilato dall'import, ma
-   modificabile anche a mano da qui), **Op.** (campo libero, es. sigla
-   dell'operatore/Operazione), **Data Dispacciamento** (per gli importati è
-   la "Data in. al + presto" del tracking esterno; per quelli creati a mano
-   viene impostata di default a oggi, modificabile), **Tipo Attività**
-   (codice SM01-SM05, dedotto dalla colonna "Tipo di ordine" del tracking
-   esterno per gli importati, da scegliere per quelli manuali — un pulsante
-   **"ℹ Legenda"** accanto al campo mostra il significato di ciascun
-   codice) e **Comune** (dedotto dal tracking esterno per gli importati).
-   Questi campi non servono alla pianificazione: alimentano solo le metriche
-   del tab **Analysis** (vedi più sotto). Per gli interventi importati dal
-   tracking Sicuritalia, la scheda mostra anche — in sola lettura —
-   **Richiesta d'Acquisto**, **Cod. Cliente**, **Cod. Equipment** e **Prezzo
-   Importato (€)**: sono sempre aggiornati dall'ultimo import, non
-   modificabili da qui. Il **Ricavo (€)** dell'intervento (usato per
-   calcolare la produzione della squadra) è anch'esso in sola lettura nella
-   scheda: si compone con il pulsante **"💶 Componi Ricavo"** nell'elenco
-   Interventi (vedi "Listino e Ricavo" più sotto). Dalla stessa scheda
-   **"Modifica"** puoi anche cambiare la **Squadra Assegnata** di un
-   intervento già pianificato (o assegnarne una a uno "Da pianificare"):
+2. Tab **Interventi**: l'elenco mostra, per ciascun intervento, **Cliente**,
+   **Competenza**, **Priorità**, **ODS** (Codice Esterno), **Ricavo**,
+   **Stato**, **Squadra** e **Data/ora** — con **Squadra** e **Data/ora**
+   cliccabili direttamente in elenco (anche quando mostrano "—" o un valore
+   già impostato): un click apre un piccolo editor inline (un selettore per
+   la Squadra, due campi data+ora con conferma/annulla per Data/ora) che
+   salva subito, senza aprire la scheda completa — utile per assegnazioni
+   rapide. Attenzione: come cambiare la Squadra Assegnata dalla scheda
+   "Modifica" (vedi sotto), anche l'inline edit **sposta solo
+   l'assegnazione/l'orario**, senza ricalcolare l'ordine/orario del percorso:
+   verifica poi la programmazione della squadra coinvolta.
+
+   La scheda "Nuovo intervento"/"Modifica" raccoglie cliente, indirizzo —
+   geocodificato automaticamente —, competenza richiesta, durata stimata,
+   finestra oraria, **telefono** del cliente per contattarlo sul campo,
+   eventuale non-prima-del, **Codice Esterno (Ods)** (normalmente compilato
+   dall'import, ma modificabile anche a mano da qui), **Op.** (campo libero,
+   es. sigla dell'operatore/Operazione), **Data Dispacciamento** (per gli
+   importati è la "Data in. al + presto" del tracking esterno; per quelli
+   creati a mano viene impostata di default a oggi, modificabile), **Tipo
+   Attività** (codice SM01-SM05, "Intervento a vuoto" o "Altro" — dedotto
+   dalla colonna "Tipo di ordine" del tracking esterno per gli importati, da
+   scegliere per quelli manuali — un pulsante **"ℹ Legenda"** accanto al
+   campo mostra il significato di ciascun codice) e **Comune** (dedotto dal
+   tracking esterno per gli importati). Comune non serve alla pianificazione:
+   alimenta solo le metriche del tab **Analysis** (vedi più sotto).
+
+   **Scadenza e Priorità si impostano da sole per i Tipi Attività SM01-SM05**,
+   in base a "Data Dispacciamento":
+
+   | Tipo Attività | Scadenza automatica | Modificabile a mano? |
+   |---|---|---|
+   | SM01, SM04, SM05 | Dispacciamento + 7 giorni lavorativi | No: si ricalcola da sola se cambia la Data Dispacciamento |
+   | SM02 | Dispacciamento + 3 giorni lavorativi | No |
+   | SM03 | Dispacciamento + 90 giorni lavorativi (default) | Sì: una volta impostata (di default o a mano), resta quella — un successivo import non la sovrascrive più |
+   | Altro, Intervento a vuoto, nessun tipo scelto | — | Sì, interamente manuale/facoltativa come prima |
+
+   "Giorni lavorativi" segue lo stesso calendario fisso (Lun-Ven, festività
+   nazionali italiane escluse) del tab Analysis. La **Priorità** segue di
+   conseguenza, in base ai giorni lavorativi rimanenti alla Scadenza: **scaduta
+   o a 0-1 giorno → Urgente**, **a 2-3 giorni → Alta**, **a 4-7 giorni →
+   Normale**, **oltre 7 giorni → Bassa** — si aggiorna da sola (ad ogni
+   apertura della Web App, e con il trigger giornaliero facoltativo attivabile
+   dal menu del foglio "Attiva aggiornamento giornaliero priorità
+   automatiche") man mano che la scadenza si avvicina, ma **resta sempre
+   forzabile a mano da un Admin**: una volta cambiata manualmente, quella
+   scelta non viene più sovrascritta in automatico. Vale solo per SM01-SM05
+   con una Scadenza; per "Altro"/"Intervento a vuoto"/nessun tipo la Priorità
+   resta interamente manuale come prima.
+
+   Dalla scheda **"Modifica"** puoi anche cambiare la **Squadra Assegnata** di
+   un intervento già pianificato (o assegnarne una a uno "Da pianificare"):
    utile per correggere a mano un'assegnazione senza dover rimuovere e
    ripianificare da capo. Attenzione: cambiarla qui **sposta solo
    l'assegnazione**, senza ricalcolare l'ordine/orario del percorso né della
@@ -738,7 +766,13 @@ foglio invece di usare i form della Web App. In quel caso:
   apri la riga dal tab **Squadre**/**Interventi** → "Modifica" → "Salva"
   (anche senza cambiare nulla) per farla geocodificare. Finché un
   intervento/squadra non è geocodificato/a (né in automatico né a mano), la
-  pianificazione darà errore "indirizzo non geocodificato".
+  pianificazione darà errore "indirizzo non geocodificato";
+- le **Priorità automatiche** (SM01-SM05, vedi tab Interventi più sotto) si
+  aggiornano comunque ad ogni apertura della Web App: il trigger dal menu
+  **Delivery Planner → "Attiva aggiornamento giornaliero priorità
+  automatiche"** è facoltativo, utile solo per tenerle fresche anche nei
+  giorni in cui nessuno apre la Web App (es. prima di una pianificazione
+  automatica mattutina schedulata a parte).
 
 ### Importare gli interventi da un file Excel (tracking Sicuritalia)
 

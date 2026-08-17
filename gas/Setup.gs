@@ -11,6 +11,7 @@ function onOpen() {
     .addItem('Inizializza / Ripara struttura fogli', 'inizializzaAppDaMenu')
     .addItem('Carica dati di esempio', 'caricaDatiDiEsempioDaMenu')
     .addItem('Attiva geocodifica automatica su modifica foglio', 'installaTriggerGeocodificaDaMenu')
+    .addItem('Attiva aggiornamento giornaliero priorità automatiche', 'installaTriggerAggiornaPrioritaDaMenu')
     .addItem('Apri Web App', 'mostraUrlWebApp')
     .addToUi();
 }
@@ -27,6 +28,12 @@ function inizializzaApp() {
   });
   inizializzaRegoleDefault_();
   inizializzaListinoDefault_();
+  // Rinfresca le Priorità automatiche (vedi aggiornaPrioritaAutomaticheGiornaliero_ in
+  // Interventions.gs) ad ogni apertura della Web App: garantisce che restino aggiornate anche
+  // senza installare il trigger giornaliero opzionale (menu del foglio), a costo di un confronto
+  // in più (nessuna chiamata di rete) su ogni bootstrap — le scritture avvengono solo per le
+  // righe davvero cambiate.
+  aggiornaPrioritaAutomaticheGiornaliero_();
 }
 
 /** Wrapper per il menu del foglio: esegue l'inizializzazione e mostra un alert. */

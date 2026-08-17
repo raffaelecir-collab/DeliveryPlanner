@@ -235,7 +235,9 @@
     corpo.innerHTML = codici.length
       ? codici.map(function (cod) {
           return '<div class="legenda-tipo-riga"><b>' + escapeHtml(cod) + '</b> — ' + escapeHtml(state.legendaTipoAttivita[cod]) + '</div>';
-        }).join('') + '<div class="legenda-tipo-riga"><b>Altro</b> — codice non tra quelli noti (SM01-SM05)</div>'
+        }).join('') +
+        '<div class="legenda-tipo-riga"><b>Intervento a vuoto</b> — visita effettuata ma senza lavorazione (es. cliente assente)</div>' +
+        '<div class="legenda-tipo-riga"><b>Altro</b> — codice non tra quelli noti (SM01-SM05)</div>'
       : '<div class="empty-hint">Legenda non disponibile.</div>';
     document.getElementById('dlg-legenda-tipo-attivita').classList.remove('hidden');
   }
@@ -854,6 +856,81 @@
     if (interventiFiltroSingoloId) rimuoviFiltroSingoloIntervento_(); else renderInterventi();
   }
 
+  /** Inline edit: cliccando sulla cella Squadra (anche già valorizzata) la sostituisce con un <select>. */
+  function avviaEditSquadraInline_(cella, obj) {
+    if (cella.classList.contains('editing')) return;
+    cella.classList.add('editing');
+    var select = document.createElement('select');
+    var optVuoto = document.createElement('option');
+    optVuoto.value = ''; optVuoto.textContent = '— Nessuna —';
+    select.appendChild(optVuoto);
+    state.squadre.forEach(function (s) {
+      var opt = document.createElement('option');
+      opt.value = s.id; opt.textContent = s.nome;
+      if (s.id === obj.squadraId) opt.selected = true;
+      select.appendChild(opt);
+    });
+    cella.innerHTML = '';
+    cella.appendChild(select);
+    select.focus();
+    var concluso = false;
+    function salva() {
+      if (concluso) return;
+      concluso = true;
+      var nuovoId = select.value;
+      if (nuovoId === (obj.squadraId || '')) { renderInterventi(); return; }
+      select.disabled = true;
+      callServer('salvaIntervento', Object.assign({}, obj, { squadraId: nuovoId })).then(function () {
+        toast('Squadra aggiornata.', 'success');
+        loadInterventi();
+        caricaDashboard();
+      }).catch(function (err) { toast(err.message || String(err), 'error'); renderInterventi(); });
+    }
+    select.addEventListener('change', salva);
+    select.addEventListener('blur', function () { setTimeout(function () { if (!concluso) renderInterventi(); }, 150); });
+  }
+
+  /** Inline edit: cliccando sulla cella Data/ora (anche già valorizzata) la sostituisce con input data+ora e conferma/annulla. */
+  function avviaEditDataOraInline_(cella, obj) {
+    if (cella.classList.contains('editing')) return;
+    cella.classList.add('editing');
+    cella.innerHTML = '';
+    var inputData = document.createElement('input');
+    inputData.type = 'date';
+    if (obj.dataPianificata) {
+      var d = parseDateStrClient(obj.dataPianificata);
+      if (d) inputData.value = toInputDate(d);
+    }
+    var inputOra = document.createElement('input');
+    inputOra.type = 'time';
+    inputOra.value = obj.oraPianificata || '';
+    var btnOk = document.createElement('button');
+    btnOk.type = 'button'; btnOk.className = 'inline-edit-ok'; btnOk.title = 'Salva'; btnOk.textContent = '✓';
+    var btnAnnulla = document.createElement('button');
+    btnAnnulla.type = 'button'; btnAnnulla.className = 'inline-edit-cancel'; btnAnnulla.title = 'Annulla'; btnAnnulla.textContent = '✕';
+    cella.appendChild(inputData);
+    cella.appendChild(inputOra);
+    cella.appendChild(btnOk);
+    cella.appendChild(btnAnnulla);
+    inputData.focus();
+    var concluso = false;
+    function salva() {
+      if (concluso) return;
+      concluso = true;
+      var nuovaData = inputData.value ? fromInputDate(inputData.value) : '';
+      var nuovaOra = inputOra.value || '';
+      btnOk.disabled = true; btnAnnulla.disabled = true;
+      callServer('salvaIntervento', Object.assign({}, obj, { dataPianificata: nuovaData, oraPianificata: nuovaOra })).then(function () {
+        toast('Data/ora aggiornate.', 'success');
+        loadInterventi();
+        caricaDashboard();
+      }).catch(function (err) { toast(err.message || String(err), 'error'); renderInterventi(); });
+    }
+    function annulla() { concluso = true; renderInterventi(); }
+    btnOk.addEventListener('click', salva);
+    btnAnnulla.addEventListener('click', annulla);
+  }
+
   function renderInterventi() {
     var container = document.getElementById('int-rows');
     var contatore = document.getElementById('interventi-count');
@@ -867,10 +944,10 @@
     if (!list.length) { container.innerHTML = '<div class="empty-hint">Nessun intervento corrisponde ai filtri.</div>'; return; }
     container.innerHTML = list.map(function (i) {
       var squadra = state.squadre.filter(function (s) { return s.id === i.squadraId; })[0];
-      var finestraTuttoIlGiorno = (!i.finestraInizio || i.finestraInizio === '00:00') && (!i.finestraFine || i.finestraFine === '23:59');
-      var finestraHtml = finestraTuttoIlGiorno
-        ? '<span class="int-finestra tutto-giorno">Tutto il giorno</span>'
-        : '<span class="int-finestra">' + escapeHtml(i.finestraInizio || '') + '–' + escapeHtml(i.finestraFine || '') + '</span>';
+      var odsHtml = i.codiceEsterno
+        ? '<span class="int-ods">' + escapeHtml(i.codiceEsterno) + '</span>'
+        : '<span class="int-ods none">—</span>';
+      var ricavoHtml = '<span class="int-ricavo">' + formatEuroClient(i.ricavo) + '</span>';
       var squadraHtml = squadra
         ? '<span class="int-squadra"><span class="dot" style="background:' + (squadra.colore || '#999') + '"></span>' + escapeHtml(squadra.nome) + '</span>'
         : '<span class="int-squadra none">—</span>';
@@ -905,15 +982,17 @@
       if (isAdmin) {
         azioniHtml += '<button class="btn-icon danger" data-action="elimina" data-row="' + i._row + '" title="Elimina definitivamente">' + ICONA_CESTINO_ + '</button>';
       }
+      var squadraCellClass = isAdmin ? 'int-squadra-cell' : '';
+      var dataOraCellClass = isAdmin ? 'int-dataora-cell' : '';
       return '<div class="int-row' + (i.stato === 'Annullato' ? ' is-annullato' : '') + '" data-row="' + i._row + '" data-id="' + escapeHtml(i.id || '') + '">' +
         '<div><div class="int-cliente">' + escapeHtml(i.cliente) + '</div><div class="int-indirizzo">' + escapeHtml(i.indirizzo || '') + '</div></div>' +
         '<div class="int-competenza' + (i.competenza ? '' : ' any') + '">' + escapeHtml(i.competenza || 'Qualsiasi') + '</div>' +
         '<div><span class="badge ' + (CLASSE_BADGE_PRIORITA_[i.priorita] || 'badge-normale') + '">' + escapeHtml(i.priorita || '') + '</span></div>' +
-        '<div class="int-durata">' + (i.durataMinuti || 0) + ' min</div>' +
-        '<div>' + finestraHtml + '</div>' +
+        '<div>' + odsHtml + '</div>' +
+        '<div>' + ricavoHtml + '</div>' +
         '<div class="stato-cell"><span class="badge ' + (CLASSE_BADGE_STATO_[i.stato] || 'badge-stato-dapianificare') + '">' + escapeHtml(i.stato || '') + '</span>' + storiaHtml + '</div>' +
-        '<div>' + squadraHtml + '</div>' +
-        '<div>' + dataOraHtml + '</div>' +
+        '<div class="' + squadraCellClass + '" data-row="' + i._row + '">' + squadraHtml + '</div>' +
+        '<div class="' + dataOraCellClass + '" data-row="' + i._row + '">' + dataOraHtml + '</div>' +
         '<div class="row-actions">' + azioniHtml + '</div>' +
       '</div>';
     }).join('');
@@ -1023,6 +1102,23 @@
         if (!window.confirm('Terminare la sospensione dell\'intervento per "' + obj.cliente + '"? Tornerà "Da pianificare".')) return;
         callServer('terminaSospensione', obj.id, obj._row).then(function () { toast('Sospensione terminata: torna "Da pianificare".', 'success'); loadInterventi(); caricaDashboard(); })
           .catch(function (err) { toast(err.message || String(err), 'error'); });
+      }
+    });
+    onQuery('#int-rows', 'click', function (e) {
+      if (state.ruolo === 'Cliente') return; // sola visualizzazione, nessun inline edit
+      if (e.target.closest('button[data-action]')) return; // gestito dal listener sopra
+      var cellaSquadra = e.target.closest('.int-squadra-cell');
+      if (cellaSquadra) {
+        var rowSq = parseInt(cellaSquadra.dataset.row, 10);
+        var objSq = state.interventi.filter(function (i) { return i._row === rowSq; })[0];
+        if (objSq) avviaEditSquadraInline_(cellaSquadra, objSq);
+        return;
+      }
+      var cellaDataOra = e.target.closest('.int-dataora-cell');
+      if (cellaDataOra) {
+        var rowDo = parseInt(cellaDataOra.dataset.row, 10);
+        var objDo = state.interventi.filter(function (i) { return i._row === rowDo; })[0];
+        if (objDo) avviaEditDataOraInline_(cellaDataOra, objDo);
       }
     });
     on('btn-salva-sospendi', 'click', salvaSospendiIntervento);
@@ -2275,6 +2371,7 @@
     { label: 'SM03', colore: '#FBBC05' },
     { label: 'SM04', colore: '#9C27B0' },
     { label: 'SM05', colore: '#00ACC1' },
+    { label: 'Intervento a vuoto', colore: '#607D8B' },
     { label: 'Altro', colore: '#8D6E63' },
     { label: '(non specificato)', colore: '#9aa0a6' }
   ];
