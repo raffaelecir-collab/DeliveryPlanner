@@ -239,6 +239,48 @@ function annullaIntervento(id, row, nota) {
 }
 
 /**
+ * Compone il Ricavo (€) di un Intervento come somma di una o più voci di listino con quantità
+ * (vedi "Componi Ricavo" in JS.html): sostituisce sempre l'intera selezione precedente (mai
+ * un'aggiunta incrementale). `voci` è un elenco di { voce, quantita }; il prezzo unitario è
+ * sempre letto dal Listino AL MOMENTO del salvataggio (mai passato dal client), così un Ricavo
+ * già composto resta coerente anche se il listino cambia in seguito. Se il Ricavo risultante è
+ * inferiore al Prezzo importato dal tracking esterno per questo intervento, avvisa SOLO l'Admin
+ * (creaNotificaSoloAdmin_) per segnalare che andrebbe adeguato.
+ */
+function componiRicavoIntervento(id, row, voci) {
+  richiedeAdmin_();
+  var esistente = trovaInterventoPerIdORiga_(id, row);
+  if (!esistente) throw new Error('Intervento non trovato.');
+  if (!voci || !voci.length) throw new Error('Seleziona almeno una voce di listino.');
+
+  var listinoPerVoce = {};
+  readAll_('LISTINO').forEach(function (v) { listinoPerVoce[v.voce] = v; });
+
+  var dettaglio = [];
+  var totale = 0;
+  voci.forEach(function (sel) {
+    var voceListino = listinoPerVoce[sel.voce];
+    if (!voceListino) throw new Error('Voce di listino non trovata: "' + sel.voce + '".');
+    var quantita = parseFloat(sel.quantita);
+    if (!quantita || quantita <= 0) throw new Error('Quantità non valida per la voce "' + sel.voce + '".');
+    var prezzoUnitario = voceListino.prezzo || 0;
+    var subtotale = Math.round(prezzoUnitario * quantita * 100) / 100;
+    totale += subtotale;
+    dettaglio.push({ voce: sel.voce, descrizione: voceListino.descrizione || '', prezzoUnitario: prezzoUnitario, quantita: quantita, subtotale: subtotale });
+  });
+  totale = Math.round(totale * 100) / 100;
+
+  var campi = { ricavo: totale, vociListino: JSON.stringify(dettaglio) };
+  updateRowFields_('INTERVENTI', esistente._row, campi);
+
+  if (typeof esistente.prezzo === 'number' && totale < esistente.prezzo) {
+    creaNotificaSoloAdmin_(esistente, 'Ricavo composto (' + totale.toFixed(2) + '€) inferiore al Prezzo importato (' +
+      esistente.prezzo.toFixed(2) + '€): valutare un adeguamento.');
+  }
+  return Object.assign({}, esistente, campi);
+}
+
+/**
  * Aggiunge una nota libera (data odierna) allo storico di un intervento, senza toccarne stato
  * o programmazione: usata dalla Dashboard (Admin) per annotare gli interventi già pianificati, e
  * dagli account Cliente/Squadra dai rispettivi tab. Un account Squadra può farlo solo sui propri

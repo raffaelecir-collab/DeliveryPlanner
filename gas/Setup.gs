@@ -26,6 +26,7 @@ function inizializzaApp() {
     ensureHeader_(SCHEMA[key]);
   });
   inizializzaRegoleDefault_();
+  inizializzaListinoDefault_();
 }
 
 /** Wrapper per il menu del foglio: esegue l'inizializzazione e mostra un alert. */
@@ -40,6 +41,17 @@ function inizializzaRegoleDefault_() {
   REGOLE_DEFAULT.forEach(function (regola) {
     if (chiaviEsistenti.indexOf(regola.chiave) === -1) {
       upsertRow_('REGOLE', regola);
+    }
+  });
+}
+
+/** Seed iniziale del listino (vedi LISTINO_DEFAULT in Config.gs): non tocca voci già presenti. */
+function inizializzaListinoDefault_() {
+  var esistenti = readAll_('LISTINO');
+  var vociEsistenti = esistenti.map(function (r) { return r.voce; });
+  LISTINO_DEFAULT.forEach(function (voce) {
+    if (vociEsistenti.indexOf(voce.voce) === -1) {
+      upsertRow_('LISTINO', voce);
     }
   });
 }

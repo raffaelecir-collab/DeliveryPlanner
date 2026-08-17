@@ -26,6 +26,7 @@
       <button class="tab-btn active admin-only" data-view="dashboard">Dashboard</button>
       <button class="tab-btn hide-squadra" data-view="interventi">Interventi</button>
       <button class="tab-btn admin-only" data-view="squadre">Squadre</button>
+      <button class="tab-btn admin-only" data-view="listino">Listino</button>
       <button class="tab-btn admin-only" data-view="impostazioni">Regole</button>
       <button class="tab-btn admin-only" data-view="analysis">Analysis</button>
       <button class="tab-btn squadra-only" data-view="miasquadra">La mia squadra</button>
@@ -79,16 +80,17 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M4 19h16"></path></svg>
           </span>
           <div class="import-copy">
-            <p>Importa i nuovi interventi dal sistema di tracking del cliente. Quelli già importati vengono aggiornati, mai duplicati.</p>
+            <p>Importa gli interventi da un file Excel (.xlsx) del tracking Sicuritalia. Quelli già presenti (stesso Ordine+Operazione) vengono aggiornati, mai duplicati.</p>
             <details>
               <summary>Come funziona l'importazione</summary>
-              <p class="tecnico">Legge la prima scheda del foglio Google esterno configurato nella regola <b>foglioImportEsternoId</b> (tab Regole; deve essere condiviso in scrittura). Ogni riga con Nome Cliente e Indirizzo compilati diventa un intervento (indirizzo geocodificato automaticamente, Importo ODS riportato su Ricavo €); l'elaborazione si ferma alla prima riga vuota. Se Tecnico corrisponde al nome di una squadra e Data App. è compilata, l'intervento entra già "Pianificato" per quella squadra/data/ora — verifica poi a mano che non si sovrapponga ad altri percorsi già confermati. Una riga con Ods già importato viene riconciliata con l'intervento esistente (mai duplicata); le righe senza Ods restano congelate dopo il primo import. Se un Ods sparisce dal tracking esterno, l'intervento corrispondente viene annullato automaticamente (torna disponibile se l'Ods ricompare).</p>
+              <p class="tecnico">Carica il file Excel del tracking (colonne fisse: Tipo di ordine, Ordine, Operazione, Richiesta d'acquisto, Data, Prezzo, Nome lista/Cliente, Via, Località, Cod. Cliente, Provincia, Cod. Equipment). Dopo la lettura del file, un popup permette di scegliere per quali regioni italiane importare le righe (in base alla provincia, colonna Y): utile per importare gradualmente un file che coprisse tutta Italia. L'Ods usato per riconoscere un intervento già importato è "Ordine-Operazione"; un Intervento già pianificato/con Ricavo composto NON viene mai retrocesso o azzerato da un re-import. Tipo Attività, Comune, durata stimata e gli altri campi tecnici (Richiesta d'Acquisto, Cod. Cliente, Cod. Equipment, Prezzo) vengono aggiornati automaticamente ad ogni import. File di migliaia di righe vengono elaborati a lotti: l'avanzamento resta visibile finché non finisce.</p>
             </details>
             <div class="import-result" id="import-esterno-risultato"></div>
           </div>
+          <input type="file" id="import-esterno-file" accept=".xlsx" style="display:none">
           <button class="btn-secondary-sm" id="btn-importa-esterno">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path></svg>
-            Importa interventi
+            Importa da Excel
           </button>
         </div>
 
@@ -148,6 +150,30 @@
             <span>Pausa pranzo</span><span>Attiva</span><span>Disponibilità</span><span></span>
           </div>
           <div id="team-rows"></div>
+        </div>
+      </section>
+
+      <!-- VISTA LISTINO -->
+      <section class="view" id="view-listino">
+        <div class="screen-toolbar">
+          <h2>Listino prezzi</h2>
+          <div class="toolbar-actions">
+            <div class="search-field">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+              <input type="text" id="listino-search" placeholder="Cerca voce…" autocomplete="off">
+            </div>
+            <button class="btn-primary" id="btn-nuova-voce-listino">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+              Nuova voce
+            </button>
+          </div>
+        </div>
+        <p class="sub">Voci di listino concordate, usate per comporre il Ricavo (€) di ogni intervento (pulsante "Componi Ricavo" nel tab Interventi).</p>
+        <div class="table-wrap">
+          <table id="tabella-listino">
+            <thead><tr><th>Voce</th><th>Descrizione</th><th>Ricavo (€)</th><th></th></tr></thead>
+            <tbody id="listino-rows"></tbody>
+          </table>
         </div>
       </section>
 
@@ -309,6 +335,32 @@
     </main>
 
     <!-- DIALOG: pianifica automaticamente un intervallo di giorni (multi-squadra) -->
+    <!-- DIALOG: import da Excel esterno — scelta delle regioni da importare + avanzamento -->
+    <div id="dlg-import-regioni" class="dlg-overlay hidden">
+      <div class="dlg-box">
+        <div class="dlg-head">
+          <h3>Importa da Excel — scegli le regioni</h3>
+          <button type="button" class="dlg-close" data-close-dlg="dlg-import-regioni" id="btn-import-regioni-chiudi">✕</button>
+        </div>
+        <p class="sub" id="import-regioni-intro">Il file può coprire tutta Italia: seleziona quali regioni importare adesso (potrai importare le altre in un secondo momento, ricaricando lo stesso file).</p>
+        <div class="row" style="margin-bottom:10px;gap:8px;">
+          <button type="button" class="btn-secondary-sm" id="btn-import-regioni-tutte">Seleziona tutte</button>
+          <button type="button" class="btn-secondary-sm" id="btn-import-regioni-nessuna">Deseleziona tutte</button>
+        </div>
+        <div id="import-regioni-lista" class="checklist-squadre"></div>
+        <div class="row" style="margin-top:14px;">
+          <div class="field">
+            <button class="btn" id="btn-import-regioni-conferma">📥 Importa le righe selezionate</button>
+          </div>
+        </div>
+        <div class="import-progress hidden" id="import-progress-wrap">
+          <div class="import-progress-bar"><div class="import-progress-fill" id="import-progress-fill"></div></div>
+          <div class="import-progress-testo" id="import-progress-testo"></div>
+        </div>
+        <div class="import-result" id="import-regioni-risultato"></div>
+      </div>
+    </div>
+
     <div id="dlg-intervallo" class="dlg-overlay hidden">
       <div class="dlg-box">
         <div class="dlg-head">
@@ -525,6 +577,42 @@
         </div>
         <div class="modal-actions">
           <button type="button" class="btn secondary" data-close-dlg="dlg-documenti">Chiudi</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- DIALOG: legenda Tipo Attività (codici SM01-SM05) -->
+    <div id="dlg-legenda-tipo-attivita" class="dlg-overlay hidden">
+      <div class="dlg-box">
+        <div class="dlg-head">
+          <h3>Legenda Tipo Attività</h3>
+          <button type="button" class="dlg-close" data-close-dlg="dlg-legenda-tipo-attivita">✕</button>
+        </div>
+        <div id="dlg-legenda-tipo-attivita-corpo"></div>
+      </div>
+    </div>
+
+    <!-- DIALOG: componi ricavo da listino (Admin) -->
+    <div id="dlg-componi-ricavo" class="dlg-overlay hidden">
+      <div class="dlg-box wide">
+        <div class="dlg-head">
+          <h3 id="dlg-componi-ricavo-titolo">Componi Ricavo</h3>
+          <button type="button" class="dlg-close" data-close-dlg="dlg-componi-ricavo">✕</button>
+        </div>
+        <p class="sub" id="componi-ricavo-prezzo-hint"></p>
+        <div class="search-field" style="margin-bottom:10px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+          <input type="text" id="componi-ricavo-search" placeholder="Cerca voce di listino…" autocomplete="off">
+        </div>
+        <div class="table-wrap" style="max-height:360px;overflow-y:auto;">
+          <table id="componi-ricavo-tabella">
+            <thead><tr><th></th><th>Voce</th><th>Descrizione</th><th>Prezzo</th><th>Quantità</th><th>Subtotale</th></tr></thead>
+            <tbody id="componi-ricavo-rows"></tbody>
+          </table>
+        </div>
+        <div class="row" style="justify-content:space-between;align-items:center;margin-top:12px;">
+          <div class="an-tot" id="componi-ricavo-totale">Totale: 0€</div>
+          <button class="btn" id="btn-salva-componi-ricavo">💾 Salva Ricavo</button>
         </div>
       </div>
     </div>

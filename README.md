@@ -101,8 +101,8 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 | `Geocoding.gs` | Conversione indirizzo → coordinate (con cache) |
 | `Triggers.gs` | Trigger installabile: geocodifica automatica quando un indirizzo viene scritto direttamente sul foglio |
 | `Setup.gs` | Inizializzazione struttura fogli, menu, dati di esempio |
-| `Teams.gs` / `Interventions.gs` / `Rules.gs` | CRUD (con geocodifica automatica su Squadre/Interventi) |
-| `Import.gs` | Import di Interventi direttamente da un foglio Google esterno (tracking) |
+| `Teams.gs` / `Interventions.gs` / `Rules.gs` / `Listino.gs` | CRUD (con geocodifica automatica su Squadre/Interventi) |
+| `Import.gs` | Import di Interventi da un file Excel (.xlsx) del tracking Sicuritalia caricato dal browser |
 | `RouteEngine.gs` | Motore di ottimizzazione percorso (inserimento più economico + 2-opt, scheduling con pausa pranzo, dati per la Dashboard e riempimento buchi) |
 | `Calendario.gs` | Calendario giorni lavorativi FISSO (Lun-Ven, festività italiane escluse) usato solo dal tab Analysis, indipendente dalla regola "giorniLavorativi" della pianificazione |
 | `Analysis.gs` | Metriche del tab Analysis (solo Admin): ricavo, tempi di lavorazione, tassi, backlog, km, distribuzione geografica |
@@ -190,17 +190,25 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 2. Tab **Interventi**: inserisci gli interventi da pianificare (cliente,
    indirizzo — geocodificato automaticamente —, competenza richiesta,
    priorità, durata stimata, finestra oraria, **telefono** del cliente per
-   contattarlo sul campo, **ricavo (€)** dell'intervento (usato per
-   calcolare la produzione della squadra), eventuale non-prima-del/scadenza
-   informativi, **Codice Esterno (Ods)** (normalmente compilato dall'import,
-   ma modificabile anche a mano da qui), **Op.** (campo libero, es. sigla
-   dell'operatore), **Data Dispacciamento** (per gli importati è la "Data
-   Disp." del tracking esterno; per quelli creati a mano viene impostata di
-   default a oggi, modificabile), **Tipo Attività** (dedotto dalla colonna
-   "Attività" del tracking esterno per gli importati, da scegliere per quelli
-   manuali) e **Comune** (dedotto dal tracking esterno per gli importati).
-   Questi ultimi tre campi non servono alla pianificazione: alimentano solo
-   le metriche del tab **Analysis** (vedi più sotto). Dalla stessa scheda
+   contattarlo sul campo, eventuale non-prima-del/scadenza informativi,
+   **Codice Esterno (Ods)** (normalmente compilato dall'import, ma
+   modificabile anche a mano da qui), **Op.** (campo libero, es. sigla
+   dell'operatore/Operazione), **Data Dispacciamento** (per gli importati è
+   la "Data in. al + presto" del tracking esterno; per quelli creati a mano
+   viene impostata di default a oggi, modificabile), **Tipo Attività**
+   (codice SM01-SM05, dedotto dalla colonna "Tipo di ordine" del tracking
+   esterno per gli importati, da scegliere per quelli manuali — un pulsante
+   **"ℹ Legenda"** accanto al campo mostra il significato di ciascun
+   codice) e **Comune** (dedotto dal tracking esterno per gli importati).
+   Questi campi non servono alla pianificazione: alimentano solo le metriche
+   del tab **Analysis** (vedi più sotto). Per gli interventi importati dal
+   tracking Sicuritalia, la scheda mostra anche — in sola lettura —
+   **Richiesta d'Acquisto**, **Cod. Cliente**, **Cod. Equipment** e **Prezzo
+   Importato (€)**: sono sempre aggiornati dall'ultimo import, non
+   modificabili da qui. Il **Ricavo (€)** dell'intervento (usato per
+   calcolare la produzione della squadra) è anch'esso in sola lettura nella
+   scheda: si compone con il pulsante **"💶 Componi Ricavo"** nell'elenco
+   Interventi (vedi "Listino e Ricavo" più sotto). Dalla stessa scheda
    **"Modifica"** puoi anche cambiare la **Squadra Assegnata** di un
    intervento già pianificato (o assegnarne una a uno "Da pianificare"):
    utile per correggere a mano un'assegnazione senza dover rimuovere e
@@ -254,11 +262,9 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    **"🏷️ Per tipologia"** mostrano invece, indipendentemente dal Dal/Al
    scelto, ogni intervento geocodificato colorato rispettivamente per
    **Stato** (Da pianificare/Pianificato/Completato, legenda sotto la
-   mappa) o per **Tipo Attività** (Installazione Periferica, Installazione
-   WiComm, Manutenzione Correttiva, Manutenzione Ispettiva, Smontaggio,
-   Integrazione Impianto, Scarico Immagini, Installazione Filare, Altro,
-   "(non specificato)" per chi non lo ha valorizzato — legenda sotto la
-   mappa) — utile per una visione d'insieme del territorio, non solo di ciò
+   mappa) o per **Tipo Attività** (SM01-SM05, Altro, "(non specificato)" per
+   chi non lo ha valorizzato — legenda sotto la mappa, con il significato di
+   ciascun codice) — utile per una visione d'insieme del territorio, non solo di ciò
    che è già pianificato. **Un intervento Sospeso o Annullato non compare
    mai in nessuna delle due viste** (non è più lavoro attivo da mostrare sul
    territorio); **"Per tipologia" nasconde anche i Completati** (mostra solo
@@ -734,165 +740,103 @@ foglio invece di usare i form della Web App. In quel caso:
   intervento/squadra non è geocodificato/a (né in automatico né a mano), la
   pianificazione darà errore "indirizzo non geocodificato".
 
-### Importare gli interventi da un tracking esterno
+### Importare gli interventi da un file Excel (tracking Sicuritalia)
 
-Se gestisci già gli interventi in un altro sistema (es. un export con colonne
-Ods/Attività/Tecnico/Data Appuntamento) puoi portarli negli Interventi della
-Web App senza doverli ricopiare a mano: nella Web App, tab **Interventi**,
-premi **"📥 Importa da tracking esterno"**. Il pulsante legge **direttamente
-la prima tab** del foglio Google esterno indicato nella regola
-**`foglioImportEsternoId`** (tab Regole, valore di default già impostato
-sull'ID del foglio di tracking del cliente) — non serve copiare/incollare
-nulla. Il foglio esterno deve avere una riga di intestazione con (almeno) le
-colonne Nome Cliente e Indirizzo (obbligatorie: **Ods no**, vedi sotto) e,
-se presenti, anche Ods, Attività, Data Disp., Data Scadenza, Urgente, Note
-Sicuritalia, Stato, Note Site, Data App., Ora App., Tecnico, Importo ODS,
-Comune, Provincia, Telefono — le colonne si riconoscono per **nome
-dell'intestazione**, quindi il loro ordine nel foglio esterno può essere
-qualsiasi. Se cambia il foglio da cui importare (o l'ID è sbagliato/il
-foglio non è condiviso), basta aggiornare il valore di
-`foglioImportEsternoId` in Regole: **il foglio esterno deve essere
-condiviso in scrittura** (non solo lettura) con l'account Google che esegue
-la Web App — serve perché l'import vi scrive un marcatore per riconoscere
-le righe già importate (vedi sotto) — altrimenti l'import segnala
-chiaramente l'errore.
+Nel tab **Interventi**, premi **"📥 Importa da Excel"**: si apre il
+selettore file del browser, scegli il file `.xlsx` del tracking Sicuritalia
+(l'estrazione avviene **interamente lato client**, tramite la libreria
+[SheetJS](https://sheetjs.com) caricata da CDN al primo utilizzo — nessun
+dato del file transita altrove prima di essere inviato al server della Web
+App). Le colonne si leggono per **posizione fissa** (lettera di colonna),
+non per nome di intestazione:
 
-**L'elaborazione parte dalla prima riga di dati e si ferma alla prima riga
-non compilata** (né Ods né Nome Cliente né Indirizzo): il foglio esterno
-tipicamente ha centinaia di righe "modello" vuote sotto i dati veri (con
-solo la casella Urgente valorizzata a FALSE di default), che quindi non
-vengono nemmeno scandite.
+| Colonna file | Campo Intervento |
+|---|---|
+| B (Tipo di ordine) | Tipo Attività (codice SM01-SM05) |
+| C (Ordine) + D (Operazione) | Codice Esterno (Ods), come `Ordine-Operazione` |
+| D (Operazione) | Op. |
+| M (Richiesta d'acquisto) | Richiesta d'Acquisto (sola lettura) |
+| N (Data in. al + presto) | Data Dispacciamento |
+| R (Prezzo) | Prezzo Importato (sola lettura) |
+| U (Nome lista) | Cliente |
+| V (Via) + W (Località) + Y (Provincia) | Indirizzo (concatenato, geocodificato automaticamente) |
+| W (Località) | Comune |
+| X (Cliente) | Cod. Cliente (sola lettura) |
+| Y (Provincia) | usata anche per il filtro regioni (vedi sotto) |
+| Z (Equipment) | Cod. Equipment (sola lettura) |
 
-Cosa succede per ogni riga compilata (Nome Cliente + Indirizzo valorizzati):
+**Perché Ordine+Operazione e non solo Ordine**: nel file Sicuritalia la sola
+colonna "Ordine" (C) non è univoca — più righe possono condividere lo
+stesso Ordine con Operazioni diverse (stesso indirizzo, date/prezzi
+differenti): la coppia Ordine+Operazione lo è sempre, ed è quindi la chiave
+usata per riconoscere un intervento già importato in un import successivo
+(vedi sotto).
 
-- **Cliente e indirizzo** (Indirizzo + Comune + Provincia) vengono presi
-  così come sono e **geocodificati automaticamente**, come per un intervento
-  inserito a mano;
-- **Urgente** spuntato diventa priorità "Urgente", altrimenti "Normale";
-- **"Data Disp." NON diventa mai "Non Prima Del"** (quel campo resta sempre
-  vuoto per le righe importate: nel tracking esterno si è rivelato
-  inaffidabile come VINCOLO e bloccava "Riempi buchi"/pianificazione
-  automatica su interventi in realtà disponibili) — viene però riportata
-  come **Data Dispacciamento**, un campo puramente informativo per il tab
-  Analysis: qui un dato impreciso non blocca nessuna pianificazione, quindi
-  lo stesso problema di affidabilità non si ripresenta; **"Attività" e
-  "Comune" diventano Tipo Attività e Comune** (usati anch'essi solo dal tab
-  Analysis: un'Attività non tra quelle note diventa "Altro"); **"Data
-  Scadenza" viene importata normalmente come "Scadenza"** — ma non è un
-  vincolo rigido: un intervento che supera la scadenza resta pianificabile,
-  semplicemente con la massima priorità (vedi sopra, tab Dashboard);
-  **Telefono** viene riportato così com'è; **Importo ODS** diventa il
-  **Ricavo (€)** dell'intervento;
-- la **durata stimata** viene dedotta da "Attività" (ed eventualmente
-  dall'"Importo ODS", per le attività graduate a fasce), secondo la
-  legenda in `LEGENDA_DURATA_ATTIVITA_` (`gas/Import.gs`):
+**Selezione delle regioni da importare**: dopo aver letto il file, un popup
+mostra l'elenco delle **regioni italiane presenti nel file** (dedotte dalla
+sigla provincia in colonna Y tramite una tabella provincia→regione
+integrata, valida per tutte le sigle ufficiali italiane), ciascuna col
+numero di righe corrispondenti — utile per importare un file che copre
+tutta Italia **gradualmente**, una o più regioni alla volta, ricaricando lo
+stesso file più avanti per le regioni ancora da fare. "Seleziona tutte" /
+"Deseleziona tutte" per velocizzare la scelta.
 
-  | Attività | Durata |
-  |---|---|
-  | Installazione Periferica | 120 min |
-  | Installazione WiComm | Importo ODS ≤ 280€ → 240 min · ≤ 350€ → 360 min · oltre → 480 min |
-  | Manutenzione correttiva | 60 min |
-  | Manutenzione ispettiva | 60 min |
-  | Smontaggio | 45 min |
-  | Integrazione impianto | Importo ODS ≤ 130€ → 120 min · ≤ 270€ → 240 min · oltre → 480 min |
-  | Scarico immagini | 120 min |
-  | Installazione filare | Importo ODS ≤ 280€ → 240 min · ≤ 350€ → 360 min · oltre → 480 min |
+**Tipo Attività e durata stimata**: la colonna "Tipo di ordine" (B) diventa
+direttamente il codice Tipo Attività — un pulsante **"ℹ Legenda"** (accanto
+al campo, nella scheda Intervento, e nella legenda sotto la mappa "Per
+tipologia" della Dashboard) ne mostra il significato:
 
-  Se l'Attività non è tra queste (o manca l'Importo ODS per una graduata a
-  fasce), la durata non viene toccata: resta il default dello schema (60
-  min);
-- **Attività, Stato (del tracking esterno), Note Sicuritalia e Note Site**
-  vengono uniti in un unico campo "Note", per non perdere nessuna
-  informazione anche se non hanno una colonna dedicata;
-- lo **Stato** del tracking esterno (testo libero, non standardizzato) viene
-  comunque mappato sui 7 stati dell'Intervento **per parola contenuta**, così
-  regge qualunque dicitura usata dal tuo sistema senza doverne conoscere
-  l'elenco esatto:
-  - contiene "sospes" → uno dei tre stati di sospensione, scelto cercando
-    nello stesso testo le sigle "ys"/"zp"/"zc" (es. "Sospeso YS" →
-    **Sospeso - ys**); se "sospes" compare senza nessuna delle tre sigle
-    riconoscibili, ricade su **Sospeso - ys** come sospensione generica —
-    **da verificare/correggere se il tuo tracking esterno usa una dicitura
-    diversa per distinguere le tre**, dato che questa corrispondenza è stata
-    implementata come ipotesi ragionevole, non confermata. In ogni caso
-    l'import registra la sospensione anche nello storico sospensioni
-    dell'intervento (non solo nel campo Note), con nota "Importato dal
-    tracking esterno (Stato: ...)";
-  - contiene "annullat"/"revocat"/"disdett"/"cancellat" → **Annullato**;
-  - contiene "complet"/"chius"/"eseguit"/"risolt" → **Completato**;
-  - altrimenti, se **Tecnico** corrisponde al nome di una Squadra esistente
-    **e** "Data App." è compilata (un appuntamento è di fatto fissato,
-    qualunque sia la dicitura esatta, es. "Appuntamentato") → **Pianificato**,
-    per quella squadra/data/ora (Ora App. se presente): da quel momento è un
-    intervento pianificato a tutti gli effetti, modificabile/spostabile
-    esattamente come una pianificazione fatta dalla Web App (compare nella
-    tab Dashboard, si può rimuovere/completare/annullare, o spostare su
-    un'altra squadra/giorno dalla mappa di selezione) — con l'unica
-    differenza che l'import **non ricalcola il percorso** di quella
-    squadra/giorno: l'orario riportato è quello del tracking esterno così
-    com'è, non verificato contro le altre tappe. "Riempi buchi" resta comunque
-    al sicuro da sovrapposizioni anche su questi dati (ordina sempre le tappe
-    già pianificate per l'orario reale, non per l'ordine con cui sono state
-    importate), ma un doppio appuntamento inserito per errore nel tracking
-    esterno sulla stessa fascia oraria va comunque corretto a mano;
-  - in ogni altro caso (es. "Giacente") → **Da pianificare**, e sarà il
-    motore a deciderne la pianificazione.
+| Codice | Significato | Durata stimata |
+|---|---|---|
+| SM01 | Installazione | Prezzo ≤ 120€ → 120 min · ≤ 240€ → 240 min · ≤ 350€ → 360 min · oltre → 480 min |
+| SM02 | Manutenzione Correttiva | 60 min |
+| SM03 | Manutenzione Predittiva | 60 min |
+| SM04 | Smontaggio | 60 min |
+| SM05 | Sopralluogo | 60 min |
 
-  Quando Tecnico/Data App. sono valorizzati, squadra/data/ora vengono
-  riportati indipendentemente dallo stato risultante (anche per un
-  intervento importato come Completato o Annullato), per non perdere la
-  traccia di chi e quando lo ha eseguito. Se l'intervento è già stato preso
-  in carico dalla Web App (già oltre "Da pianificare": pianificato dal
-  motore o a mano, completato, annullato), stato/squadra/data/ora **non
-  vengono più toccati** da un successivo import, qualunque cosa dica nel
-  frattempo il tracking esterno — solo i campi anagrafici restano
-  aggiornabili (vedi sotto);
-- se presente, l'**Ods diventa il "Codice Esterno"** dell'intervento, usato
-  per **riconciliare** le righe tra un import e l'altro. **Se "Ods" è
-  assente** la riga viene **importata comunque** (non saltata), senza
-  Codice Esterno, con una nota di avviso "⚠ Importato senza Ods nel
-  tracking esterno" sull'intervento, perché senza quel codice non c'è modo
-  di riconoscerla in un futuro re-import.
+Un codice non tra questi diventa "Altro" e non modifica la durata (resta il
+default dello schema, 60 min).
 
-**Comportamento sui re-import**: una riga **con Ods** viene sempre
-riconciliata con l'Intervento corrispondente (via Codice Esterno) — se
-esiste già, i suoi **campi anagrafici vengono aggiornati** con i valori
-attuali del foglio esterno (cliente, indirizzo, priorità, date, note,
-telefono, ricavo, durata: se cambi qualcosa sul tracking esterno — es. il
-numero di telefono, o lo stato passa a "completato"/"annullato" — un nuovo
-import lo riporta sull'Intervento **senza creare una riga duplicata**); se
-non esiste ancora, viene creato. Una riga **senza Ods**, non avendo alcuna
-chiave su cui riconciliare, viene invece importata **una sola volta** e poi
-marcata **direttamente sul foglio esterno** (colonna "Importato Web App",
-creata automaticamente se assente): i run successivi la saltano e restano
-"congelate" — eventuali modifiche successive a quella riga specifica non
-verranno più riportate.
+**Comportamento sui re-import**: un Ods (Ordine-Operazione) già presente su
+un Intervento esistente **aggiorna** quell'Intervento (cliente, indirizzo,
+comune, Tipo Attività, durata stimata, Data Dispacciamento, Richiesta
+d'Acquisto, Cod. Cliente, Cod. Equipment, Prezzo Importato) — **senza mai
+creare un duplicato** e **senza mai toccare** stato, squadra assegnata,
+data/ora pianificata, ordine tappa, Ricavo o voci di listino: questi campi
+restano sempre sotto controllo esclusivo della Web App (pianificazione,
+"Componi Ricavo"). Un Ods non ancora presente crea un nuovo Intervento in
+stato "Da pianificare". **A differenza del vecchio meccanismo di import da
+foglio Google, qui non esiste alcun annullamento automatico** per un Ods
+che non compare più in un import: sarebbe pericoloso proprio perché
+l'import è tipicamente **parziale** (una o poche regioni alla volta) — un
+Intervento importato in precedenza e non presente nel batch corrente resta
+semplicemente inalterato.
 
-**Righe cancellate dal tracking esterno**: se un Ods che era presente in un
-import precedente non compare più tra le righe compilate (la riga è stata
-rimossa dal foglio esterno), l'Intervento corrispondente passa
-automaticamente ad **"Annullato"** — qualunque fosse il suo stato prima
-(anche se già Pianificato o Completato dalla Web App: il tracking esterno è
-considerato la fonte di verità su quali Ods sono ancora attivi). Riguarda
-solo gli Interventi con un Codice Esterno: uno creato a mano nella Web App
-non viene mai toccato da questo meccanismo. Se in seguito lo stesso Ods
-ricompare nel foglio esterno, l'Intervento **torna disponibile**
-automaticamente (rivalutato da zero in base a Stato/Tecnico/Data App., come
-per un import normale) — a meno che nel frattempo un operatore non lo abbia
-annullato di proposito dalla Web App per altri motivi: quell'annullamento
-manuale resta invece protetto e non viene mai "resuscitato" da un
-re-import. Per prudenza, se il foglio esterno risultasse del tutto vuoto
-(0 righe), questo passaggio non viene eseguito — un foglio vuoto indica più
-probabilmente un problema di configurazione/accesso che l'intenzione di
-annullare tutto.
+**File di migliaia di righe**: l'elaborazione avviene **a lotti** (150 righe
+per chiamata al server, per restare comodamente dentro il limite di 6
+minuti di esecuzione di Apps Script anche su file molto grandi): una barra
+di avanzamento nel popup mostra quante righe sono state elaborate; se un
+lotto scade per tempo, il client lo ripete automaticamente sul segmento
+restante prima di passare al successivo. Al termine, la Web App mostra
+quanti Interventi sono stati creati, quanti aggiornati e quanti falliti
+(con il dettaglio delle prime righe in errore, tipicamente indirizzo non
+geocodificabile o dati obbligatori mancanti).
 
-Al termine, la Web App mostra quanti interventi sono stati creati, quanti
-aggiornati, quanti già importati in precedenza senza Ods (marcatore
-trovato, nessuna azione), quanti annullati perché rimossi dal tracking
-esterno, quanti saltati (Nome Cliente o Indirizzo mancanti) e quanti
-falliti (tipicamente indirizzo non geocodificabile — questi ultimi non
-vengono marcati, così un run successivo li ritenta dopo la correzione),
-coi dettagli riga per riga.
+### Listino e Ricavo
+
+Il tab **Listino** (solo Admin) contiene le voci di prezzo concordate (voce,
+descrizione, prezzo — precaricate al primo avvio con il listino Sicuritalia
+in vigore, modificabili/aggiungibili/eliminabili liberamente in seguito).
+Il **Ricavo (€)** di un Intervento non si scrive più a mano: si compone col
+pulsante **"💶 Componi Ricavo"** nell'elenco Interventi, che apre un popup
+con l'elenco delle voci di listino (ricercabile) — seleziona una o più voci
+e indica la quantità per ciascuna, il Ricavo è la somma dei subtotali
+(prezzo unitario × quantità, sempre ricalcolato sul prezzo di listino
+**attuale** al momento del salvataggio). Se il Ricavo composto risulta
+**inferiore al Prezzo Importato** dal tracking esterno per quell'Intervento,
+l'Admin riceve una notifica dedicata (campanella) per valutare un
+adeguamento — capita anche automaticamente durante un re-import, se il
+Prezzo importato aumenta oltre il Ricavo già composto in precedenza.
 
 ## Nota sul servizio Google Maps e sulle prestazioni
 

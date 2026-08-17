@@ -1167,10 +1167,9 @@ function calcolaRiempimentoBuco_(squadraId, giornoStr, vincolaOrariFissati) {
   var tuttiInterventi = assicuraIdTutti_('INTERVENTI');
   // Ordina per orario reale (oraPianificata), NON per ordineTappa: quest'ultimo è affidabile solo
   // per le tappe scritte dal motore stesso (che lo mantiene sempre coerente con l'orario). Un
-  // intervento portato a "Pianificato" dall'import esterno (importaInterventiEsterni, che non
-  // imposta mai ordineTappa) o riassegnato a mano a un'altra squadra da "Modifica" (che lascia
-  // l'ordineTappa della vecchia squadra) può avere un ordineTappa assente o senza più senso per
-  // questa squadra/giorno. Le funzioni di riempimento sotto (riempiBucoSenzaSpostare_,
+  // intervento riassegnato a mano a un'altra squadra da "Modifica" (che lascia l'ordineTappa
+  // della vecchia squadra) può avere un ordineTappa assente o senza più senso per questa
+  // squadra/giorno. Le funzioni di riempimento sotto (riempiBucoSenzaSpostare_,
   // estendiPercorsoEsistente_) trattano `giaPianificati` come ancore già in ordine cronologico: se
   // quell'assunzione viene violata, possono calcolare "buchi" sbagliati e inserire un nuovo
   // intervento sovrapposto a uno già fisso, oppure risultare in uno spostamento enorme e

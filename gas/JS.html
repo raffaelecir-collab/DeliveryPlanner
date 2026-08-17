@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  var state = { schema: {}, squadre: [], utente: '', ruolo: 'Admin', squadraId: '' };
+  var state = { schema: {}, squadre: [], utente: '', ruolo: 'Admin', squadraId: '', legendaTipoAttivita: {} };
   var modalState = { schemaKey: null, editObj: null };
   var pianState = { squadraId: null, giorno: null, disponibili: [], pianificati: [], pianificatiAltrove: [], ordineCorrente: [], anteprima: null, ignoraTettoViaggio: false };
   var analysisState = { caricato: false, dati: null, ricavoVista: 'settimanale', tempiVista: 'cumulativo', nuoviVista: 'cumulativo' };
@@ -10,8 +10,8 @@
   var msMapInstance = null, msLayerGroup = null;
   var notificheState = { aperto: false, pollTimer: null };
 
-  var SAVE_FN = { SQUADRE: 'salvaSquadra', INTERVENTI: 'salvaIntervento' };
-  var DELETE_FN = { SQUADRE: 'eliminaSquadra', INTERVENTI: 'eliminaIntervento' };
+  var SAVE_FN = { SQUADRE: 'salvaSquadra', INTERVENTI: 'salvaIntervento', LISTINO: 'salvaVoceListino' };
+  var DELETE_FN = { SQUADRE: 'eliminaSquadra', INTERVENTI: 'eliminaIntervento', LISTINO: 'eliminaVoceListino' };
 
   // ---------- utilità ----------
   /** Collega un listener solo se l'elemento esiste: un ID mancante (file HTML disallineato) non blocca il resto. */
@@ -207,18 +207,37 @@
     if (view === 'dashboard') caricaDashboard();
     if (view === 'interventi') loadInterventi();
     if (view === 'squadre') loadSquadre();
+    if (view === 'listino') loadListino();
     if (view === 'impostazioni') { loadRegole(); loadLog(); }
     if (view === 'analysis' && !analysisState.caricato) caricaAnalysis();
     if (view === 'miasquadra') caricaMiaSquadra();
   }
 
   // ---------- modale generico basato su schema ----------
+  function etichettaTipoAttivita_(codice) {
+    if (!codice) return codice;
+    var significato = state.legendaTipoAttivita[codice];
+    return significato ? (codice + ' - ' + significato) : codice;
+  }
+
   function getOptionsForField(field) {
     var opts = [];
-    if (field.options) opts = field.options.map(function (o) { return { value: o, label: o }; });
-    else if (field.optionsFrom === 'SQUADRE') opts = state.squadre.map(function (s) { return { value: s.id, label: s.nome }; });
+    if (field.options) {
+      opts = field.options.map(function (o) { return { value: o, label: field.key === 'tipoAttivita' ? etichettaTipoAttivita_(o) : o }; });
+    } else if (field.optionsFrom === 'SQUADRE') opts = state.squadre.map(function (s) { return { value: s.id, label: s.nome }; });
     if (field.allowEmptyOption) opts = [{ value: '', label: '— Non specificato —' }].concat(opts);
     return opts;
+  }
+
+  function mostraLegendaTipoAttivita_() {
+    var corpo = document.getElementById('dlg-legenda-tipo-attivita-corpo');
+    var codici = Object.keys(state.legendaTipoAttivita);
+    corpo.innerHTML = codici.length
+      ? codici.map(function (cod) {
+          return '<div class="legenda-tipo-riga"><b>' + escapeHtml(cod) + '</b> — ' + escapeHtml(state.legendaTipoAttivita[cod]) + '</div>';
+        }).join('') + '<div class="legenda-tipo-riga"><b>Altro</b> — codice non tra quelli noti (SM01-SM05)</div>'
+      : '<div class="empty-hint">Legenda non disponibile.</div>';
+    document.getElementById('dlg-legenda-tipo-attivita').classList.remove('hidden');
   }
 
   function openModal(schemaKey, existingObj) {
@@ -231,12 +250,39 @@
     var form = document.getElementById('modal-form');
     form.innerHTML = '';
     def.fields.forEach(function (field) {
+      if (field.readonly && field.mostraInForm && existingObj && existingObj[field.key] !== undefined && existingObj[field.key] !== null && existingObj[field.key] !== '') {
+        var wrapSoloLettura = document.createElement('div');
+        wrapSoloLettura.className = 'field field-readonly';
+        var labelSoloLettura = document.createElement('label');
+        labelSoloLettura.textContent = field.label;
+        var valoreSoloLettura = document.createElement('div');
+        valoreSoloLettura.className = 'field-readonly-value';
+        valoreSoloLettura.textContent = field.type === 'number' ? formatEuroClient(existingObj[field.key]) : String(existingObj[field.key]);
+        wrapSoloLettura.appendChild(labelSoloLettura);
+        wrapSoloLettura.appendChild(valoreSoloLettura);
+        if (field.help) {
+          var helpSoloLettura = document.createElement('div');
+          helpSoloLettura.className = 'field-help';
+          helpSoloLettura.textContent = field.help;
+          wrapSoloLettura.appendChild(helpSoloLettura);
+        }
+        form.appendChild(wrapSoloLettura);
+        return;
+      }
       if (field.readonly) return;
       var wrap = document.createElement('div');
       wrap.className = 'field';
       var label = document.createElement('label');
       label.textContent = field.label + (field.required ? ' *' : '');
       wrap.appendChild(label);
+      if (field.key === 'tipoAttivita') {
+        var btnLegenda = document.createElement('button');
+        btnLegenda.type = 'button';
+        btnLegenda.className = 'btn-legenda-inline';
+        btnLegenda.textContent = 'ℹ Legenda';
+        btnLegenda.addEventListener('click', mostraLegendaTipoAttivita_);
+        wrap.appendChild(btnLegenda);
+      }
 
       if (field.type === 'giorni') {
         var selezionatiGiorni = splitListClient(existingObj && existingObj[field.key] !== undefined ? existingObj[field.key] : (field.default || ''));
@@ -461,6 +507,7 @@
   function reloadAfterSave(schemaKey) {
     if (schemaKey === 'SQUADRE') loadSquadre().then(populaSelectSquadra).then(caricaDashboard);
     if (schemaKey === 'INTERVENTI') { loadInterventi(); caricaDashboard(); }
+    if (schemaKey === 'LISTINO') loadListino();
   }
 
   // ---------- Squadre ----------
@@ -560,6 +607,161 @@
     });
   }
 
+  // ---------- Listino ----------
+  var listinoState = { voci: [] };
+
+  function loadListino() {
+    return callServer('listaListino').then(function (list) {
+      listinoState.voci = list;
+      renderListino();
+      return list;
+    });
+  }
+
+  function listinoFiltrato_() {
+    var campo = document.getElementById('listino-search');
+    var q = campo ? campo.value.trim().toLowerCase() : '';
+    if (!q) return listinoState.voci;
+    return listinoState.voci.filter(function (v) {
+      return (v.voce || '').toLowerCase().indexOf(q) !== -1 || (v.descrizione || '').toLowerCase().indexOf(q) !== -1;
+    });
+  }
+
+  function renderListino() {
+    var tbody = document.getElementById('listino-rows');
+    if (!listinoState.voci.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty-hint">Nessuna voce di listino. Aggiungine una.</td></tr>'; return; }
+    var list = listinoFiltrato_();
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty-hint">Nessuna voce corrisponde alla ricerca.</td></tr>'; return; }
+    tbody.innerHTML = list.map(function (v) {
+      return '<tr>' +
+        '<td>' + escapeHtml(v.voce) + '</td>' +
+        '<td>' + escapeHtml(v.descrizione || '') + '</td>' +
+        '<td>' + formatEuroClient(v.prezzo) + '</td>' +
+        '<td class="row-actions">' +
+          '<button class="btn-icon" data-action="modifica" data-row="' + v._row + '" title="Modifica">' + ICONA_MATITA_ + '</button>' +
+          '<button class="btn-icon danger" data-action="elimina" data-row="' + v._row + '" title="Elimina">' + ICONA_CESTINO_ + '</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  function setupListinoTab() {
+    on('btn-nuova-voce-listino', 'click', function () { openModal('LISTINO', null); });
+    on('listino-search', 'input', function () { renderListino(); });
+    onQuery('#listino-rows', 'click', function (e) {
+      var btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      var row = parseInt(btn.dataset.row, 10);
+      var obj = listinoState.voci.filter(function (v) { return v._row === row; })[0];
+      if (!obj) return;
+      if (btn.dataset.action === 'modifica') openModal('LISTINO', obj);
+      if (btn.dataset.action === 'elimina') {
+        if (!window.confirm('Eliminare definitivamente la voce di listino "' + obj.voce + '"?')) return;
+        callServer('eliminaVoceListino', obj.id, obj._row).then(function () { toast('Voce di listino eliminata.', 'success'); loadListino(); })
+          .catch(function (err) { toast(err.message || String(err), 'error'); });
+      }
+    });
+  }
+
+  // ---------- Componi Ricavo (Admin, dal tab Interventi): seleziona voci di listino con quantità ----------
+  var componiRicavoState = { id: null, row: null, quantitaEsistenti: {} };
+
+  function apriComponiRicavo(obj) {
+    componiRicavoState.id = obj.id;
+    componiRicavoState.row = obj._row;
+    document.getElementById('dlg-componi-ricavo-titolo').textContent = 'Componi Ricavo — ' + obj.cliente;
+    var prezzoHint = document.getElementById('componi-ricavo-prezzo-hint');
+    prezzoHint.textContent = isNumClient(obj.prezzo)
+      ? ('Prezzo importato dal tracking esterno: ' + formatEuroClient(obj.prezzo) + ' — se il Ricavo composto risulta inferiore, l\'Admin riceverà una notifica per adeguarlo.')
+      : 'Seleziona una o più voci di listino e la relativa quantità: il Ricavo è la somma dei subtotali.';
+    var selezione = {};
+    try {
+      var esistenti = JSON.parse(obj.vociListino || '[]');
+      if (Array.isArray(esistenti)) esistenti.forEach(function (v) { selezione[v.voce] = v.quantita; });
+    } catch (e) { /* vociListino assente o non valido: nessuna preselezione */ }
+    componiRicavoState.quantitaEsistenti = selezione;
+    var campoRicerca = document.getElementById('componi-ricavo-search');
+    if (campoRicerca) campoRicerca.value = '';
+    var mostraDialog = function () {
+      renderComponiRicavoTabella_();
+      document.getElementById('dlg-componi-ricavo').classList.remove('hidden');
+    };
+    if (listinoState.voci.length) mostraDialog();
+    else loadListino().then(mostraDialog).catch(function (err) { toast(err.message || String(err), 'error'); });
+  }
+
+  function componiRicavoFiltrati_() {
+    var campo = document.getElementById('componi-ricavo-search');
+    var q = campo ? campo.value.trim().toLowerCase() : '';
+    if (!q) return listinoState.voci;
+    return listinoState.voci.filter(function (v) {
+      return (v.voce || '').toLowerCase().indexOf(q) !== -1 || (v.descrizione || '').toLowerCase().indexOf(q) !== -1;
+    });
+  }
+
+  function renderComponiRicavoTabella_() {
+    var tbody = document.getElementById('componi-ricavo-rows');
+    var list = componiRicavoFiltrati_();
+    tbody.innerHTML = list.map(function (v) {
+      var qtyEsistente = componiRicavoState.quantitaEsistenti[v.voce];
+      var checked = qtyEsistente !== undefined && qtyEsistente !== null;
+      var qtyVal = checked ? qtyEsistente : 1;
+      return '<tr data-voce="' + escapeHtml(v.voce) + '">' +
+        '<td><input type="checkbox" class="cr-check" ' + (checked ? 'checked' : '') + '></td>' +
+        '<td>' + escapeHtml(v.voce) + '</td>' +
+        '<td>' + escapeHtml(v.descrizione || '') + '</td>' +
+        '<td>' + formatEuroClient(v.prezzo) + '</td>' +
+        '<td><input type="number" class="cr-qty" min="0.01" step="0.01" value="' + qtyVal + '" style="width:70px" ' + (checked ? '' : 'disabled') + '></td>' +
+        '<td class="cr-subtot">' + formatEuroClient((v.prezzo || 0) * qtyVal) + '</td>' +
+      '</tr>';
+    }).join('');
+    aggiornaTotaleComponiRicavo_();
+  }
+
+  function aggiornaTotaleComponiRicavo_() {
+    var totale = 0;
+    document.querySelectorAll('#componi-ricavo-rows tr').forEach(function (tr) {
+      var check = tr.querySelector('.cr-check');
+      var qtyInput = tr.querySelector('.cr-qty');
+      var subtotEl = tr.querySelector('.cr-subtot');
+      var voceObj = listinoState.voci.filter(function (v) { return v.voce === tr.dataset.voce; })[0];
+      if (check.checked) {
+        var qty = parseFloat(qtyInput.value) || 0;
+        var subtot = (voceObj ? voceObj.prezzo : 0) * qty;
+        subtotEl.textContent = formatEuroClient(subtot);
+        totale += subtot;
+      } else {
+        subtotEl.textContent = formatEuroClient(0);
+      }
+    });
+    document.getElementById('componi-ricavo-totale').textContent = 'Totale: ' + formatEuroClient(totale);
+  }
+
+  function raccogliSelezioneComponiRicavo_() {
+    var voci = [];
+    document.querySelectorAll('#componi-ricavo-rows tr').forEach(function (tr) {
+      var check = tr.querySelector('.cr-check');
+      if (!check.checked) return;
+      var qty = parseFloat(tr.querySelector('.cr-qty').value);
+      if (!qty || qty <= 0) return;
+      voci.push({ voce: tr.dataset.voce, quantita: qty });
+    });
+    return voci;
+  }
+
+  function salvaComponiRicavo() {
+    var voci = raccogliSelezioneComponiRicavo_();
+    if (!voci.length) { toast('Seleziona almeno una voce di listino.', 'error'); return; }
+    var btn = document.getElementById('btn-salva-componi-ricavo');
+    btn.disabled = true;
+    callServer('componiRicavoIntervento', componiRicavoState.id, componiRicavoState.row, voci).then(function () {
+      toast('Ricavo composto e salvato.', 'success');
+      document.getElementById('dlg-componi-ricavo').classList.add('hidden');
+      loadInterventi();
+      caricaDashboard();
+    }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () { btn.disabled = false; });
+  }
+
   // ---------- Interventi ----------
   var ICONA_PAUSA_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M10 9v6M14 9v6"></path></svg>';
   var ICONA_CHECK_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>';
@@ -567,6 +769,7 @@
   var ICONA_STORIA_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3.5 2"></path></svg>';
   var ICONA_NOTA_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"></path><path d="M14 3v6h6"></path><path d="M8 13h8M8 17h5"></path></svg>';
   var ICONA_ANNULLA_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M9 9l6 6M15 9l-6 6"></path></svg>';
+  var ICONA_RICAVO_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7a7.5 7.5 0 1 0 0 10"></path><path d="M3.5 10h10M3.5 14h8"></path></svg>';
   var ICONA_DOCUMENTO_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 6.5 9 14a2.1 2.1 0 0 1-3-3l7.5-7.5a3.5 3.5 0 0 1 5 5L11 16"></path></svg>';
 
   var STATI_SOSPENSIONE_CLIENT_ = ['Sospeso - ys', 'Sospeso - zp', 'Sospeso - zc'];
@@ -684,6 +887,7 @@
       var azioniHtml = '';
       if (isAdmin) {
         azioniHtml += '<button class="btn-icon" data-action="modifica" data-row="' + i._row + '" title="Modifica">' + ICONA_MATITA_ + '</button>';
+        azioniHtml += '<button class="btn-icon" data-action="componi-ricavo" data-row="' + i._row + '" title="Componi Ricavo">' + ICONA_RICAVO_ + '</button>';
       }
       azioniHtml += '<button class="btn-icon" data-action="nota" data-row="' + i._row + '" title="Aggiungi nota">' + ICONA_NOTA_ + '</button>';
       azioniHtml += '<button class="btn-icon" data-action="documenti" data-row="' + i._row + '" title="Documenti">' + ICONA_DOCUMENTO_ + '</button>';
@@ -720,13 +924,9 @@
     var righe = [];
     if (r.creati) righe.push(r.creati + ' creati');
     if (r.aggiornati) righe.push(r.aggiornati + ' aggiornati');
-    if (r.giaImportati) righe.push(r.giaImportati + ' già importati in precedenza');
-    if (r.annullatiRimossi) righe.push(r.annullatiRimossi + ' annullati automaticamente (non più nel tracking esterno)');
-    if (r.saltati) righe.push(r.saltati + ' saltati (dati obbligatori mancanti)');
-    if (r.falliti) righe.push(r.falliti + ' falliti (es. indirizzo non trovato)');
-    var haProblemi = r.saltati > 0 || r.falliti > 0 || r.tempoScaduto;
-    var testo = righe.length ? righe.join(' · ') : 'Nessuna riga nuova o aggiornata da importare.';
-    if (r.tempoScaduto) testo += ' — tempo esaurito prima di finire tutte le righe: premi di nuovo "Importa" per completare il resto.';
+    if (r.falliti) righe.push(r.falliti + ' falliti (' + (r.dettagliFalliti && r.dettagliFalliti[0] ? r.dettagliFalliti[0] : 'vedi dettagli') + (r.dettagliFalliti && r.dettagliFalliti.length > 1 ? ' e altri ' + (r.dettagliFalliti.length - 1) : '') + ')');
+    var haProblemi = r.falliti > 0;
+    var testo = righe.length ? righe.join(' · ') : 'Nessuna riga da creare o aggiornare.';
     el.textContent = (haProblemi ? '⚠ ' : '✓ ') + testo;
     el.className = 'import-result show' + (haProblemi ? ' warn' : '');
   }
@@ -737,20 +937,52 @@
     on('filtro-squadra', 'change', onCambiaFiltroNormale_);
     on('interventi-search', 'input', onCambiaFiltroNormale_);
     on('btn-rimuovi-filtro-singolo', 'click', rimuoviFiltroSingoloIntervento_);
-    on('btn-importa-esterno', 'click', function (e) {
-      var btn = e.currentTarget;
+    on('btn-importa-esterno', 'click', function () {
+      document.getElementById('import-esterno-file').click();
+    });
+    on('import-esterno-file', 'change', function (e) {
+      var file = e.target.files && e.target.files[0];
+      e.target.value = ''; // permette di ricaricare lo stesso file una seconda volta
+      if (!file) return;
+      var btn = document.getElementById('btn-importa-esterno');
       btn.disabled = true;
-      callServer('importaInterventiEsterni').then(function (r) {
+      caricaSheetJS_().then(function () {
+        return file.arrayBuffer();
+      }).then(function (buffer) {
+        var workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+        var primoFoglio = workbook.Sheets[workbook.SheetNames[0]];
+        var sheetAoa = XLSX.utils.sheet_to_json(primoFoglio, { header: 1, raw: true, defval: '' });
+        var righe = estraiRigheDaFoglio_(sheetAoa);
+        if (!righe.length) { toast('Il file non contiene righe da importare.', 'error'); return; }
+        apriDialogRegioniImport_(righe);
+      }).catch(function (err) {
+        toast('Impossibile leggere il file: ' + (err.message || err), 'error');
+      }).finally(function () { btn.disabled = false; });
+    });
+    on('btn-import-regioni-tutte', 'click', function () {
+      document.querySelectorAll('#import-regioni-lista input').forEach(function (cb) { cb.checked = true; });
+    });
+    on('btn-import-regioni-nessuna', 'click', function () {
+      document.querySelectorAll('#import-regioni-lista input').forEach(function (cb) { cb.checked = false; });
+    });
+    on('btn-import-regioni-conferma', 'click', function () {
+      var righe = righeSelezionatePerRegioni_();
+      if (!righe.length) { toast('Seleziona almeno una regione.', 'error'); return; }
+      var btnConferma = document.getElementById('btn-import-regioni-conferma');
+      var btnChiudi = document.getElementById('btn-import-regioni-chiudi');
+      btnConferma.disabled = true;
+      btnChiudi.disabled = true;
+      eseguiImportRighe_(righe).then(function (r) {
         renderRisultatoImportEsterno_(r);
-        var haProblemi = r.saltati > 0 || r.falliti > 0;
         var totale = r.creati + r.aggiornati;
-        toast(totale > 0 ? 'Import completato: ' + r.creati + ' creati, ' + r.aggiornati + ' aggiornati.' : 'Nessuna riga da creare o aggiornare (' + r.giaImportati + ' già importate senza Ods).',
-          haProblemi ? 'error' : 'success');
+        toast(totale > 0 ? 'Import completato: ' + r.creati + ' creati, ' + r.aggiornati + ' aggiornati.' + (r.falliti ? (' ' + r.falliti + ' falliti.') : '') : 'Nessuna riga da creare o aggiornare.',
+          r.falliti > 0 ? 'error' : 'success');
+        document.getElementById('dlg-import-regioni').classList.add('hidden');
         loadInterventi();
         return caricaDashboard();
       }).catch(function (err) {
         toast(err.message || String(err), 'error');
-      }).then(function () { btn.disabled = false; });
+      }).finally(function () { btnConferma.disabled = false; btnChiudi.disabled = false; });
     });
     onQuery('#int-rows', 'click', function (e) {
       var btn = e.target.closest('button[data-action]');
@@ -776,6 +1008,7 @@
       if (action === 'nota') { apriNotaIntervento(obj); return; }
       if (action === 'vedi-note') { apriListaNote(obj); return; }
       if (action === 'documenti') { apriDocumentiIntervento(obj); return; }
+      if (action === 'componi-ricavo') { apriComponiRicavo(obj); return; }
       if (action === 'sospendi') { apriSospendiIntervento(obj); return; }
       if (action === 'annulla') { apriAnnullaIntervento(obj); return; }
       if (action === 'fine-sospensione') {
@@ -789,6 +1022,18 @@
     on('btn-salva-modifica-orario', 'click', salvaModificaOrarioTappa_);
     on('btn-salva-annulla', 'click', salvaAnnullaIntervento);
     on('btn-carica-documento', 'click', salvaDocumentoUpload_);
+    on('componi-ricavo-search', 'input', renderComponiRicavoTabella_);
+    on('btn-salva-componi-ricavo', 'click', salvaComponiRicavo);
+    onQuery('#componi-ricavo-rows', 'change', function (e) {
+      if (e.target.classList.contains('cr-check')) {
+        var tr = e.target.closest('tr');
+        tr.querySelector('.cr-qty').disabled = !e.target.checked;
+        aggiornaTotaleComponiRicavo_();
+      }
+    });
+    onQuery('#componi-ricavo-rows', 'input', function (e) {
+      if (e.target.classList.contains('cr-qty')) aggiornaTotaleComponiRicavo_();
+    });
     onQuery('#dlg-documenti-lista', 'click', function (e) {
       var btn = e.target.closest('button[data-action="elimina-doc"]');
       if (!btn) return;
@@ -1245,7 +1490,7 @@
       var popupHtml = '<div class="popup-selezione">' +
         '<strong>' + escapeHtml(i.cliente) + '</strong><br>' +
         escapeHtml(i.indirizzo || '') + '<br>' +
-        (i.tipoAttivita ? 'Tipo attività: ' + escapeHtml(i.tipoAttivita) + '<br>' : '') +
+        (i.tipoAttivita ? 'Tipo attività: ' + escapeHtml(etichettaTipoAttivita_(i.tipoAttivita)) + '<br>' : '') +
         (i.competenza ? 'Competenza: ' + escapeHtml(i.competenza) + '<br>' : '') +
         'Priorità: ' + escapeHtml(i.priorita || '') + ' · ' + (i.durataMinuti || '') + ' min<br>' +
         ((i.finestraInizio || i.finestraFine) ? 'Finestra: ' + (i.finestraInizio || '') + '-' + (i.finestraFine || '') + '<br>' : '') +
@@ -1603,6 +1848,174 @@
     return leafletCaricamento;
   }
 
+  // ---------- import Excel esterno (SheetJS caricato da CDN, stesso pattern di caricaLeaflet_) ----------
+  var sheetJsCaricamento = null;
+
+  function caricaSheetJS_() {
+    if (typeof XLSX !== 'undefined') return Promise.resolve();
+    if (sheetJsCaricamento) return sheetJsCaricamento;
+    sheetJsCaricamento = new Promise(function (resolve, reject) {
+      var timeout = setTimeout(function () { reject(new Error('timeout')); }, 15000);
+      var script = document.createElement('script');
+      script.src = 'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js';
+      script.onload = function () { clearTimeout(timeout); resolve(); };
+      script.onerror = function () { clearTimeout(timeout); reject(new Error('js load error')); };
+      document.head.appendChild(script);
+    }).catch(function (err) {
+      sheetJsCaricamento = null;
+      throw err;
+    });
+    return sheetJsCaricamento;
+  }
+
+  /** Sigla provincia (2 lettere, come in colonna Y del file Sicuritalia) -> Regione italiana. */
+  var PROVINCIA_REGIONE_ = {
+    AQ: 'Abruzzo', CH: 'Abruzzo', PE: 'Abruzzo', TE: 'Abruzzo',
+    MT: 'Basilicata', PZ: 'Basilicata',
+    CZ: 'Calabria', CS: 'Calabria', KR: 'Calabria', RC: 'Calabria', VV: 'Calabria',
+    AV: 'Campania', BN: 'Campania', CE: 'Campania', NA: 'Campania', SA: 'Campania',
+    BO: 'Emilia-Romagna', FC: 'Emilia-Romagna', FE: 'Emilia-Romagna', MO: 'Emilia-Romagna', PR: 'Emilia-Romagna', PC: 'Emilia-Romagna', RA: 'Emilia-Romagna', RE: 'Emilia-Romagna', RN: 'Emilia-Romagna',
+    GO: 'Friuli-Venezia Giulia', PN: 'Friuli-Venezia Giulia', TS: 'Friuli-Venezia Giulia', UD: 'Friuli-Venezia Giulia',
+    FR: 'Lazio', LT: 'Lazio', RI: 'Lazio', RM: 'Lazio', VT: 'Lazio',
+    GE: 'Liguria', IM: 'Liguria', SP: 'Liguria', SV: 'Liguria',
+    BG: 'Lombardia', BS: 'Lombardia', CO: 'Lombardia', CR: 'Lombardia', LC: 'Lombardia', LO: 'Lombardia', MN: 'Lombardia', MI: 'Lombardia', MB: 'Lombardia', PV: 'Lombardia', SO: 'Lombardia', VA: 'Lombardia',
+    AN: 'Marche', AP: 'Marche', FM: 'Marche', MC: 'Marche', PU: 'Marche',
+    CB: 'Molise', IS: 'Molise',
+    AL: 'Piemonte', AT: 'Piemonte', BI: 'Piemonte', CN: 'Piemonte', NO: 'Piemonte', TO: 'Piemonte', VB: 'Piemonte', VC: 'Piemonte',
+    BA: 'Puglia', BT: 'Puglia', BR: 'Puglia', FG: 'Puglia', LE: 'Puglia', TA: 'Puglia',
+    CA: 'Sardegna', NU: 'Sardegna', OR: 'Sardegna', OG: 'Sardegna', OT: 'Sardegna', VS: 'Sardegna', SU: 'Sardegna', SS: 'Sardegna',
+    AG: 'Sicilia', CL: 'Sicilia', CT: 'Sicilia', EN: 'Sicilia', ME: 'Sicilia', PA: 'Sicilia', RG: 'Sicilia', SR: 'Sicilia', TP: 'Sicilia',
+    AR: 'Toscana', FI: 'Toscana', GR: 'Toscana', LI: 'Toscana', LU: 'Toscana', MS: 'Toscana', PI: 'Toscana', PT: 'Toscana', PO: 'Toscana', SI: 'Toscana',
+    BZ: 'Trentino-Alto Adige', TN: 'Trentino-Alto Adige',
+    PG: 'Umbria', TR: 'Umbria',
+    AO: 'Valle d\'Aosta',
+    BL: 'Veneto', PD: 'Veneto', RO: 'Veneto', TV: 'Veneto', VE: 'Veneto', VR: 'Veneto', VI: 'Veneto'
+  };
+
+  function regionePerProvincia_(sigla) {
+    var s = String(sigla || '').trim().toUpperCase();
+    return PROVINCIA_REGIONE_[s] || ('Provincia non riconosciuta: ' + (s || '?'));
+  }
+
+  var importEsternoState = { righe: [], inCorso: false };
+
+  /** Cella Excel (Date object, numero seriale o testo) -> stringa gg/mm/aaaa, come il resto dell'app. */
+  function dataCellPerImport_(cell) {
+    if (!cell) return '';
+    if (cell instanceof Date) {
+      var gg = String(cell.getDate()).padStart(2, '0');
+      var mm = String(cell.getMonth() + 1).padStart(2, '0');
+      return gg + '/' + mm + '/' + cell.getFullYear();
+    }
+    return String(cell).trim();
+  }
+
+  /** Lettura per colonna fissa (A=0, B=1, ... Z=25): indici concordati con l'utente sul file Sicuritalia. */
+  var COLONNE_IMPORT_ESTERNO_ = { tipoOrdine: 1, ordine: 2, operazione: 3, richiestaAcquisto: 12, dataDispacciamento: 13, prezzo: 17, cliente: 20, via: 21, localita: 22, codCliente: 23, provincia: 24, codEquipment: 25 };
+
+  function estraiRigheDaFoglio_(sheetAoa) {
+    // sheetAoa: array di array (righe x colonne), riga 0 = intestazione (ignorata: si legge per posizione fissa).
+    var righe = [];
+    for (var r = 1; r < sheetAoa.length; r++) {
+      var row = sheetAoa[r];
+      if (!row || !row.length) continue;
+      var isEmpty = row.every(function (v) { return v === '' || v === null || v === undefined; });
+      if (isEmpty) continue;
+      var get = function (idx) { return row[idx] === undefined ? '' : row[idx]; };
+      righe.push({
+        tipoOrdine: get(COLONNE_IMPORT_ESTERNO_.tipoOrdine),
+        ordine: get(COLONNE_IMPORT_ESTERNO_.ordine),
+        operazione: get(COLONNE_IMPORT_ESTERNO_.operazione),
+        richiestaAcquisto: get(COLONNE_IMPORT_ESTERNO_.richiestaAcquisto),
+        dataDispacciamento: dataCellPerImport_(get(COLONNE_IMPORT_ESTERNO_.dataDispacciamento)),
+        prezzo: get(COLONNE_IMPORT_ESTERNO_.prezzo),
+        cliente: get(COLONNE_IMPORT_ESTERNO_.cliente),
+        via: get(COLONNE_IMPORT_ESTERNO_.via),
+        localita: get(COLONNE_IMPORT_ESTERNO_.localita),
+        codCliente: get(COLONNE_IMPORT_ESTERNO_.codCliente),
+        provincia: get(COLONNE_IMPORT_ESTERNO_.provincia),
+        codEquipment: get(COLONNE_IMPORT_ESTERNO_.codEquipment)
+      });
+    }
+    return righe;
+  }
+
+  function apriDialogRegioniImport_(righe) {
+    importEsternoState.righe = righe;
+    var conteggioPerRegione = {};
+    righe.forEach(function (r) {
+      var regione = regionePerProvincia_(r.provincia);
+      conteggioPerRegione[regione] = (conteggioPerRegione[regione] || 0) + 1;
+    });
+    var regioni = Object.keys(conteggioPerRegione).sort(function (a, b) { return conteggioPerRegione[b] - conteggioPerRegione[a]; });
+    var lista = document.getElementById('import-regioni-lista');
+    lista.innerHTML = regioni.map(function (regione) {
+      return '<label><input type="checkbox" value="' + escapeHtml(regione) + '"> ' + escapeHtml(regione) + ' (' + conteggioPerRegione[regione] + ')</label>';
+    }).join('');
+    document.getElementById('import-regioni-risultato').className = 'import-result';
+    document.getElementById('import-regioni-risultato').textContent = '';
+    document.getElementById('import-progress-wrap').classList.add('hidden');
+    document.getElementById('dlg-import-regioni').classList.remove('hidden');
+  }
+
+  function righeSelezionatePerRegioni_() {
+    var checked = Array.prototype.slice.call(document.querySelectorAll('#import-regioni-lista input:checked')).map(function (cb) { return cb.value; });
+    var set = {};
+    checked.forEach(function (r) { set[r] = true; });
+    return importEsternoState.righe.filter(function (r) { return set[regionePerProvincia_(r.provincia)]; });
+  }
+
+  var IMPORT_BATCH_SIZE_ = 150;
+
+  function eseguiImportRighe_(righe) {
+    var totale = righe.length;
+    var lotti = [];
+    for (var i = 0; i < totale; i += IMPORT_BATCH_SIZE_) lotti.push(righe.slice(i, i + IMPORT_BATCH_SIZE_));
+
+    var progWrap = document.getElementById('import-progress-wrap');
+    var progFill = document.getElementById('import-progress-fill');
+    var progTesto = document.getElementById('import-progress-testo');
+    progWrap.classList.remove('hidden');
+
+    var creati = 0, aggiornati = 0, falliti = 0, dettagliFalliti = [];
+    var righeFatte = 0;
+
+    function aggiornaProgresso(loteIdx) {
+      var pct = totale ? Math.round((righeFatte / totale) * 100) : 100;
+      progFill.style.width = pct + '%';
+      progTesto.textContent = 'Lotto ' + (loteIdx + 1) + '/' + lotti.length + ' — ' + righeFatte + '/' + totale + ' righe elaborate…';
+    }
+
+    function elaboraLotto(loteIdx) {
+      if (loteIdx >= lotti.length) return Promise.resolve();
+      var lotto = lotti[loteIdx];
+      function chiamaRestoLotto(sottoLotto) {
+        return callServer('importaRigheEsterne', sottoLotto).then(function (r) {
+          creati += r.creati; aggiornati += r.aggiornati; falliti += r.falliti;
+          dettagliFalliti = dettagliFalliti.concat(r.dettagliFalliti || []);
+          // r.prossimoIndice conta le righe elaborate DI QUESTA chiamata (relative a sottoLotto,
+          // non al lotto originale): se il tempo scade a metà, il resto va ancora contato una
+          // volta elaborato dalla chiamata successiva sul segmento restante.
+          righeFatte += r.prossimoIndice;
+          aggiornaProgresso(loteIdx);
+          if (r.tempoScaduto && r.prossimoIndice < sottoLotto.length) {
+            var restante = sottoLotto.slice(r.prossimoIndice);
+            return chiamaRestoLotto(restante);
+          }
+          return null;
+        });
+      }
+      return chiamaRestoLotto(lotto).then(function () {
+        return elaboraLotto(loteIdx + 1);
+      });
+    }
+
+    aggiornaProgresso(-1);
+    return elaboraLotto(0).then(function () {
+      return { creati: creati, aggiornati: aggiornati, falliti: falliti, dettagliFalliti: dettagliFalliti };
+    });
+  }
+
   // ---------- Dashboard (Screen A): mappa + squadre + dettaglio, su un giorno o un intervallo ----------
   var dashState = { dal: null, al: null, selezionata: null, righe: [], mapMode: 'percorsi' };
 
@@ -1841,14 +2254,11 @@
    * automaticamente dal tracking esterno).
    */
   var TIPOLOGIA_MAPPA_ = [
-    { label: 'Installazione Periferica', colore: '#4285F4' },
-    { label: 'Installazione WiComm', colore: '#34A853' },
-    { label: 'Manutenzione Correttiva', colore: '#EA4335' },
-    { label: 'Manutenzione Ispettiva', colore: '#FBBC05' },
-    { label: 'Smontaggio', colore: '#9C27B0' },
-    { label: 'Integrazione Impianto', colore: '#00ACC1' },
-    { label: 'Scarico Immagini', colore: '#FF7043' },
-    { label: 'Installazione Filare', colore: '#5C6BC0' },
+    { label: 'SM01', colore: '#4285F4' },
+    { label: 'SM02', colore: '#EA4335' },
+    { label: 'SM03', colore: '#FBBC05' },
+    { label: 'SM04', colore: '#9C27B0' },
+    { label: 'SM05', colore: '#00ACC1' },
     { label: 'Altro', colore: '#8D6E63' },
     { label: '(non specificato)', colore: '#9aa0a6' }
   ];
@@ -1864,7 +2274,7 @@
     var el = document.getElementById('dash-map-legenda-tipologia');
     if (!el || el.childElementCount) return; // costruita una volta sola, è sempre la stessa
     el.innerHTML = TIPOLOGIA_MAPPA_.map(function (t) {
-      return '<span><span class="legenda-dot" style="background:' + t.colore + '"></span> ' + escapeHtml(t.label) + '</span>';
+      return '<span><span class="legenda-dot" style="background:' + t.colore + '"></span> ' + escapeHtml(etichettaTipoAttivita_(t.label)) + '</span>';
     }).join('') + '<span class="legenda-nota">(sospesi, annullati e completati non sono mostrati in questa vista)</span>';
   }
 
@@ -1961,7 +2371,7 @@
         html: '<div style="background:' + colore + ';width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);"></div>',
         iconSize: [14, 14], iconAnchor: [7, 7]
       });
-      var popup = '<b>' + escapeHtml(i.cliente) + '</b><br>' + escapeHtml(i.indirizzo || '') + '<br>Tipo attività: ' + escapeHtml(etichetta) +
+      var popup = '<b>' + escapeHtml(i.cliente) + '</b><br>' + escapeHtml(i.indirizzo || '') + '<br>Tipo attività: ' + escapeHtml(etichettaTipoAttivita_(etichetta)) +
         '<br>Stato: ' + escapeHtml(i.stato || '');
       L.marker([i.lat, i.lng], { icon: icon }).addTo(dashLayerGroup).bindPopup(popup);
       tuttiPunti.push([i.lat, i.lng]);
@@ -2611,6 +3021,7 @@
     safeRun_('dashboard', setupDashboardTab);
     safeRun_('interventi', setupInterventiTab);
     safeRun_('squadre', setupSquadreTab);
+    safeRun_('listino', setupListinoTab);
     safeRun_('regole', setupRegoleTab);
     safeRun_('analysis', setupAnalysisTab);
     safeRun_('squadra-view', setupSquadraTab);
@@ -2622,6 +3033,7 @@
       state.utente = data.utente;
       state.ruolo = data.ruolo || 'Admin';
       state.squadraId = data.squadraId || '';
+      state.legendaTipoAttivita = data.legendaTipoAttivita || {};
       document.getElementById('utente-corrente').textContent = data.utente;
       applicaRuolo_(state.ruolo);
       safeRun_('notifiche', setupNotifiche);

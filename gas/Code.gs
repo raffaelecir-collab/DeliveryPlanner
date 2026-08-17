@@ -45,7 +45,8 @@ function getBootstrapData() {
     squadre: squadre,
     utente: Session.getActiveUser().getEmail() || '',
     ruolo: ruolo,
-    squadraId: ctx.squadraId || ''
+    squadraId: ctx.squadraId || '',
+    legendaTipoAttivita: LEGENDA_TIPO_ATTIVITA_
   };
 }
 

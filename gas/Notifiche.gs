@@ -48,6 +48,26 @@ function creaNotificaIntervento_(intervento, evento, ruoloAttore) {
 }
 
 /**
+ * Notifica SOLO l'Admin, anche quando l'attore dell'evento è l'Admin stesso: eccezione esplicita
+ * alla regola generale "mai notificare lo stesso ruolo che ha causato l'evento" (vedi
+ * notificaDestinatariDiRuolo_/creaNotificaIntervento_), usata per avvisi che l'Admin deve
+ * ricevere a prescindere da chi/cosa ha innescato l'evento (es. Ricavo composto inferiore al
+ * Prezzo importato dal tracking esterno — vedi Import.gs e "Componi Ricavo" in JS.html).
+ */
+function creaNotificaSoloAdmin_(intervento, evento) {
+  upsertRow_('NOTIFICHE', {
+    timestamp: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'),
+    interventoId: intervento.id || '',
+    interventoRow: intervento._row,
+    codiceEsterno: intervento.codiceEsterno || '',
+    cliente: intervento.cliente || '',
+    evento: evento,
+    destinatario: RUOLO.ADMIN,
+    letto: false
+  });
+}
+
+/**
  * Notifiche per il ruolo dell'utente corrente (solo Admin/Cliente hanno una campanella), più
  * recenti prima, limitate alle ultime 40 per non appesantire il payload. `nonLette` è il conteggio
  * REALE (non limitato alle 40 restituite) usato per il pallino sulla campanella.

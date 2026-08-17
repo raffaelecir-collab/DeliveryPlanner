@@ -9,38 +9,9 @@ var SHEET_NAMES = {
   INTERVENTI: 'Interventi',
   REGOLE: 'Regole',
   LOG: 'LogPianificazione',
-  NOTIFICHE: 'Notifiche'
+  NOTIFICHE: 'Notifiche',
+  LISTINO: 'Listino'
 };
-
-/**
- * Colonne attese nella prima tab del foglio Google esterno (tracking) da cui si importano gli
- * Interventi (vedi Import.gs): usate per validare l'intestazione trovata e per i messaggi di
- * errore. Le colonne vengono lette per NOME (dall'intestazione del foglio esterno stesso), non
- * per posizione, quindi il loro ordine nel foglio esterno può differire da questo elenco.
- */
-var IMPORT_ESTERNO_HEADERS = [
-  'Ods', 'Attività', 'Nome Cliente', 'Data Disp.', 'Data Scadenza', 'Urgente',
-  'Note Sicuritalia', 'Stato', 'Note Site', 'Data App.', 'Ora App.', 'Tecnico',
-  'Importo ODS', 'Indirizzo', 'Comune', 'Provincia', 'Telefono', 'Aging scaduto'
-];
-
-/**
- * Colonne che devono esistere nell'intestazione del foglio esterno (a prescindere dal fatto che
- * singole righe le lascino vuote): "Ods" è qui solo come struttura attesa del foglio, non come
- * requisito per riga — una riga senza Ods viene comunque importata (vedi Import.gs), purché
- * Nome Cliente e Indirizzo siano valorizzati.
- */
-var IMPORT_ESTERNO_COLONNE_OBBLIGATORIE = ['Ods', 'Nome Cliente', 'Indirizzo'];
-
-/**
- * Colonna aggiunta (creata automaticamente se assente) nel foglio esterno stesso per marcare le
- * righe già importate: l'import scrive qui un timestamp non appena crea l'Intervento
- * corrispondente, e ignora le righe già marcate nei run successivi — questo è l'unico modo per
- * evitare duplicati anche per le righe senza Ods (che altrimenti non avrebbero nessuna chiave su
- * cui riconoscere un import già avvenuto). Richiede che il foglio esterno sia condiviso in
- * SCRITTURA (non solo lettura) con l'account che esegue la Web App.
- */
-var IMPORT_ESTERNO_COLONNA_MARCATORE = 'Importato Web App';
 
 var PRIORITA = {
   URGENTE: 'Urgente',
@@ -79,16 +50,23 @@ function isStatoSospeso_(stato) { return STATI_SOSPENSIONE.indexOf(stato) !== -1
 var GIORNI_SETTIMANA = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
 
 /**
- * Tipi di attività riconosciuti (stessa nomenclatura di LEGENDA_DURATA_ATTIVITA_ in Import.gs,
- * qui in forma leggibile): usati come opzioni del campo "Tipo Attività" sugli Interventi e per
- * raggruppare le metriche del tab Analysis. Una riga importata la cui "Attività" non corrisponde
- * a nessuna di queste diventa "Altro".
+ * Tipi di attività riconosciuti (codici Sicuritalia, colonna "Tipo di ordine" del tracking
+ * esterno importato — vedi Import.gs): usati come opzioni del campo "Tipo Attività" sugli
+ * Interventi e per raggruppare le metriche del tab Analysis. Una riga importata il cui codice non
+ * corrisponde a nessuno di questi diventa "Altro". Il significato di ciascun codice è in
+ * LEGENDA_TIPO_ATTIVITA_, mostrato lato client da un pulsante "Legenda" accanto al campo.
  */
-var TIPI_ATTIVITA_NOTI = [
-  'Installazione Periferica', 'Installazione WiComm', 'Manutenzione Correttiva', 'Manutenzione Ispettiva',
-  'Smontaggio', 'Integrazione Impianto', 'Scarico Immagini', 'Installazione Filare'
-];
+var TIPI_ATTIVITA_NOTI = ['SM01', 'SM02', 'SM03', 'SM04', 'SM05'];
 var TIPO_ATTIVITA_ALTRO = 'Altro';
+
+/** Significato esteso di ciascun codice Tipo Attività, mostrato in una legenda lato client. */
+var LEGENDA_TIPO_ATTIVITA_ = {
+  SM01: 'Installazione',
+  SM02: 'Manutenzione Correttiva',
+  SM03: 'Manutenzione Predittiva',
+  SM04: 'Smontaggio',
+  SM05: 'Sopralluogo'
+};
 
 /**
  * Definizione campi per ciascun foglio. L'ordine dei campi determina
@@ -148,14 +126,19 @@ var SCHEMA = {
       { key: 'note', label: 'Note', type: 'text' },
       { key: 'motivoNonPianificato', label: 'Nota Pianificazione', type: 'text', readonly: true },
       { key: 'telefono', label: 'Telefono', type: 'text' },
-      { key: 'ricavo', label: 'Ricavo (€)', type: 'number', default: 0, help: 'Usato per calcolare la produzione (ricavo totale) di ciascuna squadra rispetto al proprio target di produzione giornaliera.' },
-      { key: 'codiceEsterno', label: 'Codice Esterno (Ods)', type: 'text', help: 'Identificativo dell\'intervento nel sistema di tracking esterno da cui è stato importato (tab ImportInterventi): re-importando lo stesso Ods, questo intervento viene aggiornato invece di duplicato. Modificabile anche a mano.' },
+      { key: 'ricavo', label: 'Ricavo (€)', type: 'number', default: 0, readonly: true, mostraInForm: true, help: 'Somma delle voci di listino selezionate: si modifica solo con "Componi Ricavo" (pulsante nell\'elenco Interventi), non da qui. Usato per calcolare la produzione (ricavo totale) di ciascuna squadra rispetto al proprio target di produzione giornaliera.' },
+      { key: 'vociListino', label: 'Voci Listino Selezionate', type: 'text', readonly: true, help: 'Elenco (voce e quantità) delle righe di listino scelte per comporre il Ricavo di questo intervento. Si modifica solo tramite "Componi Ricavo", non da qui.' },
+      { key: 'codiceEsterno', label: 'Codice Esterno (Ods)', type: 'text', help: 'Identificativo dell\'intervento nel tracking esterno Sicuritalia da cui è stato importato: combinazione di "Ordine" e "Operazione" del file Excel importato. Re-importando la stessa combinazione, questo intervento viene aggiornato invece di duplicato. Modificabile anche a mano.' },
+      { key: 'richiestaAcquisto', label: 'Richiesta d\'Acquisto', type: 'text', readonly: true, mostraInForm: true, help: 'Colonna "Richiesta d\'acquisto" del file Excel importato.' },
+      { key: 'codCliente', label: 'Cod. Cliente', type: 'text', readonly: true, mostraInForm: true, help: 'Codice cliente del file Excel importato.' },
+      { key: 'codEquipment', label: 'Cod. Equipment', type: 'text', readonly: true, mostraInForm: true, help: 'Codice equipment del file Excel importato.' },
+      { key: 'prezzo', label: 'Prezzo Importato (€)', type: 'number', readonly: true, mostraInForm: true, help: 'Prezzo (colonna "Prezzo") del file Excel importato: se il Ricavo composto è inferiore a questo valore, viene generata una notifica all\'Admin per richiedere l\'adeguamento del prezzo di listino.' },
       { key: 'nonAutomatizzabileData', label: 'Escluso da pianificazione automatica per il', type: 'date', readonly: true, help: 'Impostato automaticamente da "Rimuovi" (tab Programmazione): per questa data, l\'intervento non viene riproposto da "Riempi buco" o dalla pianificazione automatica su intervallo — resta comunque pianificabile a mano, anche per la stessa data. Si azzera da solo non appena l\'intervento viene ripianificato (a mano o in automatico).' },
       { key: 'storiaSospensioni', label: 'Storico Note e Sospensioni', type: 'text', readonly: true, help: 'Cronologia (data, autore Admin/Cliente, eventuale stato, nota) di ogni nota libera o sospensione/annullamento registrata su questo intervento, a mano (da Admin o da Cliente) o da import.' },
       { key: 'operatore', label: 'Op.', type: 'text', help: 'Sigla o nome dell\'operatore, per uso libero.' },
       { key: 'dataDispacciamento', label: 'Data Dispacciamento', type: 'date', help: 'Data in cui l\'intervento è stato ricevuto/dispacciato: per gli interventi importati è la "Data Disp." del tracking esterno; per quelli creati a mano nella Web App viene impostata di default alla data odierna al primo salvataggio (modificabile). Usata come base per le metriche del tab Analysis (tempi di lavorazione, nuovi interventi dispacciati nel tempo).' },
-      { key: 'tipoAttivita', label: 'Tipo Attività', type: 'select', options: TIPI_ATTIVITA_NOTI.concat([TIPO_ATTIVITA_ALTRO]), allowEmptyOption: true, help: 'Categoria dell\'intervento: per quelli importati viene dedotta automaticamente dalla colonna "Attività" del tracking esterno; per quelli creati a mano va scelta qui (facoltativo). Usata per raggruppare le metriche del tab Analysis.' },
-      { key: 'comune', label: 'Comune', type: 'text', help: 'Comune dell\'indirizzo (per gli interventi importati, dedotto dalla colonna "Comune" del tracking esterno): usato per la distribuzione geografica nel tab Analysis. Per gli interventi creati a mano è facoltativo.' },
+      { key: 'tipoAttivita', label: 'Tipo Attività', type: 'select', options: TIPI_ATTIVITA_NOTI.concat([TIPO_ATTIVITA_ALTRO]), allowEmptyOption: true, help: 'Categoria dell\'intervento (SM01-SM05, vedi pulsante Legenda): per quelli importati viene dedotta automaticamente dalla colonna "Tipo di ordine" del tracking esterno; per quelli creati a mano va scelta qui (facoltativo). Usata per raggruppare le metriche del tab Analysis.' },
+      { key: 'comune', label: 'Comune', type: 'text', help: 'Comune dell\'indirizzo (per gli interventi importati, dedotto dalla colonna "Località" del tracking esterno): usato per la distribuzione geografica nel tab Analysis. Per gli interventi creati a mano è facoltativo.' },
       { key: 'primoEventoData', label: 'Data Primo Evento', type: 'date', readonly: true, help: 'Impostata automaticamente la prima volta che succede qualcosa su questo intervento dopo la creazione (nota, sospensione, cambio stato...): usata per calcolare il "Tempo di prima lavorazione" nel tab Analysis.' },
       { key: 'dataPrimoPianificato', label: 'Data Primo Pianificato', type: 'date', readonly: true, help: 'Impostata automaticamente la prima volta che l\'intervento passa a stato "Pianificato": usata per calcolare il "Tempo di lavorazione medio" nel tab Analysis.' },
       { key: 'dataCompletamento', label: 'Data Completamento', type: 'date', readonly: true, help: 'Impostata automaticamente quando l\'intervento viene segnato come "Completato": usata per calcolare il "Tempo di completamento" nel tab Analysis.' },
@@ -207,8 +190,88 @@ var SCHEMA = {
       { key: 'destinatario', label: 'Destinatario', type: 'text' },
       { key: 'letto', label: 'Letto', type: 'checkbox', default: false }
     ]
+  },
+  /**
+   * Listino prezzi concordato (Sicuritalia): usato lato Admin per comporre il Ricavo (€) di un
+   * Intervento selezionando una o più voci con quantità (vedi "Componi Ricavo" nel tab
+   * Interventi). Chiave naturale "voce" (nessun id auto-generato), come per REGOLE.
+   */
+  LISTINO: {
+    sheetName: SHEET_NAMES.LISTINO,
+    key: 'LISTINO',
+    label: 'Listino',
+    fields: [
+      { key: 'voce', label: 'Voce', type: 'text', required: true },
+      { key: 'descrizione', label: 'Descrizione', type: 'text' },
+      { key: 'prezzo', label: 'Ricavo (€)', type: 'number', default: 0 }
+    ]
   }
 };
+
+/**
+ * Seed iniziale del foglio Listino (rev.01 concordata con Sicuritalia), inserito automaticamente
+ * da inizializzaListinoDefault_() (Setup.gs) solo se il foglio è vuoto. Modificabile liberamente
+ * in seguito dal tab Listino: questa costante non viene più riletta dopo il primo avvio.
+ */
+var LISTINO_DEFAULT = [
+  { voce: 'CO-RE-10', descrizione: 'Sost. batterie (tutti i tipi) da 1 a 10', prezzo: 50 },
+  { voce: 'CO-RE-15', descrizione: 'Sost. batterie (tutti i tipi) da 11 a Oltre', prezzo: 60 },
+  { voce: 'CO-RE-20', descrizione: 'Prove di funzionamento/ Regolazione sensori /Cambio codici ed eventuali', prezzo: 50 },
+  { voce: 'CO-RE-30', descrizione: 'Regolazione telecamere / Scarico e salvataggio immagini da sistemi TVCC', prezzo: 60 },
+  { voce: 'CO-RE-40', descrizione: 'Sost., ricablaggio o riposizionamento sensori, tastiere, router, hd, centrali wireless/cablate e periferiche', prezzo: 70 },
+  { voce: 'CO-RE-50', descrizione: 'Sost., ricablaggio o riposizionamento barriere interne ed esterne, telecamere fisse o mobili (dome) con altezza sup. 3 mt (IMPIEGO DI 2 PERSONE)', prezzo: 120 },
+  { voce: 'E-KM01', descrizione: 'Rimborso chilometrico (Max 100KM A+R nella provincia di assegnazione)', prezzo: 0.5 },
+  { voce: 'EMAT-1', descrizione: 'Noleggio piattaforme aeree e/o forniture materiali', prezzo: 1 },
+  { voce: 'E-ORE01', descrizione: 'Ore di lavoro / viaggio tecnico Senior (08:00 - 18:00 da lun a ven)', prezzo: 26 },
+  { voce: 'E-ORE02', descrizione: 'Ore di lavoro / viaggio tecnico Junior (08:00 - 18:00 da lun a ven)', prezzo: 20 },
+  { voce: 'E-ORE03', descrizione: 'Ore di lavoro / viaggio tecnico Senior (18:00 - 22:00 da lun. a ven. e sab. tutto il giorno)', prezzo: 31.2 },
+  { voce: 'E-ORE04', descrizione: 'Ore di lavoro / viaggio tecnico Junior (18:00 - 22:00 da lun. a ven. e sab. tutto il giorno)', prezzo: 24 },
+  { voce: 'E-ORE05', descrizione: 'Ore di lavoro / viaggio tecnico Senior (22:00 - 08:00 da lun. a sab.)', prezzo: 33.8 },
+  { voce: 'E-ORE06', descrizione: 'Ore di lavoro / viaggio tecnico Junior (22:00 - 08:00 da lun. a sab.)', prezzo: 26 },
+  { voce: 'E-ORE07', descrizione: 'Ore di lavoro / viaggio tecnico Senior (00:00 - 24:00 domenica e festivi)', prezzo: 39 },
+  { voce: 'E-ORE08', descrizione: 'Ore di lavoro / viaggio tecnico Junior (00:00 - 24:00 domenica e festivi)', prezzo: 30 },
+  { voce: 'E-SQ-GG-10', descrizione: 'Squadra a giornata: (1 Senior e 1 Junior)', prezzo: 390 },
+  { voce: 'E-TEC-GG-20', descrizione: 'Tecnico Senior a giornata', prezzo: 240 },
+  { voce: 'E-VUOTO', descrizione: 'Intervento a vuoto', prezzo: 35 },
+  { voce: 'MP-00-10', descrizione: 'Manutenzione Preventiva 0-10 componenti', prezzo: 50 },
+  { voce: 'MP-11-20', descrizione: 'Manutenzione Preventiva 11-20 componenti', prezzo: 60 },
+  { voce: 'MP-21-30', descrizione: 'Manutenzione Preventiva 21-30 componenti', prezzo: 70 },
+  { voce: 'NU-IN-10', descrizione: 'Nuove inst. - Periferica nuova: ponte radio / combinatore Digitale / combinatore GPRS/LAN', prezzo: 90 },
+  { voce: 'SAP.10000134', descrizione: 'Inst. Tag di prossimità 13,56MHz (1 pezzo)', prezzo: 2.5 },
+  { voce: 'SAP.10004246', descrizione: 'Inst. Sirena interna radio bidi 868 Risco', prezzo: 15 },
+  { voce: 'SAP.10004379', descrizione: 'Inst. Rivelatore PIR pet radio bidi Risco', prezzo: 15 },
+  { voce: 'SAP.10004380', descrizione: 'Inst. Sensore PIR doppia tecnologia anti mask', prezzo: 15 },
+  { voce: 'SAP.10004381', descrizione: 'Inst. Contatto magnetico radio bidi bianco Risco', prezzo: 15 },
+  { voce: 'SAP.10004384', descrizione: 'Inst. Sensore fumo radio', prezzo: 15 },
+  { voce: 'SAP.10004387', descrizione: 'Inst. Sensore allagamento radio', prezzo: 15 },
+  { voce: 'SAP.10004860', descrizione: 'Inst. Rivelatore PIR con foto pet radio Risco', prezzo: 15 },
+  { voce: 'SAP.10005201', descrizione: 'Inst. Sensore sismico radio con contatto monodirezionale', prezzo: 20 },
+  { voce: 'SAP.10006533', descrizione: 'Inst. Telecomando bidi 4 tasti r.c. 868mhz', prezzo: 6 },
+  { voce: 'SAP.10006861', descrizione: 'Inst. Sensore tenda radio da esterno', prezzo: 20 },
+  { voce: 'SAP.10008273', descrizione: 'Inst. Ricevitore radio 32 zone e/canale video', prezzo: 20 },
+  { voce: 'SAP.10008425', descrizione: 'Inst. Sensore PIR radio Piccolo', prezzo: 12 },
+  { voce: 'SAP.10008656', descrizione: 'Inst. Wicomm pro tastiera panda radio + prox', prezzo: 20 },
+  { voce: 'SAP.10009146', descrizione: 'Inst. Wicomm pro modulo wi-fi', prezzo: 10 },
+  { voce: 'SAP.10009147', descrizione: 'Inst. Wicomm pro modulo gsm 4g', prezzo: 20 },
+  { voce: 'SAP.10009149', descrizione: 'Inst. Ripetitore bidirezionale', prezzo: 20 },
+  { voce: 'SAP.10009202', descrizione: 'Inst. Kit gusci marroni per trasmettitori X73', prezzo: 2 },
+  { voce: 'SAP.10009209', descrizione: 'Inst. Sirena esterna lumin8 radio bidi', prezzo: 40 },
+  { voce: 'SAP.10009465', descrizione: 'Inst. Contatto magnetico radio bidi Slim bianco', prezzo: 12 },
+  { voce: 'SAP.10009466', descrizione: 'Inst. Kit gusci marroni per trasmettitori x78', prezzo: 2 },
+  { voce: 'SAP.10009467', descrizione: 'Inst. Wicomm pro centrale 868mhz con batt tamp', prezzo: 100 },
+  { voce: 'SAP.10009468', descrizione: 'Inst. Tags di prossimità 13,56mhz (2 pezzi)', prezzo: 5 },
+  { voce: 'SAP.10010938', descrizione: 'Inst. LightSYS Air tastiera Panda radio con lettore prossimità', prezzo: 20 },
+  { voce: 'SAP.10011428', descrizione: 'Inst. LightSYS Air centrale 868MHz con batteria tampone', prezzo: 100 },
+  { voce: 'SAP.10011429', descrizione: 'Inst. LightSYS Air modulo GSM 4G', prezzo: 20 },
+  { voce: 'SAP.20000161', descrizione: 'Inst. Contatto magnetico radio bidi marrone', prezzo: 17 },
+  { voce: 'SAP.20000165', descrizione: 'Inst. Kit Wicomm pro Wifi 4g (centrale tastiera 2 PIR/PIR cam pet interno 4 tag)', prezzo: 170 },
+  { voce: 'SAP.20000168', descrizione: 'Inst. Contatto magnetico radio bidi Slim marrone', prezzo: 14 },
+  { voce: 'SAP.20000170', descrizione: 'Inst. Rivelatore DT radio da esterno con fotocamera', prezzo: 25 },
+  { voce: 'SAP.20000196', descrizione: 'Inst. Kit antintrusione radio residenziale (centrale, tastiera, 2 tag, 1 sismico con cm, 1 PIR cam Pet interno, 1 telecamera Wi-Fi)', prezzo: 222 },
+  { voce: 'SM-10', descrizione: 'Smontaggio Impianto Wireless o Cablato con massimo 10 componenti *', prezzo: 50 },
+  { voce: 'SM-20', descrizione: 'Smontaggio Impianto Wireless o Cablato con oltre 11 componenti *', prezzo: 60 },
+  { voce: 'SURVEY', descrizione: 'Sopralluogo', prezzo: 50 }
+];
 
 /**
  * Valori di default delle regole del motore di ottimizzazione percorso (chiave/valore su
@@ -218,7 +281,6 @@ var SCHEMA = {
  */
 var REGOLE_DEFAULT = [
   { chiave: 'giorniLavorativi', valore: 'Lun,Mar,Mer,Gio,Ven', tipo: 'giorni', descrizione: 'Giorni della settimana in cui la pianificazione automatica su intervallo può assegnare interventi (i giorni non selezionati vengono saltati).' },
-  { chiave: 'foglioImportEsternoId', valore: '1SOJ8-aNc2tDXeXhDmxNew3ILTyGb-6j2ENrIeZzijEU', tipo: 'testo', descrizione: 'ID del foglio Google esterno (tracking) da cui il pulsante "Importa" nel tab Interventi legge gli interventi da importare. Si trova nell\'URL del foglio: docs.google.com/spreadsheets/d/QUESTO-ID/edit — deve essere condiviso (almeno in lettura) con l\'account Google che esegue la Web App. Viene letta la prima tab del foglio.' },
   { chiave: 'bufferSetupMinuti', valore: '10', tipo: 'numero', descrizione: 'Minuti fissi di parcheggio/setup aggiunti ad ogni spostamento tra due tappe, oltre al tempo di viaggio.' },
   { chiave: 'pausaTolleranzaMinuti', valore: '15', tipo: 'numero', descrizione: 'Minuti di sconfinamento nella pausa pranzo tollerati per un intervento già in corso quando inizia la pausa: entro questa soglia l\'intervento prosegue senza interruzioni. Oltre la soglia, la pausa viene inserita per intero (il tecnico si ferma e il completamento dell\'intervento, e delle tappe successive, slitta in avanti di conseguenza). Con 0, qualunque sconfinamento inserisce subito la pausa.' },
   { chiave: 'velocitaMediaKmH', valore: '30', tipo: 'numero', descrizione: 'Velocità media (km/h) usata per stimare il tempo di viaggio quando il calcolo reale (Google Maps) non è disponibile.' },
