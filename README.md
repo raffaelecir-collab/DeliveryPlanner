@@ -138,7 +138,17 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    Milano), già geocodificati.
 6. Distribuisci la Web App: **Distribuisci → Nuova distribuzione → tipo
    "Applicazione web"**.
-   - *Esegui come*: **Utente che accede all'applicazione**.
+   - *Esegui come*: **Me ([tua email])** — **non** "Utente che accede
+     all'applicazione". Tutto il sistema di ruoli (Admin/Cliente/Squadra,
+     vedi più sotto) presuppone che sia un'unica identità, la tua, a
+     leggere/scrivere davvero il foglio e la cartella Drive per conto di
+     chiunque acceda: con "Utente che accede all'applicazione" invece è
+     ciascun visitatore a dover avere accesso diretto al foglio, cosa che
+     normalmente non è così — il sintomo tipico è un **errore 403** per
+     chiunque non sia tu, anche con "Chi ha accesso" impostato
+     correttamente. L'email di chi accede viene comunque letta
+     correttamente (per assegnare il ruolo giusto) anche con "Esegui come:
+     Me", perché la distribuzione è ristretta al tuo stesso dominio.
    - *Chi ha accesso*: scegli in base a chi deve usarla — "Chiunque abbia un
      Account Google" per il caso generale, oppure "Chiunque nell'organizzazione
      [tuo dominio]" se usi Google Workspace e vuoi limitarla al personale
@@ -146,6 +156,11 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    - Copia l'URL della Web App generato: è il link da condividere con le
      squadre/operatori (equivalente al login di deliveryplanner.it, ma qui
      l'autenticazione è già quella del loro account Google).
+   - Se hai già distribuito con l'impostazione sbagliata: **Distribuisci →
+     Gestisci distribuzioni**, icona a matita sulla distribuzione attiva,
+     cambia "Esegui come" in "Me" e premi **Distribuisci** — aggiorna la
+     stessa distribuzione, stesso URL, non serve crearne una nuova né
+     avvisare chi la usa già.
 7. Riapri il Google Sheet: nel menu **Delivery Planner** (creato in automatico)
    trovi anche una voce "Apri Web App" che mostra l'URL corrente in qualsiasi
    momento.
