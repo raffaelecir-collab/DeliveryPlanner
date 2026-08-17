@@ -2640,6 +2640,9 @@
         caricaDashboard();
       }
     }).catch(function (err) {
+      // Il toast sparisce dopo pochi secondi: l'errore completo resta anche nella console del
+      // browser (F12 → Console) per poterlo leggere/copiare con calma, utile per il supporto.
+      console.error('Errore di inizializzazione (getBootstrapData):', err);
       toast('Errore di inizializzazione: ' + (err.message || err), 'error');
       nascondiCaricamento('dash-team-list', 'dash-detail');
     });
