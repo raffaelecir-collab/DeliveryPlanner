@@ -952,9 +952,17 @@
         var workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
         var primoFoglio = workbook.Sheets[workbook.SheetNames[0]];
         var sheetAoa = XLSX.utils.sheet_to_json(primoFoglio, { header: 1, raw: true, defval: '' });
-        var righe = estraiRigheDaFoglio_(sheetAoa);
-        if (!righe.length) { toast('Il file non contiene righe da importare.', 'error'); return; }
-        apriDialogRegioniImport_(righe);
+        var estratto = estraiRigheDaFoglio_(sheetAoa);
+        if (!estratto.righe.length) {
+          toast(estratto.scartatePerStato
+            ? ('Nessuna riga con Stato utente "ORDE" nel file (' + estratto.scartatePerStato + ' righe scartate per stato).')
+            : 'Il file non contiene righe da importare.', 'error');
+          return;
+        }
+        if (estratto.scartatePerStato) {
+          toast(estratto.scartatePerStato + ' righe escluse perché lo Stato utente non contiene "ORDE".', 'success');
+        }
+        apriDialogRegioniImport_(estratto.righe);
       }).catch(function (err) {
         toast('Impossibile leggere il file: ' + (err.message || err), 'error');
       }).finally(function () { btn.disabled = false; });
@@ -1911,17 +1919,25 @@
   }
 
   /** Lettura per colonna fissa (A=0, B=1, ... Z=25): indici concordati con l'utente sul file Sicuritalia. */
-  var COLONNE_IMPORT_ESTERNO_ = { tipoOrdine: 1, ordine: 2, operazione: 3, richiestaAcquisto: 12, dataDispacciamento: 13, prezzo: 17, cliente: 20, via: 21, localita: 22, codCliente: 23, provincia: 24, codEquipment: 25 };
+  var COLONNE_IMPORT_ESTERNO_ = { tipoOrdine: 1, ordine: 2, operazione: 3, statoUtente: 10, richiestaAcquisto: 12, dataDispacciamento: 13, prezzo: 17, cliente: 20, via: 21, localita: 22, codCliente: 23, provincia: 24, codEquipment: 25 };
 
+  /** Solo le righe con "ORDE" nello Stato utente (colonna K: ORDE, ORDE ACCE, ORDE NCOL, ORDE ACCE NCOL, ...) vanno importate/aggiornate: le altre non sono ancora (o non sono più) in stato "ordinato" lato Sicuritalia. */
+  function statoUtenteEOrde_(statoUtente) {
+    return String(statoUtente || '').toUpperCase().indexOf('ORDE') !== -1;
+  }
+
+  /** Restituisce { righe, scartatePerStato }: righe = solo quelle con Stato utente "ORDE" (vedi statoUtenteEOrde_). */
   function estraiRigheDaFoglio_(sheetAoa) {
     // sheetAoa: array di array (righe x colonne), riga 0 = intestazione (ignorata: si legge per posizione fissa).
     var righe = [];
+    var scartatePerStato = 0;
     for (var r = 1; r < sheetAoa.length; r++) {
       var row = sheetAoa[r];
       if (!row || !row.length) continue;
       var isEmpty = row.every(function (v) { return v === '' || v === null || v === undefined; });
       if (isEmpty) continue;
       var get = function (idx) { return row[idx] === undefined ? '' : row[idx]; };
+      if (!statoUtenteEOrde_(get(COLONNE_IMPORT_ESTERNO_.statoUtente))) { scartatePerStato++; continue; }
       righe.push({
         tipoOrdine: get(COLONNE_IMPORT_ESTERNO_.tipoOrdine),
         ordine: get(COLONNE_IMPORT_ESTERNO_.ordine),
@@ -1937,7 +1953,7 @@
         codEquipment: get(COLONNE_IMPORT_ESTERNO_.codEquipment)
       });
     }
-    return righe;
+    return { righe: righe, scartatePerStato: scartatePerStato };
   }
 
   function apriDialogRegioniImport_(righe) {
