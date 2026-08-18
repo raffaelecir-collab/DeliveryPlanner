@@ -474,6 +474,8 @@
   .int-indirizzo { font-size: 12px; color: var(--dp-ink-faint); margin-top: 1px; }
   .int-competenza { font-size: 12.5px; color: var(--dp-ink-soft); }
   .int-competenza.any { color: var(--dp-ink-faint); font-style: italic; }
+  .int-operatore { font-size: 12.5px; color: var(--dp-ink-soft); }
+  .int-operatore.none { color: var(--dp-ink-faint); }
 
   .badge-urgente { background: var(--dp-danger-wash); color: var(--dp-danger); }
   .badge-alta { background: var(--dp-warn-wash); color: var(--dp-warn); }
@@ -484,10 +486,10 @@
   .int-ods.none, .int-dataora.none { font-family: inherit; color: var(--dp-ink-faint); }
   .int-ricavo { font-family: var(--dp-mono); font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--dp-ink); }
 
-  .int-squadra-cell, .int-dataora-cell { cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; }
-  .int-squadra-cell:hover, .int-dataora-cell:hover { background: var(--dp-accent-wash); }
-  .int-squadra-cell.editing, .int-dataora-cell.editing { cursor: default; background: none; padding: 0; margin: 0; }
-  .int-squadra-cell.editing select { width: 100%; font-family: inherit; font-size: 12.5px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--dp-line); }
+  .int-squadra-cell, .int-dataora-cell, .int-priorita-cell { cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; }
+  .int-squadra-cell:hover, .int-dataora-cell:hover, .int-priorita-cell:hover { background: var(--dp-accent-wash); }
+  .int-squadra-cell.editing, .int-dataora-cell.editing, .int-priorita-cell.editing { cursor: default; background: none; padding: 0; margin: 0; }
+  .int-squadra-cell.editing select, .int-priorita-cell.editing select { width: 100%; font-family: inherit; font-size: 12.5px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--dp-line); }
   .int-dataora-cell.editing { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
   .int-dataora-cell.editing input { font-family: inherit; font-size: 11.5px; padding: 3px 4px; border-radius: 5px; border: 1px solid var(--dp-line); width: 88px; }
   .inline-edit-ok, .inline-edit-cancel { border: none; background: none; cursor: pointer; font-size: 13px; padding: 2px 4px; border-radius: 4px; }
@@ -522,6 +524,23 @@
 
   .row-actions { display: flex; gap: 5px; justify-content: flex-end; flex-wrap: wrap; }
   .btn-icon.good:hover { background: var(--dp-good-wash); color: var(--dp-good); border-color: var(--dp-good); }
+
+  .int-row .row-actions { position: relative; flex-wrap: nowrap; }
+  .dropdown-azioni {
+    position: absolute; top: 100%; right: 0; margin-top: 4px; z-index: 20; min-width: 200px;
+    background: var(--dp-surface-card); border: 1px solid var(--dp-line); border-radius: var(--dp-radius-sm);
+    box-shadow: var(--dp-shadow); padding: 4px; display: flex; flex-direction: column; gap: 1px;
+  }
+  .dropdown-azioni.hidden { display: none; }
+  .dropdown-item {
+    display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+    padding: 8px 10px; border: none; background: none; font-family: inherit; font-size: 12.5px;
+    border-radius: 6px; cursor: pointer; color: var(--dp-ink); white-space: nowrap;
+  }
+  .dropdown-item:hover { background: var(--dp-line-soft); }
+  .dropdown-item.good { color: var(--dp-good); }
+  .dropdown-item.warn { color: var(--dp-warn); }
+  .dropdown-item.danger { color: var(--dp-danger); }
 
   /* ---- Dashboard (Screen A) ---- */
   .dash-topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }

@@ -11,10 +11,12 @@
  * differenza del vecchio meccanismo da foglio Google): l'estrazione avviene lato client, che
  * passa a questa funzione oggetti già con le chiavi elencate in elaboraRigaEsterna_.
  *
- * L'Ods (Codice Esterno) usato per riconciliare un Intervento con un import successivo è
- * "Ordine-Operazione" (colonne C e D del file): la sola colonna Ordine (C) NON è univoca nel file
- * (righe con più Operazioni sullo stesso Ordine, indirizzo identico ma date/prezzi diversi), la
- * coppia Ordine+Operazione sì.
+ * Il Codice Esterno mostrato/salvato sull'Intervento è SOLO l'Ordine (colonna C), esattamente
+ * come compare nel file Excel. La riconciliazione con un import successivo, però, usa dietro le
+ * quinte la coppia Ordine+Operazione (colonne C e D): la sola colonna Ordine NON è univoca nel
+ * file (righe con più Operazioni sullo stesso Ordine, indirizzo identico ma date/prezzi diversi),
+ * la coppia sì — vedi chiaveRiconciliazioneImport_. L'Operazione resta comunque visibile a parte
+ * nel campo "Op.".
  *
  * A differenza del vecchio import da foglio Google, QUI NON ESISTE alcun annullamento automatico
  * per Ods assente: un Ods non presente in un batch/import (es. perché si sta importando solo
@@ -63,9 +65,30 @@ function calcolaDurataSM_(tipoAttivita, prezzo) {
 }
 
 /**
+ * Chiave di riconciliazione univoca "Ordine|Operazione" usata SOLO internamente per riconoscere
+ * un Intervento già importato (mai la sola colonna Ordine, che nel file non è univoca — vedi il
+ * commento in cima al file): il Codice Esterno sull'Intervento resta comunque solo l'Ordine.
+ * Normalizza anche il vecchio formato combinato "Ordine-Operazione" salvato in Codice Esterno da
+ * una versione precedente di questo import (prima che l'Operazione diventasse un campo a parte):
+ * se il valore termina con "-" + Operazione, usa solo la parte Ordine — così le righe già
+ * importate in passato continuano a riconciliare correttamente, e il loro Codice Esterno si
+ * "ripulisce" da solo (torna al solo Ordine) al prossimo import che le tocca.
+ */
+function chiaveRiconciliazioneImport_(codiceEsterno, operazione) {
+  var ordine = String(codiceEsterno || '').trim();
+  var op = String(operazione || '').trim();
+  var suffisso = op ? ('-' + op) : '';
+  if (suffisso && ordine.length > suffisso.length && ordine.slice(-suffisso.length) === suffisso) {
+    ordine = ordine.slice(0, ordine.length - suffisso.length);
+  }
+  return ordine + '|' + op;
+}
+
+/**
  * Elabora una singola riga già estratta dal client (chiavi corrispondenti alle colonne del file
  * Excel — vedi JS.html):
- * - ordine (C), operazione (D): compongono l'Ods "ordine-operazione".
+ * - ordine (C): diventa il Codice Esterno dell'Intervento, così com'è nel file.
+ * - operazione (D): campo "Op.", usata anche (insieme a ordine) per la riconciliazione.
  * - dataDispacciamento (N), richiestaAcquisto (M), prezzo (R).
  * - cliente (U), via (V), localita (W), codCliente (X), provincia (Y, sigla), codEquipment (Z).
  * - tipoOrdine (B): codice SM01-SM05.
@@ -76,7 +99,6 @@ function elaboraRigaEsterna_(riga, interventiPerCodice) {
   var ordine = String(riga.ordine || '').trim();
   var operazione = String(riga.operazione || '').trim();
   if (!ordine) throw new Error('Colonna "Ordine" (C) mancante.');
-  var ods = operazione ? (ordine + '-' + operazione) : ordine;
 
   var cliente = String(riga.cliente || '').trim();
   var via = String(riga.via || '').trim();
@@ -86,7 +108,7 @@ function elaboraRigaEsterna_(riga, interventiPerCodice) {
   if (!via && !localita) throw new Error('Indirizzo mancante (colonne V/W entrambe vuote).');
 
   var indirizzo = [via, localita, provincia].filter(function (p) { return p; }).join(', ');
-  var esistente = interventiPerCodice[ods] || null;
+  var esistente = interventiPerCodice[chiaveRiconciliazioneImport_(ordine, operazione)] || null;
 
   var tipoOrdine = String(riga.tipoOrdine || '').trim().toUpperCase();
   var tipoAttivita = TIPI_ATTIVITA_NOTI.indexOf(tipoOrdine) !== -1 ? tipoOrdine : TIPO_ATTIVITA_ALTRO;
@@ -99,7 +121,7 @@ function elaboraRigaEsterna_(riga, interventiPerCodice) {
     cliente: cliente,
     indirizzo: indirizzo,
     comune: localita,
-    codiceEsterno: ods,
+    codiceEsterno: ordine,
     operatore: operazione,
     richiestaAcquisto: riga.richiestaAcquisto === null || riga.richiestaAcquisto === undefined ? '' : String(riga.richiestaAcquisto).trim(),
     codCliente: riga.codCliente === null || riga.codCliente === undefined ? '' : String(riga.codCliente).trim(),
@@ -137,7 +159,10 @@ function importaRigheEsterne(righe) {
   }
 
   var interventiPerCodice = {};
-  readAll_('INTERVENTI').forEach(function (i) { if (i.codiceEsterno) interventiPerCodice[String(i.codiceEsterno)] = i; });
+  readAll_('INTERVENTI').forEach(function (i) {
+    if (!i.codiceEsterno) return;
+    interventiPerCodice[chiaveRiconciliazioneImport_(i.codiceEsterno, i.operatore)] = i;
+  });
 
   var TEMPO_MASSIMO_MS = 4.5 * 60 * 1000;
   var inizioEsecuzione = new Date().getTime();

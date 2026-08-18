@@ -188,16 +188,25 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    Il campo **Email Account Squadra** dà accesso al tab dedicato "Account
    Squadra" più sotto: vedi quella sezione per i dettagli.
 2. Tab **Interventi**: l'elenco mostra, per ciascun intervento, **Cliente**,
-   **Competenza**, **Priorità**, **ODS** (Codice Esterno), **Ricavo**,
-   **Stato**, **Squadra** e **Data/ora** — con **Squadra** e **Data/ora**
-   cliccabili direttamente in elenco (anche quando mostrano "—" o un valore
-   già impostato): un click apre un piccolo editor inline (un selettore per
-   la Squadra, due campi data+ora con conferma/annulla per Data/ora) che
-   salva subito, senza aprire la scheda completa — utile per assegnazioni
-   rapide. Attenzione: come cambiare la Squadra Assegnata dalla scheda
-   "Modifica" (vedi sotto), anche l'inline edit **sposta solo
-   l'assegnazione/l'orario**, senza ricalcolare l'ordine/orario del percorso:
-   verifica poi la programmazione della squadra coinvolta.
+   **Op.** (Operazione, dal tracking esterno), **Priorità**, **ODS** (Codice
+   Esterno), **Ricavo**, **Stato**, **Squadra** e **Data/ora** — con
+   **Priorità**, **Squadra** e **Data/ora** cliccabili direttamente in
+   elenco (anche quando mostrano "—" o un valore già impostato): un click
+   apre un piccolo editor inline (un selettore per Priorità/Squadra, due
+   campi data+ora con conferma/annulla per Data/ora) che salva subito, senza
+   aprire la scheda completa — utile per assegnazioni rapide. Cambiare la
+   Priorità così viene trattato come un override manuale del calcolo
+   automatico (vedi più sotto): da quel momento non viene più ricalcolata da
+   sola. **Se dall'inline edit un intervento risulta con Squadra E Data/ora
+   entrambe valorizzate mentre era ancora "Da pianificare", passa
+   automaticamente a "Pianificato"** (stesso comportamento se le assegni
+   dalla scheda "Modifica"). Attenzione: sia l'inline edit sia la scheda
+   "Modifica" **spostano solo l'assegnazione/l'orario**, senza ricalcolare
+   l'ordine/orario del percorso: verifica poi la programmazione della
+   squadra coinvolta. Il pulsante **"⋮"** in fondo alla riga apre un
+   sottomenu con le altre azioni disponibili (Modifica, Componi Ricavo,
+   Nota, Documenti, Completa, Sospendi/Annulla/Fine sospensione, Elimina —
+   quali compaiono dipende da ruolo e stato, come prima).
 
    La scheda "Nuovo intervento"/"Modifica" raccoglie cliente, indirizzo —
    geocodificato automaticamente —, competenza richiesta, durata stimata,
@@ -787,7 +796,7 @@ non per nome di intestazione:
 | Colonna file | Campo Intervento |
 |---|---|
 | B (Tipo di ordine) | Tipo Attività (codice SM01-SM05) |
-| C (Ordine) + D (Operazione) | Codice Esterno (Ods), come `Ordine-Operazione` |
+| C (Ordine) | Codice Esterno (Ods) — esattamente come nel file |
 | D (Operazione) | Op. |
 | M (Richiesta d'acquisto) | Richiesta d'Acquisto (sola lettura) |
 | N (Data in. al + presto) | Data Dispacciamento |
@@ -799,12 +808,14 @@ non per nome di intestazione:
 | Y (Provincia) | usata anche per il filtro regioni (vedi sotto) |
 | Z (Equipment) | Cod. Equipment (sola lettura) |
 
-**Perché Ordine+Operazione e non solo Ordine**: nel file Sicuritalia la sola
-colonna "Ordine" (C) non è univoca — più righe possono condividere lo
-stesso Ordine con Operazioni diverse (stesso indirizzo, date/prezzi
-differenti): la coppia Ordine+Operazione lo è sempre, ed è quindi la chiave
-usata per riconoscere un intervento già importato in un import successivo
-(vedi sotto).
+**Codice Esterno = solo Ordine, ma riconciliato con Ordine+Operazione**: il
+campo Codice Esterno mostra esattamente il valore della colonna "Ordine",
+senza alcuna aggiunta. Dietro le quinte, però, riconoscere un intervento già
+importato (per non duplicarlo a un import successivo) usa la coppia
+Ordine+Operazione: nel file Sicuritalia la sola colonna "Ordine" non è
+univoca — più righe possono condividere lo stesso Ordine con Operazioni
+diverse (stesso indirizzo, date/prezzi differenti) — mentre la coppia lo è
+sempre. L'Operazione resta comunque visibile a parte nel campo "Op.".
 
 **Selezione delle regioni da importare**: dopo aver letto il file, un popup
 mostra l'elenco delle **regioni italiane presenti nel file** (dedotte dalla
@@ -831,7 +842,7 @@ tipologia" della Dashboard) ne mostra il significato:
 Un codice non tra questi diventa "Altro" e non modifica la durata (resta il
 default dello schema, 60 min).
 
-**Comportamento sui re-import**: un Ods (Ordine-Operazione) già presente su
+**Comportamento sui re-import**: un Ods (coppia Ordine+Operazione) già presente su
 un Intervento esistente **aggiorna** quell'Intervento (cliente, indirizzo,
 comune, Tipo Attività, durata stimata, Data Dispacciamento, Richiesta
 d'Acquisto, Cod. Cliente, Cod. Equipment, Prezzo Importato) — **senza mai

@@ -107,6 +107,21 @@ function salvaIntervento(intervento) {
     }
   }
 
+  // Passaggio automatico a "Pianificato": se Squadra Assegnata, Data Pianificata e Ora
+  // Pianificata risultano TUTTE e tre valorizzate (che sia questo stesso salvataggio a
+  // completarle, es. dall'inline edit di Squadra/Data-ora nell'elenco Interventi, o che fossero
+  // già così su un intervento ancora "Da pianificare") e lo stato non è già andato oltre "Da
+  // pianificare", passa a "Pianificato" — coerente con l'assegnazione manuale di una tappa senza
+  // passare dalla pianificazione automatica/selezione da elenco.
+  var squadraIdEffettiva = intervento.squadraId !== undefined ? intervento.squadraId : (esistente ? esistente.squadraId : '');
+  var dataPianEffettiva = intervento.dataPianificata !== undefined ? intervento.dataPianificata : (esistente ? esistente.dataPianificata : '');
+  var oraPianEffettiva = intervento.oraPianificata !== undefined ? intervento.oraPianificata : (esistente ? esistente.oraPianificata : '');
+  var statoEffettivo = intervento.stato !== undefined ? intervento.stato : (esistente ? esistente.stato : STATO_INTERVENTO.DA_PIANIFICARE);
+  if (statoEffettivo === STATO_INTERVENTO.DA_PIANIFICARE && squadraIdEffettiva && dataPianEffettiva && oraPianEffettiva) {
+    intervento.stato = STATO_INTERVENTO.PIANIFICATO;
+    Object.assign(intervento, campiAnalisi_(esistente, { stato: STATO_INTERVENTO.PIANIFICATO }));
+  }
+
   var salvato = upsertRow_('INTERVENTI', intervento);
   // Notifica solo la riassegnazione di squadra su un intervento GIÀ esistente (campo "Squadra
   // Assegnata" del form di Modifica): unico cambio davvero rilevante che può passare da questa
