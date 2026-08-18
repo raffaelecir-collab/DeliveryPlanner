@@ -794,6 +794,11 @@
     state.squadre.forEach(function (s) {
       var opt = document.createElement('option'); opt.value = s.id; opt.textContent = s.nome; selSquadra.appendChild(opt);
     });
+    var selTipoAttivita = document.getElementById('filtro-tipo-attivita');
+    var campoTipoAttivita = (state.schema.INTERVENTI && state.schema.INTERVENTI.fields || []).filter(function (f) { return f.key === 'tipoAttivita'; })[0];
+    (campoTipoAttivita ? campoTipoAttivita.options : []).forEach(function (t) {
+      var opt = document.createElement('option'); opt.value = t; opt.textContent = etichettaTipoAttivita_(t); selTipoAttivita.appendChild(opt);
+    });
   }
 
   function loadInterventi() {
@@ -824,10 +829,12 @@
     }
     var stato = document.getElementById('filtro-stato').value;
     var squadraId = document.getElementById('filtro-squadra').value;
+    var tipoAttivita = document.getElementById('filtro-tipo-attivita').value;
     var q = document.getElementById('interventi-search').value.trim().toLowerCase();
     return state.interventi.filter(function (i) {
       if (stato && i.stato !== stato) return false;
       if (squadraId && i.squadraId !== squadraId) return false;
+      if (tipoAttivita && i.tipoAttivita !== tipoAttivita) return false;
       if (q && (i.cliente || '').toLowerCase().indexOf(q) === -1 && (i.indirizzo || '').toLowerCase().indexOf(q) === -1 && (i.codiceEsterno || '').toLowerCase().indexOf(q) === -1) return false;
       return true;
     });
@@ -1079,6 +1086,7 @@
     on('btn-nuovo-intervento', 'click', function () { openModal('INTERVENTI', null); });
     on('filtro-stato', 'change', onCambiaFiltroNormale_);
     on('filtro-squadra', 'change', onCambiaFiltroNormale_);
+    on('filtro-tipo-attivita', 'change', onCambiaFiltroNormale_);
     on('interventi-search', 'input', onCambiaFiltroNormale_);
     on('btn-rimuovi-filtro-singolo', 'click', rimuoviFiltroSingoloIntervento_);
     on('btn-importa-esterno', 'click', function () {
