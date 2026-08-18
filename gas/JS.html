@@ -1079,6 +1079,39 @@
     el.className = 'import-result show' + (haProblemi ? ' warn' : '');
   }
 
+  function renderRisultatoImportVeneto_(r) {
+    var el = document.getElementById('import-veneto-risultato');
+    var righe = [];
+    if (r.creati) righe.push(r.creati + ' creati');
+    if (r.aggiornati) righe.push(r.aggiornati + ' aggiornati');
+    if (r.scartatiPerStato) righe.push(r.scartatiPerStato + ' scartati per stato (colonna M)');
+    if (r.falliti) righe.push(r.falliti + ' falliti (' + (r.dettagliFalliti && r.dettagliFalliti[0] ? r.dettagliFalliti[0] : 'vedi dettagli') + (r.dettagliFalliti && r.dettagliFalliti.length > 1 ? ' e altri ' + (r.dettagliFalliti.length - 1) : '') + ')');
+    var haProblemi = r.falliti > 0;
+    var testo = righe.length ? righe.join(' · ') : 'Nessuna riga da creare o aggiornare.';
+    el.textContent = (haProblemi ? '⚠ ' : '✓ ') + testo;
+    el.className = 'import-result show' + (haProblemi ? ' warn' : '');
+  }
+
+  /** Ripete importaGoogleSheetVeneto finché non finisce (gestisce il guardrail di tempo lato server, uno o più batch), aggregando i totali e mostrando l'avanzamento. */
+  function eseguiImportVeneto_() {
+    var risultato = { creati: 0, aggiornati: 0, falliti: 0, scartatiPerStato: 0, dettagliFalliti: [] };
+    function passo(indice) {
+      return callServer('importaGoogleSheetVeneto', indice).then(function (r) {
+        risultato.creati += r.creati;
+        risultato.aggiornati += r.aggiornati;
+        risultato.falliti += r.falliti;
+        risultato.scartatiPerStato += r.scartatiPerStato;
+        risultato.dettagliFalliti = risultato.dettagliFalliti.concat(r.dettagliFalliti || []);
+        if (r.totaleRighe) {
+          toast('Import Veneto: ' + Math.min(r.prossimoIndice, r.totaleRighe) + '/' + r.totaleRighe + ' righe elaborate…', 'success');
+        }
+        if (r.tempoScaduto) return passo(r.prossimoIndice);
+        return risultato;
+      });
+    }
+    return passo(0);
+  }
+
   function setupInterventiTab() {
     document.addEventListener('click', function (e) {
       if (!e.target.closest('.row-actions')) chiudiTuttiMenuAzioni_();
@@ -1091,6 +1124,21 @@
     on('btn-rimuovi-filtro-singolo', 'click', rimuoviFiltroSingoloIntervento_);
     on('btn-importa-esterno', 'click', function () {
       document.getElementById('import-esterno-file').click();
+    });
+    on('btn-importa-veneto', 'click', function () {
+      var btn = document.getElementById('btn-importa-veneto');
+      btn.disabled = true;
+      eseguiImportVeneto_().then(function (r) {
+        renderRisultatoImportVeneto_(r);
+        var haProblemi = r.falliti > 0;
+        var totale = r.creati + r.aggiornati;
+        toast(totale > 0 ? ('Import Veneto completato: ' + r.creati + ' creati, ' + r.aggiornati + ' aggiornati.' + (r.falliti ? (' ' + r.falliti + ' falliti.') : '')) : 'Nessuna riga da creare o aggiornare.',
+          haProblemi ? 'error' : 'success');
+        loadInterventi();
+        return caricaDashboard();
+      }).catch(function (err) {
+        toast(err.message || String(err), 'error');
+      }).finally(function () { btn.disabled = false; });
     });
     on('import-esterno-file', 'change', function (e) {
       var file = e.target.files && e.target.files[0];

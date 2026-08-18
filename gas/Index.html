@@ -94,6 +94,24 @@
           </button>
         </div>
 
+        <div class="import-banner admin-only">
+          <span class="import-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M4 19h16"></path></svg>
+          </span>
+          <div class="import-copy">
+            <p>Importa gli interventi dal foglio Google esterno "Veneto". Quelli già presenti (stesso Codice Esterno) vengono aggiornati, mai duplicati.</p>
+            <details>
+              <summary>Come funziona l'importazione</summary>
+              <p class="tecnico">Legge direttamente la tab "Veneto" del foglio Google esterno configurato (deve essere condiviso almeno in lettura con l'account che esegue la Web App). Vengono importate/aggiornate SOLO le righe la cui colonna M è "Giacente", "Appuntamentato" o "Sospeso": le altre sono escluse in automatico, con un avviso su quante sono state scartate. Il Tipo Attività (colonna G, testo libero) viene tradotto automaticamente nei codici SM01-SM05/Intervento a vuoto; un testo non riconosciuto diventa "Altro". Il Codice Esterno (colonna D) da solo non è univoco in questo foglio: la riconciliazione con un import successivo usa anche un'altra colonna, mai mostrata, così un intervento già importato viene aggiornato invece di duplicato. File/fogli di migliaia di righe vengono elaborati a lotti: l'avanzamento resta visibile finché non finisce.</p>
+            </details>
+            <div class="import-result" id="import-veneto-risultato"></div>
+          </div>
+          <button class="btn-secondary-sm" id="btn-importa-veneto">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path></svg>
+            Importa da Google Sheet (Veneto)
+          </button>
+        </div>
+
         <div class="screen-toolbar">
           <div class="filter-bar">
             <select id="filtro-stato">

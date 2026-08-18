@@ -103,6 +103,7 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 | `Setup.gs` | Inizializzazione struttura fogli, menu, dati di esempio |
 | `Teams.gs` / `Interventions.gs` / `Rules.gs` / `Listino.gs` | CRUD (con geocodifica automatica su Squadre/Interventi, calcolo automatico di Scadenza/Priorità su Interventi) |
 | `Import.gs` | Import di Interventi da un file Excel (.xlsx) del tracking Sicuritalia caricato dal browser |
+| `ImportVeneto.gs` | Import di Interventi letto direttamente dal server dalla tab "Veneto" di un foglio Google esterno condiviso |
 | `RouteEngine.gs` | Motore di ottimizzazione percorso (inserimento più economico + 2-opt, scheduling con pausa pranzo, dati per la Dashboard e riempimento buchi) |
 | `Calendario.gs` | Calendario giorni lavorativi FISSO (Lun-Ven, festività italiane escluse): usato dal tab Analysis e per calcolare automaticamente la Scadenza degli Interventi (SM01-SM05), indipendente dalla regola "giorniLavorativi" della pianificazione |
 | `Analysis.gs` | Metriche del tab Analysis (solo Admin): ricavo, tempi di lavorazione, tassi, backlog, km, distribuzione geografica |
@@ -884,6 +885,70 @@ restante prima di passare al successivo. Al termine, la Web App mostra
 quanti Interventi sono stati creati, quanti aggiornati e quanti falliti
 (con il dettaglio delle prime righe in errore, tipicamente indirizzo non
 geocodificabile o dati obbligatori mancanti).
+
+### Importare gli interventi da un foglio Google Sheet esterno (Veneto)
+
+Oltre all'import da file Excel sopra, il tab **Interventi** offre un secondo
+pulsante, **"Importa da Google Sheet (Veneto)"**, che legge direttamente —
+lato server, non tramite upload dal browser — la tab **"Veneto"** di un
+foglio Google esterno configurato (`ID_FOGLIO_VENETO_` in `ImportVeneto.gs`).
+
+**Prerequisito**: quel foglio Google deve essere condiviso **almeno in
+lettura** con l'account Google che esegue la Web App (quello scelto in
+"Esegui come" nella distribuzione) — altrimenti il pulsante mostra un
+errore chiaro invece di un elenco vuoto.
+
+Le colonne si leggono per **posizione fissa**, come per l'import Excel:
+
+| Colonna foglio | Campo Intervento |
+|---|---|
+| S | Cliente |
+| T, B, C (concatenate in quest'ordine) | Indirizzo (geocodificato automaticamente) |
+| D | Codice Esterno (Ods) |
+| H | Data Dispacciamento |
+| G | Tipo Attività (testo libero, tradotto — vedi tabella sotto) |
+| C | Comune |
+
+**Tipo Attività**: la colonna G contiene testo libero (non un codice),
+tradotto automaticamente secondo questa mappa (case-insensitive):
+
+| Testo colonna G | Tipo Attività |
+|---|---|
+| Integrazione impianto, Installazione Filare, Installazione Periferica, Installazione WiComm | SM01 |
+| Manutenzione correttiva | SM02 |
+| Manutenzione ispettiva | SM03 |
+| Smontaggio | SM04 |
+| Sopralluogo | SM05 |
+| Intervento a vuoto | Intervento a vuoto |
+
+Un testo non riconosciuto diventa "Altro". Questa fonte non ha un "Prezzo"
+importato, quindi la durata stimata di SM01 ricade sempre sulla fascia più
+bassa (120 min) della tabella già vista per l'import Excel; le altre regole
+(durata fissa per SM02-SM05, Scadenza e Priorità automatiche) sono le
+stesse, condivise tra le due fonti di import.
+
+**Filtro sullo stato (colonna M)**: vengono importate/aggiornate **solo** le
+righe la cui colonna M vale "Giacente", "Appuntamentato" o "Sospeso"
+(case-insensitive) — le altre sono escluse in automatico, senza creare né
+toccare nulla; il risultato dell'import mostra quante righe sono state
+scartate per questo motivo.
+
+**Niente duplicati anche se il Codice Esterno si ripete**: a differenza
+del file Excel (dove Ordine+Operazione è la coppia univoca), in questo
+foglio la colonna D (Ods) **può ripetersi su più righe** senza che
+un'altra colonna visibile la disambiguhi. La riconciliazione con un
+import successivo usa quindi Ods + colonna T, memorizzata internamente in
+un campo dedicato mai mostrato né modificabile ("Chiave Secondaria
+Import") — stessa logica di Ordine+Operazione, chiave diversa. Come per
+l'Excel, un re-import **aggiorna** l'Intervento esistente (stessi campi
+anagrafici sopra) **senza mai toccare** stato, squadra, data/ora
+pianificata, ordine tappa o Ricavo, e non esiste alcun annullamento
+automatico per righe non più presenti o non più in uno dei tre stati
+importabili.
+
+**File di migliaia di righe**: come per l'Excel, l'elaborazione avviene a
+lotti entro il limite di 6 minuti di Apps Script, con avanzamento visibile
+e ripresa automatica dal punto in cui si era interrotta.
 
 ### Listino e Ricavo
 
