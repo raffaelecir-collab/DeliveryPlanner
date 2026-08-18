@@ -904,10 +904,16 @@ Le colonne si leggono per **posizione fissa**, come per l'import Excel:
 |---|---|
 | S | Cliente |
 | T, B, C (concatenate in quest'ordine) | Indirizzo (geocodificato automaticamente) |
-| D | Codice Esterno (Ods) |
+| D | Codice Esterno (Ods) — può anche essere vuoto (vedi sotto) |
 | H | Data Dispacciamento |
 | G | Tipo Attività (testo libero, tradotto — vedi tabella sotto) |
+| N | Prezzo Importato (usato per calcolare la Durata Stimata, vedi sotto) |
 | C | Comune |
+
+**Righe senza Codice Esterno**: una riga con la colonna D vuota viene
+**importata comunque** (Codice Esterno resta vuoto, da compilare a mano in
+seguito appena l'Ods viene assegnato) — non viene scartata né segnata come
+fallita.
 
 **Tipo Attività**: la colonna G contiene testo libero (non un codice),
 tradotto automaticamente secondo questa mappa (case-insensitive):
@@ -921,11 +927,12 @@ tradotto automaticamente secondo questa mappa (case-insensitive):
 | Sopralluogo | SM05 |
 | Intervento a vuoto | Intervento a vuoto |
 
-Un testo non riconosciuto diventa "Altro". Questa fonte non ha un "Prezzo"
-importato, quindi la durata stimata di SM01 ricade sempre sulla fascia più
-bassa (120 min) della tabella già vista per l'import Excel; le altre regole
-(durata fissa per SM02-SM05, Scadenza e Priorità automatiche) sono le
-stesse, condivise tra le due fonti di import.
+Un testo non riconosciuto diventa "Altro". La **Durata Stimata** segue le
+stesse regole già viste per l'import Excel, usando il Prezzo Importato
+(colonna N) per le fasce di SM01: Prezzo ≤ 120€ → 120 min · ≤ 240€ → 240 min
+· ≤ 350€ → 360 min · oltre → 480 min (Prezzo mancante o non numerico → 120
+min); le altre regole (durata fissa per SM02-SM05, Scadenza e Priorità
+automatiche) sono le stesse, condivise tra le due fonti di import.
 
 **Filtro sullo stato (colonna M)**: vengono importate/aggiornate **solo** le
 righe la cui colonna M vale "Giacente", "Appuntamentato" o "Sospeso"
@@ -939,7 +946,8 @@ foglio la colonna D (Ods) **può ripetersi su più righe** senza che
 un'altra colonna visibile la disambiguhi. La riconciliazione con un
 import successivo usa quindi Ods + colonna T, memorizzata internamente in
 un campo dedicato mai mostrato né modificabile ("Chiave Secondaria
-Import") — stessa logica di Ordine+Operazione, chiave diversa. Come per
+Import") — stessa logica di Ordine+Operazione, chiave diversa. Per una riga
+senza Ods la riconciliazione si basa sulla sola colonna T. Come per
 l'Excel, un re-import **aggiorna** l'Intervento esistente (stessi campi
 anagrafici sopra) **senza mai toccare** stato, squadra, data/ora
 pianificata, ordine tappa o Ricavo, e non esiste alcun annullamento

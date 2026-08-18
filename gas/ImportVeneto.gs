@@ -12,10 +12,14 @@
  *   righe): la riconciliazione con un import successivo usa anche la colonna T, memorizzata
  *   internamente sul campo "Chiave Secondaria Import" (mai mostrata/modificabile a mano), esattamente
  *   come Operazione affianca Ordine nell'import Excel Sicuritalia (vedi chiaveRiconciliazioneImport_
- *   in Import.gs) — stessa logica, chiave diversa.
+ *   in Import.gs) — stessa logica, chiave diversa. Può anche essere mancante (riga senza Ods ancora
+ *   assegnato): viene comunque importata, con Codice Esterno vuoto da compilare poi a mano; la
+ *   riconciliazione in quel caso usa solo la colonna T.
  * - H: Data Dispacciamento.
  * - G: Tipo Attività, testo libero mappato sui codici SM01-SM05/Intervento a vuoto secondo
  *   MAPPA_TIPO_ATTIVITA_VENETO_; un testo non riconosciuto diventa "Altro".
+ * - N: Prezzo Importato (usato, come nell'import Excel, per calcolare la Durata Stimata di SM01 —
+ *   vedi calcolaDurataSM_ in Import.gs).
  * - C: Comune (la stessa colonna usata anche per comporre l'Indirizzo).
  *
  * Solo le righe la cui colonna M vale "Giacente", "Appuntamentato" o "Sospeso" (case-insensitive,
@@ -66,11 +70,11 @@ function chiaveRiconciliazioneVeneto_(ods, colonnaT) {
 /**
  * Elabora una singola riga (array di valori di cella, 0-based, colonna A = indice 0) già filtrata
  * per stato (colonna M). Restituisce 'creato' o 'aggiornato'. Lancia un errore (catturato dal
- * chiamante) se manca il Codice Esterno, il Cliente o l'intero indirizzo.
+ * chiamante) se manca il Cliente o l'intero indirizzo (il Codice Esterno può invece mancare: la
+ * riga viene importata comunque, per essere compilata a mano in seguito).
  */
 function elaboraRigaVeneto_(row, interventiPerCodice) {
-  var ods = String(row[3] || '').trim(); // D
-  if (!ods) throw new Error('Colonna "Codice Esterno" (D) mancante.');
+  var ods = String(row[3] || '').trim(); // D — può essere mancante, vedi commento in cima al file
   var colonnaT = String(row[19] || '').trim(); // T
 
   var cliente = String(row[18] || '').trim(); // S
@@ -84,7 +88,9 @@ function elaboraRigaVeneto_(row, interventiPerCodice) {
   var esistente = interventiPerCodice[chiave] || null;
 
   var tipoAttivita = mappaTipoAttivitaVeneto_(row[6]); // G
-  var durataMinuti = calcolaDurataSM_(tipoAttivita, null); // questa fonte non ha un "Prezzo"
+  var prezzo = parseFloat(row[13]); // N
+  if (isNaN(prezzo)) prezzo = null;
+  var durataMinuti = calcolaDurataSM_(tipoAttivita, prezzo);
 
   var payload = {
     cliente: cliente,
@@ -95,6 +101,7 @@ function elaboraRigaVeneto_(row, interventiPerCodice) {
     tipoAttivita: tipoAttivita
   };
   if (durataMinuti !== null) payload.durataMinuti = durataMinuti;
+  if (prezzo !== null) payload.prezzo = prezzo;
   var dataDisp = normalizzaDataImport_(row[7]); // H — stessa utility dell'import Excel (Import.gs)
   if (dataDisp) payload.dataDispacciamento = dataDisp;
   if (esistente) payload.id = esistente.id;
@@ -133,7 +140,7 @@ function importaGoogleSheetVeneto(prossimoIndiceIniziale) {
 
   var interventiPerCodice = {};
   readAll_('INTERVENTI').forEach(function (iv) {
-    if (!iv.codiceEsterno) return;
+    if (!iv.codiceEsterno && !iv.chiaveSecondariaImport) return; // mai toccato da questo import
     interventiPerCodice[chiaveRiconciliazioneVeneto_(iv.codiceEsterno, iv.chiaveSecondariaImport)] = iv;
   });
 
