@@ -48,15 +48,29 @@ function ensureHeader_(schemaDef) {
   if (needsWrite) {
     range.setValues([headers]);
     sheet.setFrozenRows(1);
-    // Le colonne "data" vengono gestite come testo dd/MM/yyyy dal codice: forziamo
-    // il formato testo per evitare che Sheets le reinterpreti in base al locale del foglio.
-    schemaDef.fields.forEach(function (field, idx) {
-      if (field.type === 'date') {
-        sheet.getRange(2, idx + 1, Math.max(sheet.getMaxRows() - 1, 1), 1).setNumberFormat('@');
-      }
-    });
+    formattaColonneComeTesto_(sheet, schemaDef);
   }
   return sheet;
+}
+
+/**
+ * Forza il formato testo semplice ("@") sulle colonne "data" e "testo" dello schema: senza
+ * questo, Google Sheets può reinterpretare in automatico come NUMERO un valore testuale che
+ * sembra numerico (es. Codice Esterno "4005669418" o, peggio, un'Operazione con zeri iniziali
+ * come "0010", che diventerebbe 10, perdendo gli zeri) non appena la riga viene scritta — un
+ * comportamento del foglio, non del codice, ma che rompe silenziosamente il confronto usato per
+ * riconoscere un intervento già importato (vedi chiaveRiconciliazioneImport_ in Import.gs).
+ * Applicata alla creazione/riparazione dell'intestazione (ensureHeader_) per i fogli nuovi; per i
+ * fogli già esistenti (intestazione già corretta, quindi mai più passati di qui) vedi la
+ * migrazione una tantum in Setup.gs.
+ */
+function formattaColonneComeTesto_(sheet, schemaDef) {
+  var numRighe = Math.max(sheet.getMaxRows() - 1, 1);
+  schemaDef.fields.forEach(function (field, idx) {
+    if (field.type === 'date' || field.type === 'text') {
+      sheet.getRange(2, idx + 1, numRighe, 1).setNumberFormat('@');
+    }
+  });
 }
 
 function formatCellValue_(field, value) {

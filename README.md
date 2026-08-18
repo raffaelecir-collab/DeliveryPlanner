@@ -817,6 +817,23 @@ univoca — più righe possono condividere lo stesso Ordine con Operazioni
 diverse (stesso indirizzo, date/prezzi differenti) — mentre la coppia lo è
 sempre. L'Operazione resta comunque visibile a parte nel campo "Op.".
 
+**Protezione dagli zeri iniziali (bug noto, risolto)**: Google Sheets può
+reinterpretare in automatico come NUMERO un valore testuale che sembra
+numerico (es. un'Operazione "0010" scritta sul foglio può silenziosamente
+diventare 10, perdendo gli zeri) a meno che la colonna non sia già
+formattata come testo semplice — un comportamento del foglio stesso, non
+del codice, ma che rompeva il confronto usato per riconoscere un
+intervento già importato, causando duplicati a un reimport. Sono in atto
+due protezioni: (1) tutte le colonne di tipo testo/data vengono forzate al
+formato testo semplice ("@") — sui fogli nuovi già alla creazione, sui
+fogli esistenti con una migrazione una tantum eseguita in automatico alla
+prima apertura della Web App dopo l'aggiornamento (marcata con una
+proprietà del documento, per non ripeterla ad ogni apertura); (2) il
+confronto usato per riconoscere un intervento già importato normalizza
+comunque i valori puramente numerici (es. "0010" e "10" vengono trattati
+come lo stesso valore), così la riconciliazione resta corretta anche per
+le righe già scritte prima di questa correzione.
+
 **Selezione delle regioni da importare**: dopo aver letto il file, un popup
 mostra l'elenco delle **regioni italiane presenti nel file** (dedotte dalla
 sigla provincia in colonna Y tramite una tabella provincia→regione

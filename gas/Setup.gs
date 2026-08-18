@@ -26,6 +26,7 @@ function inizializzaApp() {
   Object.keys(SCHEMA).forEach(function (key) {
     ensureHeader_(SCHEMA[key]);
   });
+  forzaFormatoTestoUnaVoltaSola_();
   inizializzaRegoleDefault_();
   inizializzaListinoDefault_();
   // Rinfresca le Priorità automatiche (vedi aggiornaPrioritaAutomaticheGiornaliero_ in
@@ -34,6 +35,28 @@ function inizializzaApp() {
   // in più (nessuna chiamata di rete) su ogni bootstrap — le scritture avvengono solo per le
   // righe davvero cambiate.
   aggiornaPrioritaAutomaticheGiornaliero_();
+}
+
+/**
+ * Forza, UNA VOLTA SOLA per questo foglio Google, il formato testo semplice ("@") sulle colonne
+ * "testo"/"data" di tutti gli schemi (vedi formattaColonneComeTesto_ in SheetService.gs).
+ * Necessaria per i fogli GIÀ ESISTENTI: la loro intestazione è già corretta, quindi non passano
+ * mai più dal ramo di ensureHeader_ che applica questo formato (pensato per la creazione/
+ * riparazione dell'intestazione, non per ogni apertura). Senza questa protezione, Google Sheets
+ * può reinterpretare come NUMERO un valore testuale numerico appena scritto (es. Codice Esterno,
+ * o un'Operazione con zeri iniziali come "0010" che diventa 10), rompendo silenziosamente il
+ * confronto usato per riconoscere un intervento già importato a un import successivo. Usa una
+ * proprietà del documento (non una Regola: è un marcatore interno, non deve comparire nel tab
+ * Regole) per non ripetere l'operazione, non gratuita, ad ogni apertura della Web App.
+ */
+function forzaFormatoTestoUnaVoltaSola_() {
+  var proprieta = PropertiesService.getDocumentProperties();
+  if (proprieta.getProperty('formatoTestoApplicato') === '1') return;
+  Object.keys(SCHEMA).forEach(function (key) {
+    var schemaDef = SCHEMA[key];
+    formattaColonneComeTesto_(getOrCreateSheet_(schemaDef.sheetName), schemaDef);
+  });
+  proprieta.setProperty('formatoTestoApplicato', '1');
 }
 
 /** Wrapper per il menu del foglio: esegue l'inizializzazione e mostra un alert. */

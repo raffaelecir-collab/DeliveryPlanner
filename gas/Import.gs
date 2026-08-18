@@ -65,6 +65,21 @@ function calcolaDurataSM_(tipoAttivita, prezzo) {
 }
 
 /**
+ * Forma canonica di un valore che sembra un numero (tutte cifre), usata SOLO per il confronto di
+ * riconciliazione, mai per i valori mostrati/salvati: Google Sheets può reinterpretare in
+ * automatico come numero un valore scritto con zeri iniziali (es. l'Operazione "0010" diventa
+ * 10 non appena la riga viene scritta sul foglio, a meno che la colonna non sia già formattata
+ * come testo semplice), perdendo gli zeri. Questa normalizzazione rende il confronto tollerante:
+ * "0010" (appena letto dal file Excel) e "10" (già "corretto" dal foglio in un import
+ * precedente) riconciliano comunque come lo stesso valore. Un valore non puramente numerico resta
+ * invariato (confrontato così com'è, dopo trim).
+ */
+function normalizzaValoreNumericoPerConfronto_(valore) {
+  var v = String(valore === null || valore === undefined ? '' : valore).trim();
+  return /^\d+$/.test(v) ? String(parseInt(v, 10)) : v;
+}
+
+/**
  * Chiave di riconciliazione univoca "Ordine|Operazione" usata SOLO internamente per riconoscere
  * un Intervento già importato (mai la sola colonna Ordine, che nel file non è univoca — vedi il
  * commento in cima al file): il Codice Esterno sull'Intervento resta comunque solo l'Ordine.
@@ -72,7 +87,9 @@ function calcolaDurataSM_(tipoAttivita, prezzo) {
  * una versione precedente di questo import (prima che l'Operazione diventasse un campo a parte):
  * se il valore termina con "-" + Operazione, usa solo la parte Ordine — così le righe già
  * importate in passato continuano a riconciliare correttamente, e il loro Codice Esterno si
- * "ripulisce" da solo (torna al solo Ordine) al prossimo import che le tocca.
+ * "ripulisce" da solo (torna al solo Ordine) al prossimo import che le tocca. Ordine e Operazione
+ * vengono infine normalizzati con normalizzaValoreNumericoPerConfronto_ (vedi sopra) per tollerare
+ * l'eventuale perdita di zeri iniziali lato Google Sheets.
  */
 function chiaveRiconciliazioneImport_(codiceEsterno, operazione) {
   var ordine = String(codiceEsterno || '').trim();
@@ -81,7 +98,7 @@ function chiaveRiconciliazioneImport_(codiceEsterno, operazione) {
   if (suffisso && ordine.length > suffisso.length && ordine.slice(-suffisso.length) === suffisso) {
     ordine = ordine.slice(0, ordine.length - suffisso.length);
   }
-  return ordine + '|' + op;
+  return normalizzaValoreNumericoPerConfronto_(ordine) + '|' + normalizzaValoreNumericoPerConfronto_(op);
 }
 
 /**
