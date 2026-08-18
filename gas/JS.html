@@ -1008,6 +1008,9 @@
       var operatoreHtml = i.operatore
         ? '<span class="int-operatore">' + escapeHtml(i.operatore) + '</span>'
         : '<span class="int-operatore none">—</span>';
+      var tipoAttivitaHtml = i.tipoAttivita
+        ? '<span class="int-tipo-attivita">' + escapeHtml(etichettaTipoAttivita_(i.tipoAttivita)) + '</span>'
+        : '<span class="int-tipo-attivita none">—</span>';
       var storiaSospensioni = [];
       try { storiaSospensioni = JSON.parse(i.storiaSospensioni || '[]'); } catch (e) { storiaSospensioni = []; }
       if (!Array.isArray(storiaSospensioni)) storiaSospensioni = [];
@@ -1041,6 +1044,7 @@
       var prioritaCellClass = isAdmin ? 'int-priorita-cell' : '';
       return '<div class="int-row' + (i.stato === 'Annullato' ? ' is-annullato' : '') + '" data-row="' + i._row + '" data-id="' + escapeHtml(i.id || '') + '">' +
         '<div><div class="int-cliente">' + escapeHtml(i.cliente) + '</div><div class="int-indirizzo">' + escapeHtml(i.indirizzo || '') + '</div></div>' +
+        '<div>' + tipoAttivitaHtml + '</div>' +
         '<div>' + operatoreHtml + '</div>' +
         '<div class="' + prioritaCellClass + '" data-row="' + i._row + '"><span class="badge ' + (CLASSE_BADGE_PRIORITA_[i.priorita] || 'badge-normale') + '">' + escapeHtml(i.priorita || '') + '</span></div>' +
         '<div>' + odsHtml + '</div>' +

@@ -188,8 +188,9 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    Il campo **Email Account Squadra** dà accesso al tab dedicato "Account
    Squadra" più sotto: vedi quella sezione per i dettagli.
 2. Tab **Interventi**: l'elenco mostra, per ciascun intervento, **Cliente**,
-   **Op.** (Operazione, dal tracking esterno), **Priorità**, **ODS** (Codice
-   Esterno), **Ricavo**, **Stato**, **Squadra** e **Data/ora** — con
+   **Tipo Attività**, **Op.** (Operazione, dal tracking esterno),
+   **Priorità**, **ODS** (Codice Esterno), **Ricavo**, **Stato**,
+   **Squadra** e **Data/ora** — con
    **Priorità**, **Squadra** e **Data/ora** cliccabili direttamente in
    elenco (anche quando mostrano "—" o un valore già impostato): un click
    apre un piccolo editor inline (un selettore per Priorità/Squadra, due
