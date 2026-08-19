@@ -277,6 +277,21 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    su un percorso, ne viene tolto (come "Rimuovi"). Il pulsante diventa **"▶
    Fine sospensione"** quando l'intervento è già sospeso: lo riporta
    direttamente a "Da pianificare" (lo storico resta, non viene cancellato).
+
+   **Sospensione automatica da "Non Prima Del"**: impostare (o cambiare) il
+   campo **"Non Prima Del"** sulla scheda di un intervento lo sospende in
+   automatico in stato **"Sospeso - zc"**, con una nota generata da sola
+   ("Cliente chiede dopo &lt;data&gt;") — esattamente come il "⏸ Sospendi"
+   manuale, incluso il liberare l'eventuale squadra/data/ora già assegnate se
+   l'intervento era già pianificato. La sospensione **termina da sola**,
+   tornando "Da pianificare", non appena questa data viene raggiunta (senza
+   bisogno di aprire la Web App: succede anche dal trigger giornaliero
+   opzionale, vedi più sotto) — oppure **subito**, se il campo viene
+   svuotato a mano prima di quella data. Non scatta su un intervento già
+   Completato o Annullato. Una sospensione "Sospeso - zc" scelta a mano dal
+   dialog "⏸ Sospendi" (senza passare da "Non Prima Del") non viene invece
+   mai riattivata in automatico: resta sospesa finché non si preme "▶ Fine
+   sospensione".
    Il pulsante **"📝"** apre un popup per aggiungere una semplice **nota**
    (solo data automatica, non cambia stato); il pulsante **"⊘ Annulla"**
    chiede una nota di motivazione e porta l'intervento a "Annullato" in modo
@@ -787,8 +802,9 @@ foglio invece di usare i form della Web App. In quel caso:
   (anche senza cambiare nulla) per farla geocodificare. Finché un
   intervento/squadra non è geocodificato/a (né in automatico né a mano), la
   pianificazione darà errore "indirizzo non geocodificato";
-- le **Priorità automatiche** (SM01-SM05, vedi tab Interventi più sotto) si
-  aggiornano comunque ad ogni apertura della Web App: il trigger dal menu
+- le **Priorità automatiche** (SM01-SM05, vedi tab Interventi più sotto) e la
+  **fine automatica delle sospensioni "Non Prima Del"** (vedi tab Interventi)
+  si aggiornano comunque ad ogni apertura della Web App: il trigger dal menu
   **Delivery Planner → "Attiva aggiornamento giornaliero priorità
   automatiche"** è facoltativo, utile solo per tenerle fresche anche nei
   giorni in cui nessuno apre la Web App (es. prima di una pianificazione

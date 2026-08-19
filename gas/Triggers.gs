@@ -37,10 +37,12 @@ var NOME_HANDLER_TRIGGER_PRIORITA_ = 'aggiornaPrioritaTriggerHandler_';
 
 /**
  * Crea un trigger a orario (una volta al giorno, verso le 5 del mattino) che rinfresca le
- * Priorità automatiche (vedi aggiornaPrioritaAutomaticheGiornaliero_ in Interventions.gs), se non
- * già presente. Facoltativo: inizializzaApp (Setup.gs) chiama comunque la stessa funzione ad ogni
- * apertura della Web App, quindi questo trigger serve solo a tenerle fresche anche nei giorni in
- * cui nessuno apre la Web App (utile prima di una pianificazione automatica mattutina).
+ * Priorità automatiche (vedi aggiornaPrioritaAutomaticheGiornaliero_ in Interventions.gs) e
+ * termina le sospensioni "Cliente chiede dopo" la cui Data "Non Prima Del" è stata raggiunta (vedi
+ * terminaSospensioniPerDataRichiestaScaduta_ in Interventions.gs), se non già presente.
+ * Facoltativo: inizializzaApp (Setup.gs) chiama comunque le stesse funzioni ad ogni apertura della
+ * Web App, quindi questo trigger serve solo a tenerle aggiornate anche nei giorni in cui nessuno
+ * apre la Web App (utile prima di una pianificazione automatica mattutina).
  */
 function installaTriggerAggiornaPriorita_() {
   var giaPresente = ScriptApp.getProjectTriggers().some(function (t) {
@@ -59,13 +61,14 @@ function installaTriggerAggiornaPriorita_() {
 function installaTriggerAggiornaPrioritaDaMenu() {
   var creato = installaTriggerAggiornaPriorita_();
   SpreadsheetApp.getUi().alert(creato
-    ? 'Aggiornamento giornaliero attivato: ogni notte verso le 5 le Priorità automatiche (Tipi Attività SM01-SM05) verranno rinfrescate in base alla Scadenza. Vengono comunque aggiornate anche ad ogni apertura della Web App, indipendentemente da questo trigger.'
+    ? 'Aggiornamento giornaliero attivato: ogni notte verso le 5 le Priorità automatiche (Tipi Attività SM01-SM05) verranno rinfrescate in base alla Scadenza, e le sospensioni "Cliente chiede dopo" la cui Data "Non Prima Del" è stata raggiunta torneranno "Da pianificare". Vengono comunque aggiornate anche ad ogni apertura della Web App, indipendentemente da questo trigger.'
     : 'Il trigger di aggiornamento giornaliero era già attivo su questo foglio.');
 }
 
 /** Funzione richiamata dal trigger a orario installato da installaTriggerAggiornaPriorita_. */
 function aggiornaPrioritaTriggerHandler_() {
   aggiornaPrioritaAutomaticheGiornaliero_();
+  terminaSospensioniPerDataRichiestaScaduta_();
 }
 
 /**

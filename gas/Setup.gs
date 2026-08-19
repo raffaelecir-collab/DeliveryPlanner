@@ -35,6 +35,11 @@ function inizializzaApp() {
   // in più (nessuna chiamata di rete) su ogni bootstrap — le scritture avvengono solo per le
   // righe davvero cambiate.
   aggiornaPrioritaAutomaticheGiornaliero_();
+  // Termina in automatico le sospensioni "Cliente chiede dopo" la cui Data "Non Prima Del" è
+  // stata raggiunta (vedi terminaSospensioniPerDataRichiestaScaduta_ in Interventions.gs), sullo
+  // stesso principio della riga sopra: ad ogni apertura della Web App, senza dipendere dal
+  // trigger giornaliero opzionale.
+  terminaSospensioniPerDataRichiestaScaduta_();
 }
 
 /**

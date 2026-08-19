@@ -122,18 +122,81 @@ function salvaIntervento(intervento) {
     Object.assign(intervento, campiAnalisi_(esistente, { stato: STATO_INTERVENTO.PIANIFICATO }));
   }
 
+  // Sospensione automatica "Cliente chiede dopo": se questo salvataggio imposta o cambia la Data
+  // "Non Prima Del" (dataRichiesta) a un nuovo valore non vuoto, l'intervento passa a "Sospeso -
+  // zc" con una nota automatica — esattamente come sospendiIntervento (libera l'eventuale squadra/
+  // data/ora già assegnate, sovrascrivendo anche un passaggio a "Pianificato" appena deciso sopra
+  // in questo stesso salvataggio). Non scatta su un intervento già Completato o Annullato. Se
+  // invece la Data viene svuotata mentre l'intervento è "Sospeso - zc" (per questo motivo o scelto
+  // a mano), la sospensione termina subito, senza aspettare la data. La fine automatica alla data
+  // raggiunta (senza toccare il campo) è invece gestita da
+  // terminaSospensioniPerDataRichiestaScaduta_, richiamata da inizializzaApp e dal trigger
+  // giornaliero (vedi Triggers.gs) — qui gestiamo solo i cambiamenti espliciti del campo.
+  var dataRichiestaPrecedente = esistente ? (esistente.dataRichiesta || '') : '';
+  var dataRichiestaSottomessa = intervento.dataRichiesta !== undefined ? (intervento.dataRichiesta || '') : dataRichiestaPrecedente;
+  var notaEventoSospensioneAuto = null;
+  if (intervento.dataRichiesta !== undefined && dataRichiestaSottomessa !== dataRichiestaPrecedente) {
+    var statoBaseSospensioneAuto = intervento.stato !== undefined ? intervento.stato : (esistente ? esistente.stato : STATO_INTERVENTO.DA_PIANIFICARE);
+    if (dataRichiestaSottomessa && statoBaseSospensioneAuto !== STATO_INTERVENTO.COMPLETATO && statoBaseSospensioneAuto !== STATO_INTERVENTO.ANNULLATO) {
+      var notaSospensioneAuto = 'Cliente chiede dopo ' + dataRichiestaSottomessa;
+      intervento.stato = STATO_INTERVENTO.SOSPESO_ZC;
+      intervento.squadraId = ''; intervento.dataPianificata = ''; intervento.oraPianificata = '';
+      intervento.ordineTappa = ''; intervento.motivoNonPianificato = ''; intervento.nonAutomatizzabileData = '';
+      intervento.storiaSospensioni = aggiungiStoriaSospensione_(esistente, STATO_INTERVENTO.SOSPESO_ZC, notaSospensioneAuto);
+      Object.assign(intervento, campiAnalisi_(esistente, { stato: STATO_INTERVENTO.SOSPESO_ZC }));
+      notaEventoSospensioneAuto = STATO_INTERVENTO.SOSPESO_ZC + ': ' + notaSospensioneAuto;
+    } else if (!dataRichiestaSottomessa && statoBaseSospensioneAuto === STATO_INTERVENTO.SOSPESO_ZC) {
+      intervento.stato = STATO_INTERVENTO.DA_PIANIFICARE;
+      intervento.motivoNonPianificato = '';
+      intervento.storiaSospensioni = aggiungiStoriaSospensione_(esistente, STATO_INTERVENTO.DA_PIANIFICARE, 'Fine sospensione (Non Prima Del rimosso)');
+      Object.assign(intervento, campiAnalisi_(esistente, { stato: STATO_INTERVENTO.DA_PIANIFICARE }));
+      notaEventoSospensioneAuto = 'Fine sospensione: torna "Da pianificare" (Non Prima Del rimosso)';
+    }
+  }
+
   var salvato = upsertRow_('INTERVENTI', intervento);
+  if (notaEventoSospensioneAuto) creaNotificaIntervento_(salvato, notaEventoSospensioneAuto, RUOLO.ADMIN);
   // Notifica solo la riassegnazione di squadra su un intervento GIÀ esistente (campo "Squadra
   // Assegnata" del form di Modifica): unico cambio davvero rilevante che può passare da questa
   // funzione generica (gli altri campi editabili qui, es. indirizzo/telefono/ricavo, non sono
-  // eventi di ciclo di vita). Non notifica la creazione di un nuovo intervento.
-  if (esistente && esistente.squadraId !== salvato.squadraId) {
+  // eventi di ciclo di vita). Non notifica la creazione di un nuovo intervento. Non si applica se
+  // il cambio di squadra è già stato notificato sopra come parte della sospensione automatica.
+  if (!notaEventoSospensioneAuto && esistente && esistente.squadraId !== salvato.squadraId) {
     var nomeNuovaSquadra = salvato.squadraId ? nomeSquadraPerId_(salvato.squadraId) : null;
     var evento = !nomeNuovaSquadra ? 'Squadra assegnata rimossa'
       : (esistente.squadraId ? 'Riassegnato alla squadra "' + nomeNuovaSquadra + '"' : 'Assegnato alla squadra "' + nomeNuovaSquadra + '"');
     creaNotificaIntervento_(salvato, evento, RUOLO.ADMIN);
   }
   return salvato;
+}
+
+/**
+ * Termina in automatico la sospensione "Cliente chiede dopo" (Sospeso - zc) non appena la Data
+ * "Non Prima Del" (dataRichiesta) è raggiunta (oggi >= dataRichiesta): torna "Da pianificare" con
+ * una voce di storico, esattamente come terminaSospensione ma senza alcun intervento manuale.
+ * Riguarda solo gli Interventi "Sospeso - zc" che hanno effettivamente una Data "Non Prima Del"
+ * impostata — un "Sospeso - zc" scelto a mano dal menu Sospendi senza questa data resta sospeso
+ * finché non lo si termina a mano, come sempre. Chiamata sia da inizializzaApp (quindi ad ogni
+ * apertura della Web App) sia da un trigger giornaliero opzionale (vedi Triggers.gs), sullo stesso
+ * modello di aggiornaPrioritaAutomaticheGiornaliero_.
+ */
+function terminaSospensioniPerDataRichiestaScaduta_() {
+  var oggi = dataOggi_();
+  var terminati = 0;
+  readAll_('INTERVENTI').forEach(function (i) {
+    if (i.stato !== STATO_INTERVENTO.SOSPESO_ZC || !i.dataRichiesta) return;
+    var dr = parseDateStr_(i.dataRichiesta);
+    if (!dr || dr > oggi) return;
+    var campi = {
+      stato: STATO_INTERVENTO.DA_PIANIFICARE,
+      motivoNonPianificato: '',
+      storiaSospensioni: aggiungiStoriaSospensione_(i, STATO_INTERVENTO.DA_PIANIFICARE, 'Fine sospensione (raggiunta la data "Non Prima Del")')
+    };
+    updateRowFields_('INTERVENTI', i._row, Object.assign(campi, campiAnalisi_(i, campi)));
+    creaNotificaIntervento_(i, 'Fine sospensione: torna "Da pianificare" (raggiunta la data "Non Prima Del")', RUOLO.ADMIN);
+    terminati++;
+  });
+  return terminati;
 }
 
 /** Nome di una Squadra dal suo id, o null se non trovata (squadra eliminata nel frattempo). */
