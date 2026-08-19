@@ -935,8 +935,8 @@ min); le altre regole (durata fissa per SM02-SM05, Scadenza e Priorità
 automatiche) sono le stesse, condivise tra le due fonti di import.
 
 **Filtro sullo stato (colonna M)**: vengono importate/aggiornate **solo** le
-righe la cui colonna M vale "Giacente", "Appuntamentato" o "Sospeso"
-(case-insensitive) — le altre sono escluse in automatico, senza creare né
+righe la cui colonna M vale "Giacente" (case-insensitive) — le altre sono
+escluse in automatico, senza creare né
 toccare nulla; il risultato dell'import mostra quante righe sono state
 scartate per questo motivo.
 

@@ -22,8 +22,8 @@
  *   vedi calcolaDurataSM_ in Import.gs).
  * - C: Comune (la stessa colonna usata anche per comporre l'Indirizzo).
  *
- * Solo le righe la cui colonna M vale "Giacente", "Appuntamentato" o "Sospeso" (case-insensitive,
- * dopo trim) vengono importate/aggiornate; le altre sono ignorate (né create né toccate). Come
+ * Solo le righe la cui colonna M vale "Giacente" (case-insensitive, dopo trim) vengono
+ * importate/aggiornate; le altre sono ignorate (né create né toccate). Come
  * per l'import Excel, QUI NON ESISTE alcun annullamento automatico per righe non più presenti o
  * non più in uno di questi tre stati, e un re-import non tocca mai stato/squadra/data
  * pianificata/ordine tappa/ricavo di un Intervento già esistente (solo i campi anagrafici sopra
@@ -37,7 +37,7 @@ var ID_FOGLIO_VENETO_ = '1Lou7tcXd7_8fBpwIns-oZQjqceV5MKb1vQfej0LpD1M';
 var TAB_VENETO_ = 'Veneto';
 
 /** I soli valori di colonna M che rendono una riga importabile/aggiornabile (case-insensitive). */
-var STATI_IMPORTABILI_VENETO_ = ['giacente', 'appuntamentato', 'sospeso'];
+var STATI_IMPORTABILI_VENETO_ = ['giacente'];
 
 /** Mappa il testo libero di "Tipo Attività" (colonna G) sui codici SM01-SM05/Intervento a vuoto. */
 var MAPPA_TIPO_ATTIVITA_VENETO_ = {
