@@ -27,11 +27,13 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
   manuale-assistito, non un'assegnazione automatica cieca:
   1. Scegli **squadra** e **giorno**.
   2. Seleziona dall'elenco gli interventi "Da pianificare" da includere in
-     quel giro. La **competenza richiesta è un vincolo rigido anche qui**: un
-     intervento la cui competenza non è tra quelle della squadra scelta ha la
-     casella disabilitata (non selezionabile), con l'icona ⚠ a indicarne il
-     motivo — resta comunque deselezionabile se era già pianificato per quella
-     squadra prima di un cambio di competenze.
+     quel giro. Il **Tipo Attività è un vincolo rigido anche qui**: un
+     intervento il cui Tipo Attività (SM01-SM05) non è tra le Competenze della
+     squadra scelta ha la casella disabilitata (non selezionabile), con
+     l'icona ⚠ a indicarne il motivo — resta comunque deselezionabile se era
+     già pianificato per quella squadra prima di un cambio di competenze. Un
+     intervento senza Tipo Attività, "Intervento a vuoto" o "Altro" resta
+     invece sempre selezionabile per qualsiasi squadra.
   3. Premi **"Ottimizza percorso"**: il motore calcola l'ordine di visita che
      minimizza il tempo di spostamento totale, per massimizzare quanti
      interventi entrano nel tempo disponibile (costruzione a "inserimento più
@@ -172,11 +174,16 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    a inizio turno, indirizzo di rientro a fine turno (lascia vuoto se
    coincide con la partenza), orario di lavoro e, se presente, la fascia
    della pausa pranzo. Indirizzo di partenza e rientro vengono geocodificati
-   automaticamente al salvataggio. Le **competenze sono un vincolo rigido**
-   (non solo un promemoria): una squadra senza una data competenza non potrà
-   mai essere assegnata a un intervento che la richiede, né nella selezione
-   manuale né nella pianificazione automatica (lascia il campo vuoto se la
-   squadra copre qualsiasi competenza). Sulla stessa scheda puoi indicare
+   automaticamente al salvataggio. Le **Competenze sono una selezione di Tipi
+   Attività (SM01-SM05)** e costituiscono un **vincolo rigido** (non solo un
+   promemoria): una squadra senza un dato Tipo Attività tra le sue Competenze
+   non potrà mai essere assegnata a un intervento di quel tipo, né nella
+   selezione manuale né nella pianificazione automatica (nessuna selezione =
+   la squadra copre qualsiasi Tipo Attività). Un intervento senza Tipo
+   Attività scelto, "Intervento a vuoto" o "Altro" resta invece sempre
+   assegnabile a qualsiasi squadra, indipendentemente dalle sue Competenze —
+   solo SM01-SM05 sono considerati specializzazioni vere e proprie. Sulla
+   stessa scheda puoi indicare
    l'**indisponibilità della squadra**: un selettore dei **giorni della
    settimana** in cui quella squadra in particolare non lavora (es. un
    part-time con giorno di riposo infrasettimanale, oltre ai giorni
@@ -211,7 +218,7 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    quali compaiono dipende da ruolo e stato, come prima).
 
    La scheda "Nuovo intervento"/"Modifica" raccoglie cliente, indirizzo —
-   geocodificato automaticamente —, competenza richiesta, durata stimata,
+   geocodificato automaticamente —, Tipo Attività, durata stimata,
    finestra oraria, **telefono** del cliente per contattarlo sul campo,
    eventuale non-prima-del, **Codice Esterno (Ods)** (normalmente compilato
    dall'import, ma modificabile anche a mano da qui), **Op.** (campo libero,
@@ -341,8 +348,9 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    - **"🧩 Riempi buchi"** per una squadra/giorno: le tappe **già
      pianificate restano ferme** (stesso ordine relativo tra loro, mai
      scartate né ripianificate da zero) e vengono solo **aggiunti**
-     interventi ancora "Da pianificare" compatibili (stessa competenza,
-     stesso rispetto di finestre orarie/pausa pranzo/orario di lavoro) nei
+     interventi ancora "Da pianificare" compatibili (stesso vincolo di Tipo
+     Attività/Competenze, stesso rispetto di finestre orarie/pausa
+     pranzo/orario di lavoro) nei
      buchi residui del turno, per non lasciare ore inutilizzate. Vengono
      valutate **tutte** le posizioni di inserimento disponibili per ciascun
      candidato (non solo la più economica in termini di viaggio) e **tutti**
@@ -383,7 +391,7 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      pianificati per un'altra squadra o un altro giorno (per poterli
      spostare a mano): **arancio** = da pianificare, **verde** =
      selezionato, **blu scuro** = già pianificato altrove, **grigio** =
-     competenza non compatibile con la squadra. Cliccando un punto si apre
+     Tipo Attività non compatibile con le Competenze della squadra. Cliccando un punto si apre
      una scheda con i dati essenziali (e, se già pianificato altrove,
      l'indicazione di dove) e un bottone "Inserisci in planner"/"Sposta
      qui" (o "Rimuovi dalla selezione"/"Annulla spostamento" se già
@@ -394,7 +402,7 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
      provenienza; se serve, usa "Riempi buchi" su quella combinazione dopo
      lo spostamento.
    - **"+ Aggiungi intervento"** per una squadra/giorno: crea al volo un
-     nuovo intervento (cliente, indirizzo, competenza, priorità, durata,
+     nuovo intervento (cliente, indirizzo, Tipo Attività, priorità, durata,
      telefono, ricavo) e lo inserisce subito nel percorso **a un orario
      scelto a mano**, senza passare dall'ottimizzatore — pensato per un
      intervento imprevisto durante un giro già in corso. L'intervento entra
@@ -434,15 +442,15 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    premi "Pianifica intervallo": il sistema genera e **scrive subito**
    (senza passaggio di conferma) un percorso ottimizzato per ciascuna
    squadra in ciascun giorno dell'intervallo, usando via via gli interventi
-   "Da pianificare" ancora disponibili e compatibili (qui la competenza
-   richiesta è un filtro rigido, non solo un avviso), **saltando i giorni
+   "Da pianificare" ancora disponibili e compatibili (qui il Tipo Attività
+   è un filtro rigido, non solo un avviso), **saltando i giorni
    non lavorativi** impostati in Regole e i giorni in cui una squadra è
    specificamente non disponibile (giorno di riposo o ferie). Con più
    squadre selezionate, l'assegnazione di ciascun giorno **non segue
    l'ordine di selezione**: per ogni intervento ancora da assegnare si
    confronta il costo tra **tutte** le squadre disponibili quel giorno, e
    vince chi costa meno in assoluto (vicinanza, priorità, ricavo verso il
-   target, competenza specifica) — non "a turno" nell'ordine in cui sono
+   target, competenza specifica per Tipo Attività) — non "a turno" nell'ordine in cui sono
    state selezionate. Così una squadra già vicina a un gruppo di interventi
    tende a vincerli tutti in sequenza (**concentrando il lavoro su poche
    squadre** invece di spalmarlo su tutte), mentre un intervento
@@ -458,11 +466,12 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    "**Giornata libera**" con il motivo: non è necessario che tutte le
    squadre risultino impegnate ogni giorno.
 
-   Se una squadra ha **competenze specifiche** impostate (non generica),
-   riceve prima gli interventi che richiedono esplicitamente una di quelle
-   competenze, usando gli interventi generici (competenza vuota, adatti a
-   qualsiasi squadra) solo come riempitivo quando non c'è (più) lavoro
-   specifico disponibile per lei.
+   Se una squadra ha **Competenze specifiche** impostate (uno o più Tipi
+   Attività, non generica), riceve prima gli interventi il cui Tipo Attività
+   è esplicitamente una di quelle competenze, usando gli interventi generici
+   (senza Tipo Attività, "Intervento a vuoto" o "Altro" — adatti a qualsiasi
+   squadra) solo come riempitivo quando non c'è (più) lavoro specifico
+   disponibile per lei.
 
    Se una combinazione squadra/giorno ha **già un percorso confermato** in
    partenza (da un run precedente di "Pianifica intervallo", o pianificato a

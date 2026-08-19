@@ -220,6 +220,13 @@
     return significato ? (codice + ' - ' + significato) : codice;
   }
 
+  /** Rispecchia tipoAttivitaGenerico_ (RouteEngine.gs): vuoto, "Intervento a vuoto" o "Altro" non
+   *  sono vincolati dalle Competenze di una squadra, sono sempre assegnabili a qualsiasi squadra. */
+  function tipoAttivitaGenericoClient_(tipoAttivita) {
+    var t = String(tipoAttivita || '').trim();
+    return !t || t === 'Intervento a vuoto' || t === 'Altro';
+  }
+
   function getOptionsForField(field) {
     var opts = [];
     if (field.options) {
@@ -284,6 +291,29 @@
         btnLegenda.textContent = 'ℹ Legenda';
         btnLegenda.addEventListener('click', mostraLegendaTipoAttivita_);
         wrap.appendChild(btnLegenda);
+      }
+
+      if (field.type === 'tipiAttivita') {
+        var selezionatiTipi = splitListClient(existingObj && existingObj[field.key] !== undefined ? existingObj[field.key] : (field.default || ''));
+        var tipiDiv = document.createElement('div');
+        tipiDiv.className = 'checklist-squadre';
+        tipiDiv.dataset.keyTipiAttivita = field.key;
+        (field.options || []).forEach(function (t) {
+          var lbl = document.createElement('label');
+          var cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = t;
+          cb.checked = selezionatiTipi.indexOf(t) !== -1;
+          lbl.appendChild(cb); lbl.appendChild(document.createTextNode(etichettaTipoAttivita_(t)));
+          tipiDiv.appendChild(lbl);
+        });
+        wrap.appendChild(tipiDiv);
+        if (field.help) {
+          var helpTipi = document.createElement('div');
+          helpTipi.className = 'field-help';
+          helpTipi.textContent = field.help;
+          wrap.appendChild(helpTipi);
+        }
+        form.appendChild(wrap);
+        return;
       }
 
       if (field.type === 'giorni') {
@@ -485,6 +515,10 @@
         var key = container.dataset.keyGiorni;
         obj[key] = Array.prototype.slice.call(container.querySelectorAll('input:checked')).map(function (cb) { return cb.value; }).join(',');
       });
+      form.querySelectorAll('[data-key-tipi-attivita]').forEach(function (container) {
+        var key = container.dataset.keyTipiAttivita;
+        obj[key] = Array.prototype.slice.call(container.querySelectorAll('input:checked')).map(function (cb) { return cb.value; }).join(',');
+      });
       form.querySelectorAll('[data-key-ferie]').forEach(function (container) {
         var key = container.dataset.keyFerie;
         var periodi = Array.prototype.slice.call(container.querySelectorAll('.ferie-riga')).map(function (riga) {
@@ -559,7 +593,7 @@
       return '<div class="team-row' + (s.attiva ? '' : ' is-inactive') + '">' +
         '<span class="team-dot" style="background:' + (s.colore || '#999') + '"></span>' +
         '<div><div class="team-name">' + escapeHtml(s.nome) + '</div>' +
-          (s.competenze ? '<div class="team-competenze">' + escapeHtml(s.competenze) + '</div>' : '') + '</div>' +
+          (s.competenze ? '<div class="team-competenze">' + escapeHtml(splitListClient(s.competenze).join(', ')) + '</div>' : '') + '</div>' +
         '<div class="team-address">' + indirizzoHtml + '</div>' +
         '<div class="team-hours">' + (s.oraInizio || '') + '–' + (s.oraFine || '') + '</div>' +
         '<div class="team-lunch' + (pausaTesto ? '' : ' none') + '">' + (pausaTesto || 'Nessuna') + '</div>' +
@@ -798,6 +832,10 @@
     var campoTipoAttivita = (state.schema.INTERVENTI && state.schema.INTERVENTI.fields || []).filter(function (f) { return f.key === 'tipoAttivita'; })[0];
     (campoTipoAttivita ? campoTipoAttivita.options : []).forEach(function (t) {
       var opt = document.createElement('option'); opt.value = t; opt.textContent = etichettaTipoAttivita_(t); selTipoAttivita.appendChild(opt);
+    });
+    var selAggTipoAttivita = document.getElementById('agg-tipo-attivita');
+    (campoTipoAttivita ? campoTipoAttivita.options : []).forEach(function (t) {
+      var opt = document.createElement('option'); opt.value = t; opt.textContent = etichettaTipoAttivita_(t); selAggTipoAttivita.appendChild(opt);
     });
   }
 
@@ -1618,14 +1656,14 @@
     tbody.innerHTML = tutti.map(function (i) {
       var giaPianificato = pianificatiIds.indexOf(i.id) !== -1;
       var checked = giaPianificato ? 'checked' : '';
-      var competenzaIntervento = String(i.competenza || '').trim().toLowerCase();
-      var incompatibile = !!(competenzaIntervento && competenzeSquadra.length && competenzeSquadra.indexOf(competenzaIntervento) === -1);
-      // Una competenza incompatibile blocca la nuova selezione (rispecchia il vincolo rigido
+      var tipoInterventoLower = String(i.tipoAttivita || '').trim().toLowerCase();
+      var incompatibile = !!(competenzeSquadra.length && !tipoAttivitaGenericoClient_(i.tipoAttivita) && competenzeSquadra.indexOf(tipoInterventoLower) === -1);
+      // Un Tipo Attività incompatibile blocca la nuova selezione (rispecchia il vincolo rigido
       // lato server), ma se l'intervento è già pianificato per questa squadra (es. competenze
       // cambiate dopo l'assegnazione) resta comunque deselezionabile.
       var disabled = (incompatibile && !giaPianificato) ? 'disabled' : '';
       var warn = incompatibile
-        ? ' <span class="warn-icon" title="Competenza non tra quelle della squadra">⚠</span>' : '';
+        ? ' <span class="warn-icon" title="Tipo Attività non tra le competenze della squadra">⚠</span>' : '';
       // Selezionare un intervento già pianificato per un'altra squadra/giorno equivale a
       // spostarlo qui: la conferma successiva sovrascrive la sua assegnazione precedente.
       var altrove = i.squadraNomeAttuale
@@ -1635,7 +1673,7 @@
         '<td><input type="checkbox" data-id="' + i.id + '" ' + checked + ' ' + disabled + '></td>' +
         '<td>' + escapeHtml(i.cliente) + '</td>' +
         '<td>' + escapeHtml(i.indirizzo || '') + '</td>' +
-        '<td>' + escapeHtml(i.competenza || '-') + warn + '</td>' +
+        '<td>' + escapeHtml(i.tipoAttivita ? etichettaTipoAttivita_(i.tipoAttivita) : '-') + warn + '</td>' +
         '<td><span class="badge ' + i.priorita + '">' + i.priorita + '</span></td>' +
         '<td>' + (i.durataMinuti || '') + ' min</td>' +
         '<td>' + (i.finestraInizio || '') + ' - ' + (i.finestraFine || '') + '</td>' +
@@ -1712,8 +1750,8 @@
     var selezionatiIds = idsSelezionatiCorrenti();
 
     puntiValidi.forEach(function (i) {
-      var competenzaIntervento = String(i.competenza || '').trim().toLowerCase();
-      var incompatibile = !!(competenzaIntervento && competenzeSquadra.length && competenzeSquadra.indexOf(competenzaIntervento) === -1);
+      var tipoInterventoLower = String(i.tipoAttivita || '').trim().toLowerCase();
+      var incompatibile = !!(competenzeSquadra.length && !tipoAttivitaGenericoClient_(i.tipoAttivita) && competenzeSquadra.indexOf(tipoInterventoLower) === -1);
       var selezionato = selezionatiIds.indexOf(i.id) !== -1;
       var altrove = !!i.squadraNomeAttuale;
       var classe = incompatibile ? 'incompatibile' : (selezionato ? 'selezionato' : (altrove ? 'altrove' : 'disponibile'));
@@ -1725,12 +1763,11 @@
         '<strong>' + escapeHtml(i.cliente) + '</strong><br>' +
         escapeHtml(i.indirizzo || '') + '<br>' +
         (i.tipoAttivita ? 'Tipo attività: ' + escapeHtml(etichettaTipoAttivita_(i.tipoAttivita)) + '<br>' : '') +
-        (i.competenza ? 'Competenza: ' + escapeHtml(i.competenza) + '<br>' : '') +
         'Priorità: ' + escapeHtml(i.priorita || '') + ' · ' + (i.durataMinuti || '') + ' min<br>' +
         ((i.finestraInizio || i.finestraFine) ? 'Finestra: ' + (i.finestraInizio || '') + '-' + (i.finestraFine || '') + '<br>' : '') +
         (altrove ? '<span class="popup-altrove">📍 Attualmente pianificato per ' + escapeHtml(i.squadraNomeAttuale) + ' il ' + escapeHtml(i.dataPianificata) + '</span><br>' : '') +
         (incompatibile
-          ? '<span class="popup-warn">⚠ Competenza non compatibile con questa squadra</span>'
+          ? '<span class="popup-warn">⚠ Tipo Attività non compatibile con questa squadra</span>'
           : '<button type="button" class="btn small' + (selezionato ? ' secondary' : '') + '" data-toggle-id="' + i.id + '">' + testoBottone + '</button>') +
         '</div>';
       var marker = L.marker([i.lat, i.lng], { icon: icon }).addTo(mappaSelezioneInstance).bindPopup(popupHtml);
@@ -2774,6 +2811,7 @@
     document.getElementById('agg-priorita').value = 'Normale';
     document.getElementById('agg-durata').value = 60;
     document.getElementById('agg-ricavo').value = 0;
+    document.getElementById('agg-tipo-attivita').value = '';
     document.getElementById('dlg-aggiungi').classList.remove('hidden');
   }
 
@@ -2786,7 +2824,7 @@
     var intervento = {
       cliente: cliente,
       indirizzo: indirizzo,
-      competenza: document.getElementById('agg-competenza').value.trim(),
+      tipoAttivita: document.getElementById('agg-tipo-attivita').value,
       priorita: document.getElementById('agg-priorita').value,
       durataMinuti: parseFloat(document.getElementById('agg-durata').value) || 60,
       telefono: document.getElementById('agg-telefono').value.trim(),

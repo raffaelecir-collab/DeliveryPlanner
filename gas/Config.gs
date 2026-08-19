@@ -92,7 +92,7 @@ var SCHEMA = {
     fields: [
       { key: 'id', label: 'ID', type: 'text', readonly: true },
       { key: 'nome', label: 'Nome Squadra', type: 'text', required: true },
-      { key: 'competenze', label: 'Competenze (separate da virgola)', type: 'text', help: 'Es: elettrico,idraulico — vincolo rigido: alla squadra possono essere assegnati solo interventi la cui competenza richiesta è tra queste (vuoto = nessun vincolo, la squadra copre qualsiasi competenza).' },
+      { key: 'competenze', label: 'Competenze (Tipi Attività)', type: 'tipiAttivita', options: TIPI_ATTIVITA_NOTI, help: 'Tipi Attività (SM01-SM05) per cui la squadra è competente: vincolo rigido, come per la vecchia "Competenza Richiesta" testuale — alla squadra vengono assegnati (a mano o in automatico) solo interventi di uno di questi tipi. Gli interventi "Intervento a vuoto", "Altro" o senza Tipo Attività scelto restano invece assegnabili a QUALSIASI squadra, indipendentemente da questa selezione. Nessuna selezione = nessun vincolo, la squadra copre qualsiasi Tipo Attività.' },
       { key: 'indirizzoPartenza', label: 'Indirizzo di Partenza (inizio turno)', type: 'text', required: true, mapPreview: true, mapCoordFields: ['latPartenza', 'lngPartenza'] },
       { key: 'indirizzoRientro', label: 'Indirizzo di Rientro (fine turno)', type: 'text', help: 'Lascia vuoto se coincide con la partenza.', mapPreview: true, mapCoordFields: ['latRientro', 'lngRientro'] },
       { key: 'latPartenza', label: 'Lat Partenza', type: 'number', readonly: true },
@@ -122,7 +122,7 @@ var SCHEMA = {
       { key: 'indirizzo', label: 'Indirizzo', type: 'text', required: true, mapPreview: true, mapCoordFields: ['lat', 'lng'] },
       { key: 'lat', label: 'Lat', type: 'number', readonly: true },
       { key: 'lng', label: 'Lng', type: 'number', readonly: true },
-      { key: 'competenza', label: 'Competenza Richiesta', type: 'text', help: 'Vuoto = qualsiasi squadra' },
+      { key: 'competenza', label: 'Competenza Richiesta (legacy)', type: 'text', help: 'Campo libero, non più usato per vincolare l\'assegnazione alle squadre: quel vincolo ora si basa sul Tipo Attività (vedi campo "Competenze" della Squadra). Lasciato per compatibilità con note già inserite in passato.' },
       { key: 'priorita', label: 'Priorità', type: 'select', options: [PRIORITA.URGENTE, PRIORITA.ALTA, PRIORITA.NORMALE, PRIORITA.BASSA], default: PRIORITA.NORMALE, help: 'Per i Tipi Attività SM01-SM05 con una Scadenza si aggiorna da sola in base ai giorni lavorativi rimanenti (scaduta o ≤1gg: Urgente · ≤3gg: Alta · ≤7gg: Normale · oltre: Bassa): puoi comunque forzarla qui a un valore diverso, da quel momento resta quella scelta e non viene più sovrascritta in automatico.' },
       { key: 'prioritaManuale', label: 'Priorità Manuale', type: 'checkbox', default: false, readonly: true, help: 'Impostato automaticamente non appena la Priorità viene cambiata a mano su un intervento altrimenti automatico: da quel momento non viene più ricalcolata in automatico.' },
       { key: 'durataMinuti', label: 'Durata Stimata (minuti)', type: 'number', default: 60 },

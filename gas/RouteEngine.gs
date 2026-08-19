@@ -982,13 +982,13 @@ function anteprimaPercorso(squadraId, giornoStr, interventoIds, ordineManuale, i
     return it;
   });
 
-  // La competenza richiesta è un vincolo rigido: una squadra non può essere assegnata a un
-  // intervento la cui competenza non è tra le proprie, né in questa modalità manuale né in
-  // quella automatica (già filtrata a monte da squadraCoprCompetenza_ in pianificaIntervallo).
+  // Il Tipo Attività è un vincolo rigido di competenza: una squadra non può essere assegnata a un
+  // intervento il cui Tipo Attività non è tra le proprie Competenze, né in questa modalità manuale
+  // né in quella automatica (già filtrata a monte da squadraCoprCompetenza_ in pianificaIntervallo).
   var incompatibili = selezionati.filter(function (it) { return !squadraCoprCompetenza_(squadra, it); });
   if (incompatibili.length > 0) {
-    throw new Error('La squadra "' + squadra.nome + '" non ha la competenza richiesta per: ' +
-      incompatibili.map(function (it) { return it.cliente + ' (' + it.competenza + ')'; }).join(', ') + '.');
+    throw new Error('La squadra "' + squadra.nome + '" non ha la competenza per il Tipo Attività di: ' +
+      incompatibili.map(function (it) { return it.cliente + ' (' + (it.tipoAttivita || '—') + ')'; }).join(', ') + '.');
   }
 
   var nodi = costruisciNodi_(squadra, selezionati);
@@ -1324,7 +1324,7 @@ function creaEPianificaIntervento(intervento, squadraId, giornoStr, oraStr) {
   if (!giorno) throw new Error('Data non valida.');
   if (!/^([01]?\d|2[0-3]):[0-5]\d$/.test(oraStr || '')) throw new Error('Ora non valida (usa il formato HH:mm).');
   if (!squadraCoprCompetenza_(squadra, intervento)) {
-    throw new Error('La squadra "' + squadra.nome + '" non ha la competenza richiesta ("' + (intervento.competenza || '') + '").');
+    throw new Error('La squadra "' + squadra.nome + '" non ha la competenza per il Tipo Attività "' + (intervento.tipoAttivita || '') + '".');
   }
 
   var giornoFmt = formatDateStr_(giorno);
@@ -1467,28 +1467,39 @@ function splitList_(str) {
   return String(str || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
 }
 
+/**
+ * true se il Tipo Attività dell'intervento non è un "vero" tipo specializzabile: vuoto,
+ * "Intervento a vuoto" o "Altro" restano sempre assegnabili a qualsiasi squadra, a prescindere
+ * dalle sue Competenze — solo SM01-SM05 sono i tipi su cui il vincolo rigido di competenza si
+ * applica davvero (vedi campo "Competenze" della Squadra, Config.gs).
+ */
+function tipoAttivitaGenerico_(tipoAttivita) {
+  var t = String(tipoAttivita || '').trim();
+  return !t || t === TIPO_ATTIVITA_VUOTO || t === TIPO_ATTIVITA_ALTRO;
+}
+
 function squadraCoprCompetenza_(squadra, intervento) {
   var competenze = splitList_(squadra.competenze).map(function (c) { return c.toLowerCase(); });
-  // La competenza dell'intervento va normalizzata (trim + minuscolo) esattamente come quelle
+  if (competenze.length === 0 || tipoAttivitaGenerico_(intervento.tipoAttivita)) return true;
+  // Il Tipo Attività dell'intervento va normalizzato (trim + minuscolo) esattamente come quello
   // della squadra: senza il trim, un valore inserito/incollato con uno spazio iniziale o finale
-  // (es. "Idraulico " da un copia-incolla) non risulterebbe mai compatibile con nessuna squadra,
-  // pur essendo visivamente identico.
-  var competenzaIntervento = String(intervento.competenza || '').trim().toLowerCase();
-  return !competenzaIntervento || competenze.length === 0 || competenze.indexOf(competenzaIntervento) !== -1;
+  // non risulterebbe mai compatibile con nessuna squadra, pur essendo visivamente identico.
+  var tipoIntervento = String(intervento.tipoAttivita).trim().toLowerCase();
+  return competenze.indexOf(tipoIntervento) !== -1;
 }
 
 /**
  * true se la squadra ha una o più competenze specifiche elencate (non è "generica") E
- * l'intervento richiede esplicitamente una di quelle competenze (non è un intervento generico
- * a competenza vuota). Usato per far preferire, a un tecnico specializzato, gli interventi che
- * richiedono proprio la sua specializzazione rispetto a quelli generici — che restano comunque
- * assegnabili come riempitivo quando non c'è (più) lavoro specifico disponibile.
+ * l'intervento richiede esplicitamente uno di quei Tipi Attività (non è un intervento generico:
+ * vuoto, "Intervento a vuoto" o "Altro"). Usato per far preferire, a un tecnico specializzato, gli
+ * interventi che richiedono proprio la sua specializzazione rispetto a quelli generici — che
+ * restano comunque assegnabili come riempitivo quando non c'è (più) lavoro specifico disponibile.
  */
 function squadraHaCompetenzaSpecificaPer_(squadra, intervento) {
   var competenze = splitList_(squadra.competenze).map(function (c) { return c.toLowerCase(); });
-  if (competenze.length === 0) return false;
-  var competenzaIntervento = String(intervento.competenza || '').trim().toLowerCase();
-  return !!competenzaIntervento && competenze.indexOf(competenzaIntervento) !== -1;
+  if (competenze.length === 0 || tipoAttivitaGenerico_(intervento.tipoAttivita)) return false;
+  var tipoIntervento = String(intervento.tipoAttivita).trim().toLowerCase();
+  return competenze.indexOf(tipoIntervento) !== -1;
 }
 
 /** true se `giorno` (Date) cade in uno dei periodi di ferie/assenza della squadra. */
@@ -1825,7 +1836,7 @@ function pianificaIntervallo(squadraIds, dataInizioStr, dataFineStr) {
     var motivo = tempoScaduto
       ? 'Elaborazione interrotta per limite di tempo prima di poter considerare questo intervento: gli interventi già pianificati restano validi, ripeti la pianificazione (magari su un intervallo più corto o con meno squadre insieme) per completare il resto.'
       : 'Non è stato possibile inserirlo nel percorso di nessuna squadra tra il ' +
-        formatDateStr_(dataInizio) + ' e il ' + formatDateStr_(dataFine) + ' (competenza, orario/pausa pranzo o finestra oraria non compatibili).';
+        formatDateStr_(dataInizio) + ' e il ' + formatDateStr_(dataFine) + ' (competenza/Tipo Attività, orario/pausa pranzo o finestra oraria non compatibili).';
     updateRowFields_('INTERVENTI', i._row, { motivoNonPianificato: motivo });
     return { interventoId: i.id, cliente: i.cliente, motivo: motivo };
   });

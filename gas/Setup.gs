@@ -111,19 +111,19 @@ function caricaDatiDiEsempio() {
   var squadreEsistenti = readAll_('SQUADRE');
   if (squadreEsistenti.length === 0) {
     salvaSquadra({
-      nome: 'Squadra Alfa', competenze: 'elettrico,idraulico',
+      nome: 'Squadra Alfa', competenze: 'SM01,SM02',
       indirizzoPartenza: 'Piazzale Loreto, Milano', indirizzoRientro: '',
       oraInizio: '08:00', oraFine: '17:00', pausaPranzoInizio: '13:00', pausaPranzoFine: '14:00',
       colore: '#4285F4', attiva: true
     });
     salvaSquadra({
-      nome: 'Squadra Beta', competenze: 'idraulico,climatizzazione',
+      nome: 'Squadra Beta', competenze: 'SM02,SM03',
       indirizzoPartenza: 'Piazza Duomo, Milano', indirizzoRientro: '',
       oraInizio: '08:00', oraFine: '17:00', pausaPranzoInizio: '13:00', pausaPranzoFine: '13:30',
       colore: '#EA4335', attiva: true
     });
     salvaSquadra({
-      nome: 'Squadra Gamma', competenze: 'elettrico,climatizzazione',
+      nome: 'Squadra Gamma', competenze: 'SM01,SM04',
       indirizzoPartenza: 'Piazza Ovidio, Milano', indirizzoRientro: '',
       oraInizio: '09:00', oraFine: '16:00', pausaPranzoInizio: '', pausaPranzoFine: '',
       colore: '#34A853', attiva: true
@@ -134,13 +134,16 @@ function caricaDatiDiEsempio() {
   if (interventiEsistenti.length === 0) {
     var oggi = new Date();
     var domani = new Date(oggi.getTime() + 24 * 3600 * 1000);
-    var dopodomani = new Date(oggi.getTime() + 48 * 3600 * 1000);
     var fmt = function (d) { return Utilities.formatDate(d, Session.getScriptTimeZone(), 'dd/MM/yyyy'); };
 
-    salvaIntervento({ cliente: 'Rossi SpA', indirizzo: 'Via Padova 100, Milano', competenza: 'elettrico', priorita: 'Urgente', durataMinuti: 90, finestraInizio: '08:00', finestraFine: '12:00', dataRichiesta: fmt(oggi), scadenza: fmt(domani), stato: 'Da pianificare' });
-    salvaIntervento({ cliente: 'Bianchi Srl', indirizzo: 'Corso Buenos Aires 50, Milano', competenza: 'idraulico', priorita: 'Normale', durataMinuti: 60, finestraInizio: '08:00', finestraFine: '17:00', dataRichiesta: fmt(oggi), scadenza: fmt(dopodomani), stato: 'Da pianificare' });
-    salvaIntervento({ cliente: 'Verdi & Co', indirizzo: 'Via Torino 20, Milano', competenza: 'idraulico', priorita: 'Alta', durataMinuti: 45, finestraInizio: '09:00', finestraFine: '13:00', dataRichiesta: fmt(oggi), scadenza: fmt(domani), stato: 'Da pianificare' });
-    salvaIntervento({ cliente: 'Neri Impianti', indirizzo: 'Viale Papiniano 30, Milano', competenza: 'climatizzazione', priorita: 'Normale', durataMinuti: 120, finestraInizio: '08:00', finestraFine: '17:00', dataRichiesta: fmt(oggi), scadenza: fmt(dopodomani), stato: 'Da pianificare' });
-    salvaIntervento({ cliente: 'Gialli Retail', indirizzo: 'Via Ripamonti 80, Milano', competenza: 'elettrico', priorita: 'Bassa', durataMinuti: 60, finestraInizio: '10:00', finestraFine: '16:00', dataRichiesta: fmt(oggi), stato: 'Da pianificare' });
+    // Scadenza e Priorità di SM01/SM02/SM04 vengono comunque sempre ricalcolate in automatico da
+    // salvaIntervento (vedi calcolaScadenzaAutomatica_/calcolaPrioritaAutomatica_ in questo file):
+    // non serve indicarle qui. Per SM03 la Scadenza esplicita sotto è invece rispettata (è solo un
+    // default), ma la Priorità resta comunque automatica come per gli altri Tipi Attività noti.
+    salvaIntervento({ cliente: 'Rossi SpA', indirizzo: 'Via Padova 100, Milano', tipoAttivita: 'SM01', durataMinuti: 90, finestraInizio: '08:00', finestraFine: '12:00', dataRichiesta: fmt(oggi), stato: 'Da pianificare' });
+    salvaIntervento({ cliente: 'Bianchi Srl', indirizzo: 'Corso Buenos Aires 50, Milano', tipoAttivita: 'SM02', durataMinuti: 60, finestraInizio: '08:00', finestraFine: '17:00', dataRichiesta: fmt(oggi), stato: 'Da pianificare' });
+    salvaIntervento({ cliente: 'Verdi & Co', indirizzo: 'Via Torino 20, Milano', tipoAttivita: 'SM03', durataMinuti: 45, finestraInizio: '09:00', finestraFine: '13:00', dataRichiesta: fmt(oggi), scadenza: fmt(domani), stato: 'Da pianificare' });
+    salvaIntervento({ cliente: 'Neri Impianti', indirizzo: 'Viale Papiniano 30, Milano', tipoAttivita: 'SM04', durataMinuti: 120, finestraInizio: '08:00', finestraFine: '17:00', dataRichiesta: fmt(oggi), stato: 'Da pianificare' });
+    salvaIntervento({ cliente: 'Gialli Retail', indirizzo: 'Via Ripamonti 80, Milano', priorita: 'Bassa', durataMinuti: 60, finestraInizio: '10:00', finestraFine: '16:00', dataRichiesta: fmt(oggi), stato: 'Da pianificare' });
   }
 }
