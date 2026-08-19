@@ -804,6 +804,7 @@
   var ICONA_PLAY_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l14 8-14 8V4Z"></path></svg>';
   var ICONA_STORIA_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3.5 2"></path></svg>';
   var ICONA_NOTA_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"></path><path d="M14 3v6h6"></path><path d="M8 13h8M8 17h5"></path></svg>';
+  var ICONA_MAIL_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 7l9 6 9-6"></path></svg>';
   var ICONA_ANNULLA_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M9 9l6 6M15 9l-6 6"></path></svg>';
   var ICONA_RICAVO_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7a7.5 7.5 0 1 0 0 10"></path><path d="M3.5 10h10M3.5 14h8"></path></svg>';
   var ICONA_MENU_ = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>';
@@ -1547,7 +1548,13 @@
 
   function renderRegole(list) {
     var tbody = document.querySelector('#tabella-regole tbody');
+    var categoriaPrecedente = null;
     tbody.innerHTML = list.map(function (r) {
+      var rigaSezione = '';
+      if (r.categoria && r.categoria !== categoriaPrecedente) {
+        rigaSezione = '<tr class="regole-sezione"><td colspan="4">' + escapeHtml(r.categoria) + '</td></tr>';
+        categoriaPrecedente = r.categoria;
+      }
       var controllo;
       if (r.tipo === 'giorni') {
         var selezionati = splitListClient(r.valore);
@@ -1564,7 +1571,7 @@
       } else {
         controllo = '<input type="number" step="any" data-chiave="' + escapeHtml(r.chiave) + '" value="' + escapeHtml(r.valore) + '" style="width:100px">';
       }
-      return '<tr>' +
+      return rigaSezione + '<tr>' +
         '<td>' + escapeHtml(r.chiave) + '</td>' +
         '<td>' + controllo + '</td>' +
         '<td style="max-width:420px;color:#666;font-size:12.5px;">' + escapeHtml(r.descrizione || '') + '</td>' +
@@ -2690,6 +2697,7 @@
       '<span class="row-actions">' + storiaHtml +
         '<button class="btn-icon good" title="Segna come completato" data-action="completa-tappa" data-id="' + t.id + '" data-row="' + t._row + '">' + ICONA_CHECK_ + '</button>' +
         '<button class="btn-icon" title="Aggiungi nota" data-action="nota-tappa" data-id="' + t.id + '" data-row="' + t._row + '" data-cliente="' + escapeHtml(t.cliente) + '">' + ICONA_NOTA_ + '</button>' +
+        '<button class="btn-icon" title="Invia mail di pianificazione" data-action="invia-mail-tappa" data-id="' + t.id + '" data-row="' + t._row + '" data-cliente="' + escapeHtml(t.cliente) + '">' + ICONA_MAIL_ + '</button>' +
         '<button class="btn-icon danger" title="Rimuovi dal percorso" data-action="rimuovi-tappa" data-id="' + t.id + '" data-row="' + t._row + '">' + ICONA_CESTINO_ + '</button></span>' +
     '</div>';
   }
@@ -2766,6 +2774,13 @@
       toast('Intervento segnato come completato.', 'success');
       caricaDashboard();
     }).catch(function (err) { toast('Errore: ' + (err.message || err), 'error'); });
+  }
+
+  function dashInviaMailTappa_(id, row, cliente) {
+    if (!window.confirm('Confermi l\'invio della mail di pianificazione per "' + cliente + '"?')) return;
+    callServer('inviaMailPianificazione', id, row).then(function (esito) {
+      toast('Mail inviata a: ' + esito.to + (esito.cc ? ' (Cc: ' + esito.cc + ')' : ''), 'success');
+    }).catch(function (err) { toast('Errore nell\'invio della mail: ' + (err.message || err), 'error'); });
   }
 
   /**
@@ -2876,6 +2891,8 @@
         dashCompletaTappa_(btn.dataset.id, btn.dataset.row);
       } else if (action === 'nota-tappa') {
         apriNotaIntervento({ id: btn.dataset.id, _row: parseInt(btn.dataset.row, 10), cliente: btn.dataset.cliente });
+      } else if (action === 'invia-mail-tappa') {
+        dashInviaMailTappa_(btn.dataset.id, btn.dataset.row, btn.dataset.cliente);
       } else if (action === 'modifica-orario') {
         apriModificaOrarioTappa_({ id: btn.dataset.id, row: parseInt(btn.dataset.row, 10), cliente: btn.dataset.cliente, ora: btn.dataset.ora, durata: parseInt(btn.dataset.durata, 10) });
       } else if (action === 'riempi-buchi') {

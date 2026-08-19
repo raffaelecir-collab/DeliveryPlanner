@@ -2,14 +2,20 @@
  * Lettura/scrittura delle regole di pianificazione (foglio "Regole", coppie chiave/valore).
  */
 
-/** Elenco regole con `tipo` allegato (da REGOLE_DEFAULT) per guidare il rendering del form lato client. */
+/** Elenco regole con `tipo` e `categoria` allegati (da REGOLE_DEFAULT) per guidare il rendering
+ *  del form lato client (tipo di controllo, e raggruppamento visivo per categoria — vedi
+ *  renderRegole in JS.html). Nessuno dei due è persistito come colonna sul foglio Regole. */
 function listaRegole() {
   richiedeAdmin_();
   inizializzaRegoleDefault_();
   var tipoPerChiave = {};
-  REGOLE_DEFAULT.forEach(function (r) { tipoPerChiave[r.chiave] = r.tipo || 'numero'; });
+  var categoriaPerChiave = {};
+  REGOLE_DEFAULT.forEach(function (r) {
+    tipoPerChiave[r.chiave] = r.tipo || 'numero';
+    categoriaPerChiave[r.chiave] = r.categoria || '';
+  });
   return readAll_('REGOLE').map(function (r) {
-    return Object.assign({}, r, { tipo: tipoPerChiave[r.chiave] || 'testo' });
+    return Object.assign({}, r, { tipo: tipoPerChiave[r.chiave] || 'testo', categoria: categoriaPerChiave[r.chiave] || '' });
   });
 }
 

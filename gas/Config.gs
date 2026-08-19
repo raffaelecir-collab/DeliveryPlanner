@@ -286,11 +286,19 @@ var LISTINO_DEFAULT = [
   { voce: 'SURVEY', descrizione: 'Sopralluogo', prezzo: 50 }
 ];
 
+/** Etichetta della sezione (vedi campo `categoria` sotto) sotto cui compaiono nel tab Regole le
+ *  liste email della mail automatica "è stato pianificato" (vedi inviaMailPianificazione in
+ *  Interventions.gs). */
+var CATEGORIA_REGOLE_EMAIL_PIANIFICAZIONE_ = 'Mail "intervento pianificato" (SICURITALIA)';
+
 /**
  * Valori di default delle regole del motore di ottimizzazione percorso (chiave/valore su
  * foglio Regole). Il campo `tipo` guida solo la resa del controllo nel form lato client
  * (numero vs selettore giorni della settimana): non viene salvato come colonna a sé sul
- * foglio, che resta un semplice elenco chiave/valore/descrizione.
+ * foglio, che resta un semplice elenco chiave/valore/descrizione. Il campo facoltativo
+ * `categoria`, quando presente, raggruppa visivamente più regole sotto un'intestazione comune
+ * nel tab Regole (vedi listaRegole in Rules.gs e renderRegole in JS.html) — anch'esso non
+ * persistito come colonna sul foglio.
  */
 var REGOLE_DEFAULT = [
   { chiave: 'giorniLavorativi', valore: 'Lun,Mar,Mer,Gio,Ven', tipo: 'giorni', descrizione: 'Giorni della settimana in cui la pianificazione automatica su intervallo può assegnare interventi (i giorni non selezionati vengono saltati).' },
@@ -308,5 +316,9 @@ var REGOLE_DEFAULT = [
   { chiave: 'pesoRicavo', valore: '100', tipo: 'percentuale', descrizione: 'Quanto pesa il ricavo (€) di un intervento nella scelta di quali interventi assegnare, in percentuale (0-100): fa preferire gli interventi più redditizi, senza mai bloccare il riempimento delle ore disponibili del turno (il target resta un indicatore, non un limite che ferma le assegnazioni). Questo peso viene rafforzato automaticamente (fino a 5 volte) quando la produzione della squadra è ancora lontana dal proprio target giornaliero, e torna al valore impostato qui avvicinandosi/superando il target. 100% è l\'intensità raccomandata di default, 0% disattiva completamente il fattore ricavo.' },
   { chiave: 'pesoCompetenzaSpecifica', valore: '100', tipo: 'percentuale', descrizione: 'Priorità data agli interventi che richiedono esplicitamente una competenza posseduta dalla squadra, rispetto a quelli generici (competenza vuota, assegnabili a qualsiasi squadra), in percentuale (0-100): un tecnico specializzato riceve prima il lavoro della propria specializzazione, usando quello generico solo come riempitivo quando non ce n\'è (più) a sufficienza. 100% è l\'intensità raccomandata di default, 0% disattiva questa priorità (non ha comunque effetto sulle squadre senza competenze specifiche impostate).' },
   { chiave: 'emailClienti', valore: '', tipo: 'testo', descrizione: 'Elenco email (separate da virgola) degli account Google trattati come "Cliente": vedono solo il tab Interventi e possono solo aggiungere note, sospendere o annullare gli interventi (mai crearli, modificarli, eliminarli, pianificarli o importarli). Tutti gli account non in elenco restano Admin con accesso completo. Lascia vuoto per non avere nessun account Cliente.' },
-  { chiave: 'driveCartellaRadiceId', valore: '1gE8eD2SbCN5Uect2zLQkaf_RGi9W2yzW', tipo: 'testo', descrizione: 'ID della cartella Google Drive dentro cui vengono create le sottocartelle documenti di ogni intervento (una per intervento, nominata "yyyyMMdd_ODS_Cliente"). Si trova nell\'URL della cartella: drive.google.com/drive/folders/QUESTO-ID. L\'account che esegue la Web App deve avere accesso in scrittura a questa cartella.' }
+  { chiave: 'driveCartellaRadiceId', valore: '1gE8eD2SbCN5Uect2zLQkaf_RGi9W2yzW', tipo: 'testo', descrizione: 'ID della cartella Google Drive dentro cui vengono create le sottocartelle documenti di ogni intervento (una per intervento, nominata "yyyyMMdd_ODS_Cliente"). Si trova nell\'URL della cartella: drive.google.com/drive/folders/QUESTO-ID. L\'account che esegue la Web App deve avere accesso in scrittura a questa cartella.' },
+  { chiave: 'emailPianificazioneSM01To', valore: '', tipo: 'testo', categoria: CATEGORIA_REGOLE_EMAIL_PIANIFICAZIONE_, descrizione: 'Destinatari (A), separati da virgola, della mail automatica "è stato pianificato" (pulsante ✉ nella Dashboard) per gli interventi di Tipo Attività SM01. Se vuoto, il pulsante segnala un errore invece di inviare senza destinatario.' },
+  { chiave: 'emailPianificazioneSM01Cc', valore: '', tipo: 'testo', categoria: CATEGORIA_REGOLE_EMAIL_PIANIFICAZIONE_, descrizione: 'Destinatari in copia (Cc), separati da virgola, della stessa mail per gli interventi SM01. Facoltativo.' },
+  { chiave: 'emailPianificazioneAltriTo', valore: '', tipo: 'testo', categoria: CATEGORIA_REGOLE_EMAIL_PIANIFICAZIONE_, descrizione: 'Destinatari (A), separati da virgola, della stessa mail per tutti i Tipi Attività diversi da SM01 (SM02-SM05, "Intervento a vuoto", "Altro" o nessun Tipo Attività scelto). Se vuoto, il pulsante segnala un errore invece di inviare senza destinatario.' },
+  { chiave: 'emailPianificazioneAltriCc', valore: '', tipo: 'testo', categoria: CATEGORIA_REGOLE_EMAIL_PIANIFICAZIONE_, descrizione: 'Destinatari in copia (Cc), separati da virgola, della stessa mail per tutti i Tipi Attività diversi da SM01. Facoltativo.' }
 ];

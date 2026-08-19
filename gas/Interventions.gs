@@ -279,6 +279,39 @@ function segnaCompletato(id, row) {
 }
 
 /**
+ * Invia la mail "è stato pianificato" (pulsante ✉ sulla riga tappa della Dashboard): un'unica
+ * frase che avvisa il cliente/destinatario del giorno/ora pianificati. Destinatari (A/Cc) letti
+ * dalle regole `emailPianificazioneSM01To`/`emailPianificazioneSM01Cc` per gli interventi di Tipo
+ * Attività SM01, o `emailPianificazioneAltriTo`/`emailPianificazioneAltriCc` per qualsiasi altro
+ * Tipo Attività (SM02-SM05, "Intervento a vuoto", "Altro" o nessuno scelto) — vedi tab Regole,
+ * sezione dedicata in Config.gs. Azione ripetibile: non registra nulla nello storico
+ * dell'intervento, può essere premuta più volte (es. come promemoria).
+ */
+function inviaMailPianificazione(id, row) {
+  richiedeAdmin_();
+  var esistente = trovaInterventoPerIdORiga_(id, row);
+  if (!esistente) throw new Error('Intervento non trovato.');
+  if (!esistente.dataPianificata || !esistente.oraPianificata) {
+    throw new Error('Questo intervento non ha ancora una Data/Ora Pianificata.');
+  }
+  var regole = getRegoleMappa_();
+  var eSM01 = esistente.tipoAttivita === 'SM01';
+  var to = String((eSM01 ? regole.emailPianificazioneSM01To : regole.emailPianificazioneAltriTo) || '').trim();
+  var cc = String((eSM01 ? regole.emailPianificazioneSM01Cc : regole.emailPianificazioneAltriCc) || '').trim();
+  if (!to) {
+    throw new Error('Nessun destinatario (A) configurato per ' + (eSM01 ? 'SM01' : 'gli altri Tipi Attività') +
+      ' nel tab Regole, sezione "' + CATEGORIA_REGOLE_EMAIL_PIANIFICAZIONE_ + '".');
+  }
+  var oggetto = 'SICURITALIA - ' + [esistente.cliente, esistente.codiceEsterno, esistente.codCliente].filter(Boolean).join(' - ');
+  var corpo = 'La presente per informarvi che l\'attività in oggetto è programmata per il giorno ' +
+    esistente.dataPianificata + ' alle ' + esistente.oraPianificata + '.';
+  var opzioni = {};
+  if (cc) opzioni.cc = cc;
+  MailApp.sendEmail(to, oggetto, corpo, opzioni);
+  return { to: to, cc: cc };
+}
+
+/**
  * Aggiunge una voce (data odierna, stato, nota, autore) allo storico sospensioni/note esistente di
  * un intervento. L'autore (Admin/Cliente) è preso dal ruolo dell'account che sta effettivamente
  * chiamando in quel momento, così ogni voce dello storico è sempre attribuita correttamente

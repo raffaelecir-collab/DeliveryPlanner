@@ -497,6 +497,12 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    nessun nuovo candidato compatibile non compare più come "Giornata
    libera": mostra il percorso esistente, invariato.
 
+   Ogni tappa già confermata nel dettaglio del percorso ha 4 pulsanti azione:
+   **✓ Segna come completato**, **📝 Aggiungi nota**, **✉ Invia mail di
+   pianificazione** (chiede conferma, poi invia subito una mail — vedi
+   "Notifica mail 'intervento pianificato'" più sotto) e **🗑 Rimuovi dal
+   percorso** (come "Rimuovi": torna "Da pianificare").
+
    **Produzione (ricavo) e target giornaliero**: se una squadra ha un
    "Target Produzione Giornaliera" impostato, il ricavo degli interventi
    pesa (regola **pesoRicavo**) tra i fattori usati per scegliere quali
@@ -551,6 +557,20 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    "Peso Competenza Specifica" a 0% fa sì che una squadra con competenze
    specifiche non riceva più priorità sul lavoro della propria
    specializzazione rispetto a quello generico.
+
+   **Notifica mail "intervento pianificato"**: nella tabella Regole, sotto la
+   sezione **"Mail 'intervento pianificato' (SICURITALIA)"**, si configurano
+   i destinatari della mail inviata dal pulsante **✉** sulla riga di una
+   tappa nella Dashboard (vedi sopra) — due coppie A/Cc separate: una per gli
+   interventi di Tipo Attività **SM01**, una per **tutti gli altri Tipi
+   Attività** (SM02-SM05, "Intervento a vuoto", "Altro" o nessun Tipo
+   Attività scelto). Se il campo "A" della coppia pertinente è vuoto, il
+   pulsante segnala un errore invece di inviare senza destinatario; "Cc" è
+   sempre facoltativo. Oggetto della mail: `SICURITALIA - <Cliente> -
+   <Codice Esterno (Ods)> - <Cod. Cliente>` (i campi vuoti vengono omessi);
+   corpo: una singola frase con la Data e l'Ora Pianificata dell'intervento.
+   L'azione è ripetibile (nessuno stato "già inviata" viene registrato): può
+   essere premuta più volte, ad esempio come promemoria.
 
 Ogni percorso confermato (in entrambe le modalità) viene registrato nel
 foglio `LogPianificazione` (visibile in fondo al tab Regole), utile per
