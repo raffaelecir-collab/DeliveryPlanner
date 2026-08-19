@@ -2699,7 +2699,7 @@
       '<span class="row-actions">' + storiaHtml +
         '<button class="btn-icon good" title="Segna come completato" data-action="completa-tappa" data-id="' + t.id + '" data-row="' + t._row + '">' + ICONA_CHECK_ + '</button>' +
         '<button class="btn-icon" title="Aggiungi nota" data-action="nota-tappa" data-id="' + t.id + '" data-row="' + t._row + '" data-cliente="' + escapeHtml(t.cliente) + '">' + ICONA_NOTA_ + '</button>' +
-        '<button class="btn-icon" title="Invia mail di pianificazione" data-action="invia-mail-tappa" data-id="' + t.id + '" data-row="' + t._row + '" data-cliente="' + escapeHtml(t.cliente) + '">' + ICONA_MAIL_ + '</button>' +
+        '<button class="btn-icon' + (t.mailPianificazioneInviata ? ' sent' : '') + '" title="' + (t.mailPianificazioneInviata ? 'Invia mail di pianificazione (già inviata il ' + escapeHtml(t.mailPianificazioneInviata) + ')' : 'Invia mail di pianificazione') + '" data-action="invia-mail-tappa" data-id="' + t.id + '" data-row="' + t._row + '" data-cliente="' + escapeHtml(t.cliente) + '" data-inviata="' + escapeHtml(t.mailPianificazioneInviata || '') + '">' + ICONA_MAIL_ + '</button>' +
         '<button class="btn-icon danger" title="Rimuovi dal percorso" data-action="rimuovi-tappa" data-id="' + t.id + '" data-row="' + t._row + '">' + ICONA_CESTINO_ + '</button></span>' +
     '</div>';
   }
@@ -2778,10 +2778,14 @@
     }).catch(function (err) { toast('Errore: ' + (err.message || err), 'error'); });
   }
 
-  function dashInviaMailTappa_(id, row, cliente) {
-    if (!window.confirm('Confermi l\'invio della mail di pianificazione per "' + cliente + '"?')) return;
+  function dashInviaMailTappa_(id, row, cliente, giaInviataIl) {
+    var messaggio = giaInviataIl
+      ? 'Mail già inviata per "' + cliente + '" il ' + giaInviataIl + '. Inviarla di nuovo?'
+      : 'Confermi l\'invio della mail di pianificazione per "' + cliente + '"?';
+    if (!window.confirm(messaggio)) return;
     callServer('inviaMailPianificazione', id, row).then(function (esito) {
       toast('Mail inviata a: ' + esito.to + (esito.cc ? ' (Cc: ' + esito.cc + ')' : ''), 'success');
+      caricaDashboard();
     }).catch(function (err) { toast('Errore nell\'invio della mail: ' + (err.message || err), 'error'); });
   }
 
@@ -2894,7 +2898,7 @@
       } else if (action === 'nota-tappa') {
         apriNotaIntervento({ id: btn.dataset.id, _row: parseInt(btn.dataset.row, 10), cliente: btn.dataset.cliente });
       } else if (action === 'invia-mail-tappa') {
-        dashInviaMailTappa_(btn.dataset.id, btn.dataset.row, btn.dataset.cliente);
+        dashInviaMailTappa_(btn.dataset.id, btn.dataset.row, btn.dataset.cliente, btn.dataset.inviata);
       } else if (action === 'modifica-orario') {
         apriModificaOrarioTappa_({ id: btn.dataset.id, row: parseInt(btn.dataset.row, 10), cliente: btn.dataset.cliente, ora: btn.dataset.ora, durata: parseInt(btn.dataset.durata, 10) });
       } else if (action === 'riempi-buchi') {

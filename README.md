@@ -574,9 +574,13 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    separata da una riga vuota. **Le mail inviate da Apps Script (`MailApp`)
    non includono mai in automatico la firma configurata nelle impostazioni
    di Gmail** dell'account che esegue la Web App: per averne una, va scritta
-   esplicitamente in questo campo. L'azione è ripetibile (nessuno stato "già
-   inviata" viene registrato): può essere premuta più volte, ad esempio come
-   promemoria.
+   esplicitamente in questo campo. Dopo un invio riuscito, il pulsante
+   **cambia colore** (verde) e il tooltip mostra data/ora dell'ultimo invio
+   ("Mail Pianificazione Inviata il", campo dedicato sull'intervento) — un
+   colpo d'occhio per evitare invii duplicati per distrazione. Non è un
+   blocco vero e proprio: cliccandolo di nuovo, un popup avvisa che è già
+   stata inviata (con la data) e chiede conferma prima di rinviarla, utile
+   ad esempio come promemoria deliberato.
 
 Ogni percorso confermato (in entrambe le modalità) viene registrato nel
 foglio `LogPianificazione` (visibile in fondo al tab Regole), utile per

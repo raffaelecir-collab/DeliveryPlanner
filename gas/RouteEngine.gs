@@ -1138,7 +1138,8 @@ function getProgrammazione(dataInizioStr, dataFineStr) {
       squadraId: i.squadraId,
       squadraNome: s ? s.nome : i.squadraId,
       colore: s ? s.colore : '#999999',
-      produzioneTarget: s ? (s.produzioneTarget || 0) : 0
+      produzioneTarget: s ? (s.produzioneTarget || 0) : 0,
+      mailPianificazioneInviata: i.mailPianificazioneInviata || ''
     };
   });
 }

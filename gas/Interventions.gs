@@ -286,8 +286,11 @@ function segnaCompletato(id, row) {
  * Tipo Attività (SM02-SM05, "Intervento a vuoto", "Altro" o nessuno scelto) — vedi tab Regole,
  * sezione dedicata in Config.gs. Se impostata, la regola `emailPianificazioneFirma` (stessa
  * sezione, unica per entrambi i gruppi) viene appesa in fondo al corpo — MailApp non include mai
- * da sola la firma configurata su Gmail. Azione ripetibile: non registra nulla nello storico
- * dell'intervento, può essere premuta più volte (es. come promemoria).
+ * da sola la firma configurata su Gmail. Registra la data/ora dell'invio in
+ * "Mail Pianificazione Inviata il" (mai nello storico sospensioni/note): il pulsante nella
+ * Dashboard cambia colore di conseguenza, per segnalare a colpo d'occhio un invio già fatto ed
+ * evitare invii duplicati per distrazione — resta comunque un'azione ripetibile (nessun blocco
+ * reale), utile ad esempio per un promemoria deliberato.
  */
 function inviaMailPianificazione(id, row) {
   richiedeAdmin_();
@@ -315,7 +318,9 @@ function inviaMailPianificazione(id, row) {
   var opzioni = {};
   if (cc) opzioni.cc = cc;
   MailApp.sendEmail(to, oggetto, corpo, opzioni);
-  return { to: to, cc: cc };
+  var inviataIl = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
+  updateRowFields_('INTERVENTI', esistente._row, { mailPianificazioneInviata: inviataIl });
+  return { to: to, cc: cc, inviataIl: inviataIl };
 }
 
 /**

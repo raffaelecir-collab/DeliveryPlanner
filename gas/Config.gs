@@ -155,7 +155,8 @@ var SCHEMA = {
       { key: 'dataPrimoPianificato', label: 'Data Primo Pianificato', type: 'date', readonly: true, help: 'Impostata automaticamente la prima volta che l\'intervento passa a stato "Pianificato": usata per calcolare il "Tempo di lavorazione medio" nel tab Analysis.' },
       { key: 'dataCompletamento', label: 'Data Completamento', type: 'date', readonly: true, help: 'Impostata automaticamente quando l\'intervento viene segnato come "Completato": usata per calcolare il "Tempo di completamento" nel tab Analysis.' },
       { key: 'driveFolderId', label: 'ID Cartella Documenti', type: 'text', readonly: true, help: 'ID della sottocartella Google Drive (dentro la cartella configurata in Regole) dove sono archiviati i documenti allegati a questo intervento. Creata e gestita automaticamente al primo caricamento di un documento.' },
-      { key: 'chiaveSecondariaImport', label: 'Chiave Secondaria Import', type: 'text', readonly: true, help: 'Usata solo internamente per riconoscere una riga già importata da fonti esterne il cui Codice Esterno da solo non è univoco (es. import Google Sheet Veneto, ImportVeneto.gs: colonna T). Nessun altro significato, non modificabile.' }
+      { key: 'chiaveSecondariaImport', label: 'Chiave Secondaria Import', type: 'text', readonly: true, help: 'Usata solo internamente per riconoscere una riga già importata da fonti esterne il cui Codice Esterno da solo non è univoco (es. import Google Sheet Veneto, ImportVeneto.gs: colonna T). Nessun altro significato, non modificabile.' },
+      { key: 'mailPianificazioneInviata', label: 'Mail Pianificazione Inviata il', type: 'text', readonly: true, help: 'Data/ora dell\'ultimo invio della mail "è stato pianificato" (pulsante ✉ nella Dashboard): impostata automaticamente ad ogni invio, mai da altrove. Un secondo invio la sovrascrive con la data più recente.' }
     ]
   },
   REGOLE: {
