@@ -21,6 +21,7 @@
  * - N: Prezzo Importato (usato, come nell'import Excel, per calcolare la Durata Stimata di SM01 —
  *   vedi calcolaDurataSM_ in Import.gs).
  * - C: Comune (la stessa colonna usata anche per comporre l'Indirizzo).
+ * - L: Telefono.
  *
  * Solo le righe la cui colonna M vale "Giacente" (case-insensitive, dopo trim) vengono
  * importate/aggiornate; le altre sono ignorate (né create né toccate). Come
@@ -29,8 +30,7 @@
  * pianificata/ordine tappa/ricavo di un Intervento già esistente (solo i campi anagrafici sopra
  * vengono aggiornati). La durata stimata e la Scadenza/Priorità automatiche (SM01-SM05) seguono
  * le stesse regole già centralizzate in Import.gs/Interventions.gs, senza bisogno di duplicarle
- * qui — questa fonte non ha però un "Prezzo", quindi la durata di SM01 ricade sempre sulla fascia
- * più bassa (120 min, vedi calcolaDurataSM_).
+ * qui.
  */
 
 var ID_FOGLIO_VENETO_ = '1Lou7tcXd7_8fBpwIns-oZQjqceV5MKb1vQfej0LpD1M';
@@ -80,6 +80,7 @@ function elaboraRigaVeneto_(row, interventiPerCodice) {
   var cliente = String(row[18] || '').trim(); // S
   var colB = String(row[1] || '').trim(); // B
   var comune = String(row[2] || '').trim(); // C
+  var telefono = String(row[11] || '').trim(); // L
   if (!cliente) throw new Error('Colonna "Cliente" (S) mancante.');
   if (!colonnaT && !colB && !comune) throw new Error('Indirizzo mancante (colonne T/B/C tutte vuote).');
 
@@ -96,6 +97,7 @@ function elaboraRigaVeneto_(row, interventiPerCodice) {
     cliente: cliente,
     indirizzo: indirizzo,
     comune: comune,
+    telefono: telefono,
     codiceEsterno: ods,
     chiaveSecondariaImport: colonnaT,
     tipoAttivita: tipoAttivita

@@ -918,6 +918,7 @@ Le colonne si leggono per **posizione fissa**, come per l'import Excel:
 | G | Tipo Attività (testo libero, tradotto — vedi tabella sotto) |
 | N | Prezzo Importato (usato per calcolare la Durata Stimata, vedi sotto) |
 | C | Comune |
+| L | Telefono |
 
 **Righe senza Codice Esterno**: una riga con la colonna D vuota viene
 **importata comunque** (Codice Esterno resta vuoto, da compilare a mano in
