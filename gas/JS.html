@@ -1568,6 +1568,8 @@
         controllo = '<input type="number" step="1" min="0" max="100" data-chiave="' + escapeHtml(r.chiave) + '" value="' + escapeHtml(r.valore) + '" style="width:70px"> <span style="color:#666;">%</span>';
       } else if (r.tipo === 'testo') {
         controllo = '<input type="text" data-chiave="' + escapeHtml(r.chiave) + '" value="' + escapeHtml(r.valore) + '" style="width:280px">';
+      } else if (r.tipo === 'testoLungo') {
+        controllo = '<textarea data-chiave="' + escapeHtml(r.chiave) + '" rows="3" style="width:280px;font-family:inherit;">' + escapeHtml(r.valore) + '</textarea>';
       } else {
         controllo = '<input type="number" step="any" data-chiave="' + escapeHtml(r.chiave) + '" value="' + escapeHtml(r.valore) + '" style="width:100px">';
       }
@@ -1590,7 +1592,7 @@
         var container = document.querySelector('[data-chiave-giorni="' + CSS.escape(chiave) + '"]');
         valore = Array.prototype.slice.call(container.querySelectorAll('input:checked')).map(function (cb) { return cb.value; }).join(',');
       } else {
-        var input = document.querySelector('#tabella-regole input[data-chiave="' + CSS.escape(chiave) + '"]');
+        var input = document.querySelector('#tabella-regole [data-chiave="' + CSS.escape(chiave) + '"]');
         valore = input.value;
       }
       callServer('salvaRegola', { chiave: chiave, valore: valore }).then(function () {

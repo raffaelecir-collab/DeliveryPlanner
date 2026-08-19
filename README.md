@@ -568,9 +568,15 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    pulsante segnala un errore invece di inviare senza destinatario; "Cc" è
    sempre facoltativo. Oggetto della mail: `SICURITALIA - <Cliente> -
    <Codice Esterno (Ods)> - <Cod. Cliente>` (i campi vuoti vengono omessi);
-   corpo: una singola frase con la Data e l'Ora Pianificata dell'intervento.
-   L'azione è ripetibile (nessuno stato "già inviata" viene registrato): può
-   essere premuta più volte, ad esempio come promemoria.
+   corpo: una singola frase con la Data e l'Ora Pianificata dell'intervento,
+   più — se impostata — la **Firma** (stessa sezione, un unico campo di testo
+   su più righe condiviso da entrambi i gruppi SM01/Altri), appesa in fondo
+   separata da una riga vuota. **Le mail inviate da Apps Script (`MailApp`)
+   non includono mai in automatico la firma configurata nelle impostazioni
+   di Gmail** dell'account che esegue la Web App: per averne una, va scritta
+   esplicitamente in questo campo. L'azione è ripetibile (nessuno stato "già
+   inviata" viene registrato): può essere premuta più volte, ad esempio come
+   promemoria.
 
 Ogni percorso confermato (in entrambe le modalità) viene registrato nel
 foglio `LogPianificazione` (visibile in fondo al tab Regole), utile per

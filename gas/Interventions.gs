@@ -284,7 +284,9 @@ function segnaCompletato(id, row) {
  * dalle regole `emailPianificazioneSM01To`/`emailPianificazioneSM01Cc` per gli interventi di Tipo
  * Attività SM01, o `emailPianificazioneAltriTo`/`emailPianificazioneAltriCc` per qualsiasi altro
  * Tipo Attività (SM02-SM05, "Intervento a vuoto", "Altro" o nessuno scelto) — vedi tab Regole,
- * sezione dedicata in Config.gs. Azione ripetibile: non registra nulla nello storico
+ * sezione dedicata in Config.gs. Se impostata, la regola `emailPianificazioneFirma` (stessa
+ * sezione, unica per entrambi i gruppi) viene appesa in fondo al corpo — MailApp non include mai
+ * da sola la firma configurata su Gmail. Azione ripetibile: non registra nulla nello storico
  * dell'intervento, può essere premuta più volte (es. come promemoria).
  */
 function inviaMailPianificazione(id, row) {
@@ -305,6 +307,11 @@ function inviaMailPianificazione(id, row) {
   var oggetto = 'SICURITALIA - ' + [esistente.cliente, esistente.codiceEsterno, esistente.codCliente].filter(Boolean).join(' - ');
   var corpo = 'La presente per informarvi che l\'attività in oggetto è programmata per il giorno ' +
     esistente.dataPianificata + ' alle ' + esistente.oraPianificata + '.';
+  // MailApp non include mai in automatico la firma configurata nelle impostazioni di Gmail
+  // dell'account che esegue la Web App: se ne serve una, va scritta esplicitamente qui (regola
+  // emailPianificazioneFirma, tab Regole), appesa in fondo separata da una riga vuota.
+  var firma = String(regole.emailPianificazioneFirma || '').trim();
+  if (firma) corpo += '\n\n' + firma;
   var opzioni = {};
   if (cc) opzioni.cc = cc;
   MailApp.sendEmail(to, oggetto, corpo, opzioni);
