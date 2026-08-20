@@ -870,11 +870,26 @@
     var squadraId = document.getElementById('filtro-squadra').value;
     var tipoAttivita = document.getElementById('filtro-tipo-attivita').value;
     var q = document.getElementById('interventi-search').value.trim().toLowerCase();
+    // Filtro Data Pianificata (Dal/Al): un intervento senza Data Pianificata (es. ancora "Da
+    // pianificare") non ha nulla da confrontare e viene sempre escluso non appena uno dei due
+    // estremi è impostato — coerente col fatto che si sta filtrando "cosa è previsto in questo
+    // periodo". parseDateStrClient normalizza sia l'input nativo (yyyy-mm-dd) sia il valore
+    // salvato (gg/mm/aaaa) in oggetti Date direttamente confrontabili.
+    var dataDalStr = document.getElementById('filtro-data-dal').value;
+    var dataAlStr = document.getElementById('filtro-data-al').value;
+    var dataDal = dataDalStr ? parseDateStrClient(dataDalStr) : null;
+    var dataAl = dataAlStr ? parseDateStrClient(dataAlStr) : null;
     return state.interventi.filter(function (i) {
       if (stato && i.stato !== stato) return false;
       if (squadraId && i.squadraId !== squadraId) return false;
       if (tipoAttivita && i.tipoAttivita !== tipoAttivita) return false;
       if (q && (i.cliente || '').toLowerCase().indexOf(q) === -1 && (i.indirizzo || '').toLowerCase().indexOf(q) === -1 && (i.codiceEsterno || '').toLowerCase().indexOf(q) === -1) return false;
+      if (dataDal || dataAl) {
+        var dataPian = parseDateStrClient(i.dataPianificata);
+        if (!dataPian) return false;
+        if (dataDal && dataPian < dataDal) return false;
+        if (dataAl && dataPian > dataAl) return false;
+      }
       return true;
     });
   }
@@ -1159,6 +1174,8 @@
     on('filtro-stato', 'change', onCambiaFiltroNormale_);
     on('filtro-squadra', 'change', onCambiaFiltroNormale_);
     on('filtro-tipo-attivita', 'change', onCambiaFiltroNormale_);
+    on('filtro-data-dal', 'change', onCambiaFiltroNormale_);
+    on('filtro-data-al', 'change', onCambiaFiltroNormale_);
     on('interventi-search', 'input', onCambiaFiltroNormale_);
     on('btn-rimuovi-filtro-singolo', 'click', rimuoviFiltroSingoloIntervento_);
     on('btn-importa-esterno', 'click', function () {

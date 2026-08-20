@@ -198,7 +198,14 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
 2. Tab **Interventi**: l'elenco mostra, per ciascun intervento, **Cliente**,
    **Tipo Attività**, **Op.** (Operazione, dal tracking esterno),
    **Priorità**, **ODS** (Codice Esterno), **Ricavo**, **Stato**,
-   **Squadra** e **Data/ora** — con
+   **Squadra** e **Data/ora** — filtrabile per **stato**, **squadra**,
+   **Tipo Attività**, un intervallo di **Data Pianificata (Dal/Al)** e una
+   **ricerca libera** (cliente, indirizzo o Codice Esterno), tutti
+   combinabili tra loro e applicati all'istante senza ricaricare la pagina;
+   identico per l'account **Admin** e per l'account **Cliente**. Un
+   intervento senza Data Pianificata (tipicamente ancora "Da pianificare")
+   non ha nulla da confrontare e resta escluso non appena si imposta almeno
+   uno dei due estremi Dal/Al del filtro data. Con
    **Priorità**, **Squadra** e **Data/ora** cliccabili direttamente in
    elenco (anche quando mostrano "—" o un valore già impostato): un click
    apre un piccolo editor inline (un selettore per Priorità/Squadra, due
