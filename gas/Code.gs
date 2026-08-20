@@ -46,7 +46,14 @@ function getBootstrapData() {
     utente: Session.getActiveUser().getEmail() || '',
     ruolo: ruolo,
     squadraId: ctx.squadraId || '',
-    legendaTipoAttivita: LEGENDA_TIPO_ATTIVITA_
+    legendaTipoAttivita: LEGENDA_TIPO_ATTIVITA_,
+    // Serve alla Dashboard (lato client) per calcolare i giorni effettivamente lavorabili di una
+    // squadra su un intervallo (target di produzione, "giorni programmati/giorni totali") — vedi
+    // giornoLavorativoRegolaGeneraleClient_ in JS.html. Letta senza il controllo Admin di
+    // listaRegole (valoreRegolaPubblica_, Rules.gs) perché getBootstrapData serve anche account
+    // Cliente/Squadra, che non vedono comunque la Dashboard ma ricevono comunque questo valore
+    // non sensibile.
+    giorniLavorativi: valoreRegolaPubblica_('giorniLavorativi', 'Lun,Mar,Mer,Gio,Ven')
   };
 }
 

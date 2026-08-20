@@ -2421,6 +2421,29 @@
     return giorniOff.indexOf(GIORNI_SETTIMANA_CLIENT_[giorno.getDay()]) !== -1;
   }
 
+  /** Mirror client della regola generale "giorniLavorativi" (Regole/Config.gs), letta una volta
+   *  al bootstrap (state.giorniLavorativi): true se il giorno della settimana è tra quelli
+   *  selezionati (i giorni non selezionati sono saltati anche dalla pianificazione automatica su
+   *  intervallo, vedi RouteEngine.gs). */
+  function giornoLavorativoRegolaGeneraleClient_(giornoInput) {
+    var giorno = parseDateStrClient(giornoInput);
+    if (!giorno) return false;
+    var giorniOn = splitListClient(state.giorniLavorativi || 'Lun,Mar,Mer,Gio,Ven');
+    return giorniOn.indexOf(GIORNI_SETTIMANA_CLIENT_[giorno.getDay()]) !== -1;
+  }
+
+  /** true se `giornoInput` è un giorno in cui questa squadra potrebbe effettivamente lavorare:
+   *  rientra nei giorni lavorativi generali di Regole E non è un giorno di riposo settimanale
+   *  della squadra E non è in ferie/assenza. Usata per contare i "giorni lavorabili" nel calcolo
+   *  del target di produzione e del rapporto "giorni programmati/giorni totali" della Dashboard
+   *  (aggregatoSquadraDash_) — un giorno festivo/di riposo/ferie non conta né come "programmabile"
+   *  né alza il target atteso, coerentemente col fatto che la squadra non ci lavora comunque. */
+  function squadraLavorabileGiornoClient_(squadra, giornoInput) {
+    return giornoLavorativoRegolaGeneraleClient_(giornoInput) &&
+      !squadraInFerieClient_(squadra, giornoInput) &&
+      !giornoRiposoSettimanaleClient_(squadra, giornoInput);
+  }
+
   /**
    * Motivo esplicito per cui la squadra risulta libera nel periodo selezionato (ferie/assenza o
    * giorno di riposo settimanale), o null se non è imputabile a nessuno dei due — nel qual caso
@@ -2453,9 +2476,18 @@
         km += kmGiornoSquadra_(squadra, tappe);
       }
     });
+    // Target e rapporto "giorni programmati/giorni totali": contano solo i giorni effettivamente
+    // lavorabili per QUESTA squadra (esclusi giorni non lavorativi da Regole, riposo settimanale
+    // della squadra, ferie/assenza) — vedi squadraLavorabileGiornoClient_. Produzione/km/interventi
+    // restano invece calcolati su TUTTI i giorni con dati reali (anche un intervento forzato a
+    // mano in un giorno nominalmente non lavorabile deve comunque contare per intero).
+    var giorniLavorabili = giorniRange.filter(function (g) { return squadraLavorabileGiornoClient_(squadra, g); });
+    var giorniConDatiLavorabili = giorniConDati.filter(function (g) { return giorniLavorabili.indexOf(g) !== -1; });
     return {
-      giorniRange: giorniRange, giorniConDati: giorniConDati, produzione: produzione,
-      produzioneTarget: (squadra.produzioneTarget || 0) * giorniRange.length,
+      giorniRange: giorniRange, giorniConDati: giorniConDati,
+      giorniLavorabili: giorniLavorabili, giorniConDatiLavorabili: giorniConDatiLavorabili,
+      produzione: produzione,
+      produzioneTarget: (squadra.produzioneTarget || 0) * giorniLavorabili.length,
       km: Math.round(km), interventi: interventi, multiGiorno: giorniRange.length > 1
     };
   }
@@ -2522,7 +2554,7 @@
         (pianificato ? (
           (agg.produzioneTarget ? '<div class="dash-team-produzione-row"><span>Produzione</span><strong>' + formatEuroClient(agg.produzione) + ' / ' + formatEuroClient(agg.produzioneTarget) + '</strong></div>' +
             '<div class="dash-progress-track"><div class="dash-progress-fill ' + (okTarget ? 'good' : '') + '" style="width:' + pct + '%"></div></div>' : '') +
-          '<div class="dash-team-meta-row"><span>📍 ' + agg.km + ' km</span><span>' + agg.interventi + ' interventi' + (agg.multiGiorno ? (' · ' + agg.giorniConDati.length + '/' + agg.giorniRange.length + ' giorni') : '') + '</span></div>'
+          '<div class="dash-team-meta-row"><span>📍 ' + agg.km + ' km</span><span>' + agg.interventi + ' interventi' + (agg.multiGiorno && agg.giorniLavorabili.length ? (' · ' + agg.giorniConDatiLavorabili.length + '/' + agg.giorniLavorabili.length + ' giorni') : '') + '</span></div>'
         ) : '<div class="dash-team-meta-row" style="margin-top:2px;">' + etichettaVuota + '</div>')
         + '</div>';
     }).join('');
@@ -3338,6 +3370,7 @@
       state.ruolo = data.ruolo || 'Admin';
       state.squadraId = data.squadraId || '';
       state.legendaTipoAttivita = data.legendaTipoAttivita || {};
+      state.giorniLavorativi = data.giorniLavorativi || 'Lun,Mar,Mer,Gio,Ven';
       document.getElementById('utente-corrente').textContent = data.utente;
       applicaRuolo_(state.ruolo);
       safeRun_('notifiche', setupNotifiche);

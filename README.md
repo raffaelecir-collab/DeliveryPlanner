@@ -519,8 +519,21 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    indicatore su cui orientare le scelte, non come un tetto. Dove il target
    è impostato, compare un riepilogo "**Produzione: X€ / target Y€**"
    (evidenziato in verde quando raggiunto o superato) sia nella card di ogni
-   squadra sia nel dettaglio del percorso selezionato, sommato su tutto
-   l'intervallo di date scelto.
+   squadra sia nel dettaglio del percorso selezionato.
+
+   **Su un intervallo di più giorni**, sia il target totale sia il rapporto
+   "**giorni programmati/giorni totali**" (mostrato nella card di ogni
+   squadra) contano **solo i giorni effettivamente lavorabili da quella
+   squadra**: esclusi i giorni non lavorativi impostati in Regole (Giorni
+   Lavorativi), i giorni di riposo settimanale specifici della squadra e i
+   periodi di ferie/assenza. Un giorno non lavorabile non alza il target
+   atteso (niente "target gonfiato" per giorni in cui la squadra non
+   lavora comunque) e non conta né a numeratore né a denominatore del
+   rapporto giorni. La **produzione, i km e il numero di interventi
+   mostrati restano invece sempre quelli reali**, anche su un giorno
+   nominalmente non lavorabile in cui fosse stato forzato a mano un
+   intervento: solo il denominatore/target si adegua ai giorni lavorabili,
+   mai i dati effettivi.
 4. Tab **Regole**: ogni regola ha il controllo adatto al suo tipo — un
    selettore con i giorni della settimana per "Giorni Lavorativi" (rispettato
    dalla pianificazione automatica su intervallo, che salta i giorni non

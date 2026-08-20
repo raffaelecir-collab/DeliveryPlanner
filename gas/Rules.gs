@@ -37,6 +37,17 @@ function salvaRegola(regola) {
   return upsertRow_('REGOLE', regola);
 }
 
+/**
+ * Legge il valore grezzo di UNA regola per chiave, SENZA il controllo Admin di listaRegole (usata
+ * da getBootstrapData, che serve anche account Cliente/Squadra): sicura da esporre a qualunque
+ * ruolo perché non contiene alcun dato sensibile per le chiavi con cui viene usata (es.
+ * "giorniLavorativi", serve al calcolo lato client dei giorni lavorabili nella Dashboard).
+ */
+function valoreRegolaPubblica_(chiave, default_) {
+  var r = readAll_('REGOLE').filter(function (x) { return x.chiave === chiave; })[0];
+  return r ? r.valore : default_;
+}
+
 /** Restituisce le regole come mappa chiave -> valore tipizzato (numero se numerico). */
 function getRegoleMappa_() {
   var righe = listaRegole();
