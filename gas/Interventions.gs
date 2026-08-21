@@ -507,18 +507,21 @@ function segnaCompletatoSquadraPropria(id, row) {
 /**
  * Salva il "Rapporto di Intervento" compilato dalla squadra (pulsante 📋 in "La mia squadra",
  * modellato sul modulo cartaceo SICURITALIA allegato): i soli campi previsti sono quelli
- * effettivamente compilabili sul campo — durata (ora inizio/fine), tabella articoli
- * (consegnato/ritirato), descrizione e note, esito ("Intervento concluso"), ora di chiusura e le
- * firme olografe (disegnate a mano sul pad lato client, salvate come immagine PNG codificata in
- * data URL — non testo libero). Tutti gli altri dati del modulo cartaceo
- * (cliente, tecnico, tipo impianto, causale, regime, test effettuati...) sono già presenti
- * sull'intervento/sulla squadra e non vanno ridigitati qui.
+ * effettivamente compilabili sul campo — tipo di intervento (SOPRALLUOGO/INSTALLAZIONE/COLLAUDO/
+ * SMONTAGGIO/MANUTENZIONE PREVENTIVA/MANUTENZIONE CORRETTIVA), durata (ora inizio/fine), km e
+ * tempo di trasferimento, n° tecnici aggiuntive, tabella articoli (consegnato/ritirato),
+ * descrizione e note, esito ("Intervento concluso"), ora di chiusura e le firme olografe
+ * (disegnate a mano sul pad lato client, salvate come immagine PNG codificata in data URL — non
+ * testo libero). Tutti gli altri dati del modulo cartaceo (cliente, tecnico, tipo impianto,
+ * causale, regime, test effettuati...) sono già presenti sull'intervento/sulla squadra o fissi per
+ * convenzione, e vengono autocompilati solo nel PDF (vedi RapportoPdf.gs) — non ridigitati qui.
  *
  * Se "Intervento concluso" è "Sì", l'intervento passa anche a stato Completato (stessa
  * transizione di segnaCompletatoSquadraPropria), a meno che non lo sia già. Registra
  * rapportoCompilatoIl (data/ora dell'ultimo salvataggio) così il pulsante nella UI può colorarsi
  * per segnalare un rapporto già compilato — un nuovo salvataggio resta comunque sempre permesso
- * (es. per correggere un rapporto già inviato).
+ * (es. per correggere un rapporto già inviato). Genera e salva/sovrascrive anche il PDF del
+ * rapporto, con la stessa impaginazione del modulo cartaceo, tra i Documenti allegati.
  */
 function salvaRapportoIntervento(id, row, dati) {
   var esistente = trovaInterventoPerIdORiga_(id, row);
@@ -535,6 +538,9 @@ function salvaRapportoIntervento(id, row, dati) {
       descrizione: String((a && a.descrizione) || '').trim()
     };
   }).filter(function (a) { return a.codice || a.qta || a.descrizione || a.consegnato || a.ritirato; }) : [];
+  var tipoIntervento = Array.isArray(dati.tipoIntervento) ? dati.tipoIntervento.filter(function (t) {
+    return TIPI_INTERVENTO_RAPPORTO_.indexOf(t) !== -1;
+  }) : [];
   var compilatoIl = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
   var campi = {
     rapportoOraInizio: String(dati.oraInizio || '').trim(),
@@ -545,14 +551,30 @@ function salvaRapportoIntervento(id, row, dati) {
     rapportoOraChiusura: String(dati.oraChiusura || '').trim(),
     rapportoFirmaTecnico: String(dati.firmaTecnico || '').trim(),
     rapportoFirmaCliente: String(dati.firmaCliente || '').trim(),
-    rapportoCompilatoIl: compilatoIl
+    rapportoCompilatoIl: compilatoIl,
+    rapportoTipoIntervento: JSON.stringify(tipoIntervento),
+    rapportoKmAndata: String(dati.kmAndata || '').trim(),
+    rapportoKmRitorno: String(dati.kmRitorno || '').trim(),
+    rapportoTempoTrasferimentoOre: String(dati.tempoTrasferimentoOre || '').trim(),
+    rapportoTempoTrasferimentoMinuti: String(dati.tempoTrasferimentoMinuti || '').trim(),
+    rapportoTecniciAggiuntivi: String(dati.tecniciAggiuntivi || '').trim()
   };
   if (concluso === 'Sì' && esistente.stato !== STATO_INTERVENTO.COMPLETATO) {
     campi.stato = STATO_INTERVENTO.COMPLETATO;
   }
   updateRowFields_('INTERVENTI', esistente._row, Object.assign(campi, campiAnalisi_(esistente, campi)));
   creaNotificaIntervento_(esistente, 'Rapporto di intervento compilato' + (campi.stato ? ' (intervento concluso)' : ''), RUOLO.SQUADRA);
-  return { compilatoIl: compilatoIl, stato: campi.stato || esistente.stato };
+
+  // Il PDF (stessa impaginazione del modulo cartaceo) è un derivato: se la sua generazione
+  // fallisce (es. cartella Drive radice non configurata in Regole) non deve far perdere i dati
+  // del rapporto appena salvati, già scritti sul foglio sopra — vedi RapportoPdf.gs.
+  var pdfInfo = null;
+  try {
+    pdfInfo = generaEsalvaPdfRapportoIntervento_(Object.assign({}, esistente, campi));
+  } catch (e) {
+    console.error('Impossibile generare/salvare il PDF del Rapporto di Intervento: ' + e.message);
+  }
+  return { compilatoIl: compilatoIl, stato: campi.stato || esistente.stato, pdfUrl: pdfInfo ? pdfInfo.url : '' };
 }
 
 /**

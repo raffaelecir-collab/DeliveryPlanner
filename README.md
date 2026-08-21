@@ -772,6 +772,12 @@ altri dati del modulo cartaceo (cliente, tecnico, tipo impianto, causale,
 regime, test effettuati...) sono già presenti sull'intervento/sulla squadra e
 non vanno ridigitati:
 
+- **Tipo di intervento** (SOPRALLUOGO / INSTALLAZIONE / COLLAUDO / SMONTAGGIO /
+  MANUTENZIONE PREVENTIVA / MANUTENZIONE CORRETTIVA): una o più caselle, come
+  sul modulo cartaceo.
+- **Km di trasferimento** (andata/ritorno) e **Tempo di trasferimento** (ore e
+  minuti).
+- **N° tecnici aggiuntive**.
 - **Durata dell'intervento** (dalle ore / alle ore, hh:mm).
 - **Tabella articoli**: Cod. Articolo, Q.tà, Consegnato/Ritirato (spunte),
   Descrizione articolo — righe aggiungibili/rimovibili liberamente (le righe
@@ -795,6 +801,28 @@ comunque sempre possibile (es. per correggere un rapporto già inviato) e
 sovrascrive il precedente. I dati del rapporto sono visibili in sola lettura
 anche nel form "Modifica" di un intervento lato Admin (campi "Rapporto - ...",
 non modificabili da lì).
+
+**PDF con la stessa impaginazione del modulo cartaceo.** Ad ogni salvataggio
+del Rapporto viene generato in automatico anche un **PDF** — logo e
+intestazione SICURITALIA, sezioni, tabelle e caselle nella stessa disposizione
+del modulo originale — salvato/**sovrascritto** (il PDF del salvataggio
+precedente viene cestinato) tra i **Documenti allegati** dell'intervento
+(icona 📎, già visibile ad Admin/Cliente/Squadra). Vengono autocompilati anche
+i campi del modulo cartaceo non gestiti dalla squadra, secondo convenzioni
+concordate:
+- **Tipo d'impianto** = Cliente · **Causale dell'intervento** = Tipo Attività.
+- **Richiesto da** = "Cristiano Damiani" per gli interventi di Tipo Attività
+  SM01, "Sara Baran" per qualsiasi altro Tipo Attività.
+- **In data** = Data Dispacciamento · **N° ordine** = Codice Esterno.
+- **Regime dell'intervento** = sempre "Ordinario" (unico regime gestito, per
+  ora — nessuna regola per reperibilità/garanzia/a pagamento/contratto).
+- **Unità operativa** = "SITE SPA" (fisso). **Cod. Tecnico**, **Prov.** e
+  **Test effettuati** restano vuoti (dati non presenti in anagrafica/non
+  raccolti dalla squadra).
+Se la cartella Drive dei documenti non è configurata (regola
+"driveCartellaRadiceId", vedi sezione successiva) la generazione del PDF
+fallisce silenziosamente (loggato nell'esecuzione Apps Script): il
+salvataggio dei dati del rapporto non va comunque mai perso.
 
 ### Documenti allegati (Google Drive)
 

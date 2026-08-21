@@ -3277,6 +3277,16 @@
   // ---------- dialog: Rapporto di Intervento (dalla vista Squadra) ----------
   var rapportoInterventoState = { id: null, row: null, articoli: [] };
   var ARTICOLO_VUOTO_RAPPORTO_ = { codice: '', qta: '', consegnato: false, ritirato: false, descrizione: '' };
+  // Stessa lista di TIPI_INTERVENTO_RAPPORTO_ (RapportoPdf.gs): le caselle in cima al modulo cartaceo.
+  var TIPI_INTERVENTO_RAPPORTO_CLIENT_ = ['SOPRALLUOGO', 'INSTALLAZIONE', 'COLLAUDO', 'SMONTAGGIO', 'MANUTENZIONE PREVENTIVA', 'MANUTENZIONE CORRETTIVA'];
+
+  function renderRapportoTipoIntervento_(selezionati) {
+    var el = document.getElementById('rapporto-tipo-intervento');
+    el.innerHTML = TIPI_INTERVENTO_RAPPORTO_CLIENT_.map(function (t) {
+      return '<label><input type="checkbox" data-tipo-intervento="' + escapeHtml(t) + '"' +
+        (selezionati.indexOf(t) !== -1 ? ' checked' : '') + '> ' + t + '</label>';
+    }).join('');
+  }
 
   function apriRapportoIntervento_(obj) {
     rapportoInterventoState.id = obj.id;
@@ -3285,6 +3295,11 @@
     document.getElementById('rapporto-info-cliente').textContent = obj.cliente || '—';
     document.getElementById('rapporto-info-indirizzo').textContent = obj.indirizzo || '—';
     document.getElementById('rapporto-info-data').textContent = (obj.dataPianificata || '—') + (obj.oraPianificata ? ' · ' + obj.oraPianificata : '');
+    document.getElementById('rapporto-km-andata').value = obj.rapportoKmAndata || '';
+    document.getElementById('rapporto-km-ritorno').value = obj.rapportoKmRitorno || '';
+    document.getElementById('rapporto-tempo-trasferimento-ore').value = obj.rapportoTempoTrasferimentoOre || '';
+    document.getElementById('rapporto-tempo-trasferimento-minuti').value = obj.rapportoTempoTrasferimentoMinuti || '';
+    document.getElementById('rapporto-tecnici-aggiuntivi').value = obj.rapportoTecniciAggiuntivi || '';
     document.getElementById('rapporto-ora-inizio').value = obj.rapportoOraInizio || obj.oraPianificata || '';
     document.getElementById('rapporto-ora-fine').value = obj.rapportoOraFine || '';
     document.getElementById('rapporto-note').value = obj.rapportoNote || '';
@@ -3292,6 +3307,10 @@
     document.getElementById('rapporto-ora-chiusura').value = obj.rapportoOraChiusura || '';
     caricaFirmaSuCanvas_(document.getElementById('rapporto-firma-tecnico-canvas'), obj.rapportoFirmaTecnico || '');
     caricaFirmaSuCanvas_(document.getElementById('rapporto-firma-cliente-canvas'), obj.rapportoFirmaCliente || '');
+    var tipiSelezionati = [];
+    try { tipiSelezionati = JSON.parse(obj.rapportoTipoIntervento || '[]'); } catch (e) { tipiSelezionati = []; }
+    if (!Array.isArray(tipiSelezionati)) tipiSelezionati = [];
+    renderRapportoTipoIntervento_(tipiSelezionati);
     var articoli = [];
     try { articoli = JSON.parse(obj.rapportoArticoli || '[]'); } catch (e) { articoli = []; }
     if (!Array.isArray(articoli) || !articoli.length) articoli = [Object.assign({}, ARTICOLO_VUOTO_RAPPORTO_)];
@@ -3346,7 +3365,17 @@
     var btn = document.getElementById('btn-salva-rapporto');
     var canvasTecnico = document.getElementById('rapporto-firma-tecnico-canvas');
     var canvasCliente = document.getElementById('rapporto-firma-cliente-canvas');
+    var tipiSelezionati = Array.prototype.map.call(
+      document.querySelectorAll('#rapporto-tipo-intervento input[data-tipo-intervento]:checked'),
+      function (input) { return input.dataset.tipoIntervento; }
+    );
     var dati = {
+      tipoIntervento: tipiSelezionati,
+      kmAndata: document.getElementById('rapporto-km-andata').value,
+      kmRitorno: document.getElementById('rapporto-km-ritorno').value,
+      tempoTrasferimentoOre: document.getElementById('rapporto-tempo-trasferimento-ore').value,
+      tempoTrasferimentoMinuti: document.getElementById('rapporto-tempo-trasferimento-minuti').value,
+      tecniciAggiuntivi: document.getElementById('rapporto-tecnici-aggiuntivi').value,
       oraInizio: document.getElementById('rapporto-ora-inizio').value,
       oraFine: document.getElementById('rapporto-ora-fine').value,
       articoli: raccogliArticoliRapportoDalDom_(),
@@ -3357,8 +3386,8 @@
       firmaCliente: firmaCanvasVuota_(canvasCliente) ? '' : canvasCliente.toDataURL('image/png')
     };
     btn.disabled = true;
-    callServer('salvaRapportoIntervento', rapportoInterventoState.id, rapportoInterventoState.row, dati).then(function () {
-      toast('Rapporto di intervento salvato.', 'success');
+    callServer('salvaRapportoIntervento', rapportoInterventoState.id, rapportoInterventoState.row, dati).then(function (esito) {
+      toast('Rapporto di intervento salvato' + (esito && esito.pdfUrl ? ' (PDF aggiornato tra i Documenti allegati).' : '.'), 'success');
       document.getElementById('dlg-rapporto').classList.add('hidden');
       caricaMiaSquadra();
     }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () { btn.disabled = false; });
