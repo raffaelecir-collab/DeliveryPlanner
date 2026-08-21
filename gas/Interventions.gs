@@ -509,7 +509,8 @@ function segnaCompletatoSquadraPropria(id, row) {
  * modellato sul modulo cartaceo SICURITALIA allegato): i soli campi previsti sono quelli
  * effettivamente compilabili sul campo — durata (ora inizio/fine), tabella articoli
  * (consegnato/ritirato), descrizione e note, esito ("Intervento concluso"), ora di chiusura e le
- * firme (testo libero digitato, non un disegno). Tutti gli altri dati del modulo cartaceo
+ * firme olografe (disegnate a mano sul pad lato client, salvate come immagine PNG codificata in
+ * data URL — non testo libero). Tutti gli altri dati del modulo cartaceo
  * (cliente, tecnico, tipo impianto, causale, regime, test effettuati...) sono già presenti
  * sull'intervento/sulla squadra e non vanno ridigitati qui.
  *

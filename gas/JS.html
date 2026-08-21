@@ -3239,6 +3239,15 @@
       if (!btn) return;
       rimuoviRigaArticoloRapporto_(parseInt(btn.dataset.idx, 10));
     });
+
+    ['rapporto-firma-tecnico-canvas', 'rapporto-firma-cliente-canvas'].forEach(function (id) {
+      var canvas = document.getElementById(id);
+      if (!canvas) return;
+      pulisciFirmaCanvas_(canvas);
+      inizializzaFirmaPad_(canvas);
+    });
+    onQuery('[data-clear-firma="tecnico"]', 'click', function () { pulisciFirmaCanvas_(document.getElementById('rapporto-firma-tecnico-canvas')); });
+    onQuery('[data-clear-firma="cliente"]', 'click', function () { pulisciFirmaCanvas_(document.getElementById('rapporto-firma-cliente-canvas')); });
   }
 
   /** Delega i click su Nota/Vedi note/Completa: riusa gli stessi dialog/azioni già usati nel tab Interventi. */
@@ -3281,8 +3290,8 @@
     document.getElementById('rapporto-note').value = obj.rapportoNote || '';
     document.getElementById('rapporto-concluso').value = obj.rapportoConcluso === 'Sì' ? 'Sì' : 'No';
     document.getElementById('rapporto-ora-chiusura').value = obj.rapportoOraChiusura || '';
-    document.getElementById('rapporto-firma-tecnico').value = obj.rapportoFirmaTecnico || '';
-    document.getElementById('rapporto-firma-cliente').value = obj.rapportoFirmaCliente || '';
+    caricaFirmaSuCanvas_(document.getElementById('rapporto-firma-tecnico-canvas'), obj.rapportoFirmaTecnico || '');
+    caricaFirmaSuCanvas_(document.getElementById('rapporto-firma-cliente-canvas'), obj.rapportoFirmaCliente || '');
     var articoli = [];
     try { articoli = JSON.parse(obj.rapportoArticoli || '[]'); } catch (e) { articoli = []; }
     if (!Array.isArray(articoli) || !articoli.length) articoli = [Object.assign({}, ARTICOLO_VUOTO_RAPPORTO_)];
@@ -3335,6 +3344,8 @@
 
   function salvaRapportoIntervento_() {
     var btn = document.getElementById('btn-salva-rapporto');
+    var canvasTecnico = document.getElementById('rapporto-firma-tecnico-canvas');
+    var canvasCliente = document.getElementById('rapporto-firma-cliente-canvas');
     var dati = {
       oraInizio: document.getElementById('rapporto-ora-inizio').value,
       oraFine: document.getElementById('rapporto-ora-fine').value,
@@ -3342,8 +3353,8 @@
       note: document.getElementById('rapporto-note').value,
       concluso: document.getElementById('rapporto-concluso').value,
       oraChiusura: document.getElementById('rapporto-ora-chiusura').value,
-      firmaTecnico: document.getElementById('rapporto-firma-tecnico').value,
-      firmaCliente: document.getElementById('rapporto-firma-cliente').value
+      firmaTecnico: firmaCanvasVuota_(canvasTecnico) ? '' : canvasTecnico.toDataURL('image/png'),
+      firmaCliente: firmaCanvasVuota_(canvasCliente) ? '' : canvasCliente.toDataURL('image/png')
     };
     btn.disabled = true;
     callServer('salvaRapportoIntervento', rapportoInterventoState.id, rapportoInterventoState.row, dati).then(function () {
@@ -3352,6 +3363,73 @@
       caricaMiaSquadra();
     }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () { btn.disabled = false; });
   }
+
+  /**
+   * Firma olografa: pad di disegno su <canvas> (mouse/dito/pennino via Pointer Events, unificati).
+   * Sfondo sempre bianco (superficie "carta"), inchiostro nero, indipendente dal tema chiaro/scuro
+   * dell'app. Inizializzato UNA SOLA VOLTA per canvas (setupSquadraTab): riaprire il dialog non deve
+   * ri-agganciare gli event listener, altrimenti ogni tratto verrebbe disegnato più volte.
+   */
+  function inizializzaFirmaPad_(canvas) {
+    var ctx = canvas.getContext('2d');
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#111';
+    var disegnando = false;
+    var ultimo = null;
+
+    function posizione(e) {
+      var rect = canvas.getBoundingClientRect();
+      var scaleX = canvas.width / rect.width;
+      var scaleY = canvas.height / rect.height;
+      return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+    }
+    function inizio(e) {
+      disegnando = true;
+      ultimo = posizione(e);
+      if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    }
+    function muovi(e) {
+      if (!disegnando) return;
+      var p = posizione(e);
+      ctx.beginPath();
+      ctx.moveTo(ultimo.x, ultimo.y);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      ultimo = p;
+      canvas.dataset.firmata = '1';
+      e.preventDefault();
+    }
+    function fine() { disegnando = false; ultimo = null; }
+
+    canvas.addEventListener('pointerdown', inizio);
+    canvas.addEventListener('pointermove', muovi);
+    canvas.addEventListener('pointerup', fine);
+    canvas.addEventListener('pointercancel', fine);
+    canvas.addEventListener('pointerleave', fine);
+  }
+
+  function pulisciFirmaCanvas_(canvas) {
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    canvas.dataset.firmata = '';
+  }
+
+  /** Ridisegna una firma già salvata (data URL PNG) sul canvas, per revisionarla/correggerla. */
+  function caricaFirmaSuCanvas_(canvas, dataUrl) {
+    pulisciFirmaCanvas_(canvas);
+    if (!dataUrl) return;
+    var ctx = canvas.getContext('2d');
+    var img = new Image();
+    img.onload = function () { ctx.drawImage(img, 0, 0, canvas.width, canvas.height); };
+    img.src = dataUrl;
+    canvas.dataset.firmata = '1';
+  }
+
+  function firmaCanvasVuota_(canvas) { return !canvas.dataset.firmata; }
 
   function caricaMiaSquadra() {
     var dal = document.getElementById('ms-dal').value, al = document.getElementById('ms-al').value;

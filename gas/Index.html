@@ -659,14 +659,20 @@
           <div class="row">
             <div class="field">
               <label>Firma Tecnico</label>
-              <input type="text" id="rapporto-firma-tecnico" placeholder="Nome e cognome">
+              <div class="rapporto-firma-pad">
+                <canvas id="rapporto-firma-tecnico-canvas" width="360" height="140"></canvas>
+                <button type="button" class="btn-secondary-sm" data-clear-firma="tecnico">Cancella firma</button>
+              </div>
             </div>
             <div class="field">
               <label>Firma Cliente</label>
-              <input type="text" id="rapporto-firma-cliente" placeholder="Nome e cognome">
+              <div class="rapporto-firma-pad">
+                <canvas id="rapporto-firma-cliente-canvas" width="360" height="140"></canvas>
+                <button type="button" class="btn-secondary-sm" data-clear-firma="cliente">Cancella firma</button>
+              </div>
             </div>
           </div>
-          <p class="field-help">Le firme sono testuali (nome digitato), non un disegno. Se "Intervento concluso" è impostato su "Sì", al salvataggio l'intervento passa automaticamente a stato Completato.</p>
+          <p class="field-help">Firme olografe: disegnare col dito, pennino o mouse direttamente nel riquadro. Se "Intervento concluso" è impostato su "Sì", al salvataggio l'intervento passa automaticamente a stato Completato.</p>
         </form>
         <div class="modal-actions">
           <button type="button" class="btn secondary" data-close-dlg="dlg-rapporto">Annulla</button>

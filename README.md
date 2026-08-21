@@ -782,8 +782,11 @@ non vanno ridigitati:
   transizione del pulsante ✓ "segna come completato" — non serve premerlo
   separatamente).
 - **Ora di chiusura** (hh:mm).
-- **Firme** (Tecnico e Cliente): sono **firme testuali** (nome e cognome
-  digitato), non un disegno/immagine catturata.
+- **Firme olografe** (Tecnico e Cliente): si disegnano a mano — col dito,
+  pennino o mouse — direttamente in un riquadro dedicato (pad di firma),
+  esattamente come su un tablet POS; un pulsante "Cancella firma" per ciascuna
+  permette di ridisegnarle. Vengono salvate come immagine (PNG), non come
+  testo.
 
 Il pulsante 📋 diventa verde e mostra la data/ora dell'ultimo salvataggio
 (stessa convenzione del pulsante ✉ "mail pianificazione") non appena un

@@ -163,8 +163,8 @@ var SCHEMA = {
       { key: 'rapportoNote', label: 'Rapporto - Descrizione e Note', type: 'text', readonly: true, help: 'Descrizione dell\'intervento e note compilate dalla squadra tramite "Rapporto di Intervento". Non modificabile da qui.' },
       { key: 'rapportoConcluso', label: 'Rapporto - Intervento Concluso', type: 'text', readonly: true, help: 'Sì/No, compilato dalla squadra tramite "Rapporto di Intervento". Se "Sì", l\'intervento viene automaticamente segnato come Completato.' },
       { key: 'rapportoOraChiusura', label: 'Rapporto - Ora Chiusura (HH:mm)', type: 'text', readonly: true, help: 'Compilato dalla squadra tramite "Rapporto di Intervento", non modificabile da qui.' },
-      { key: 'rapportoFirmaTecnico', label: 'Rapporto - Firma Tecnico', type: 'text', readonly: true, help: 'Nome digitato dal tecnico a conferma del rapporto (firma testuale, non un disegno). Compilato tramite "Rapporto di Intervento".' },
-      { key: 'rapportoFirmaCliente', label: 'Rapporto - Firma Cliente', type: 'text', readonly: true, help: 'Nome digitato dal cliente a conferma del rapporto (firma testuale, non un disegno). Compilato tramite "Rapporto di Intervento".' },
+      { key: 'rapportoFirmaTecnico', label: 'Rapporto - Firma Tecnico', type: 'text', readonly: true, help: 'Firma olografa del tecnico, disegnata a mano sul pad e salvata come immagine (PNG codificata in data URL). Compilata tramite "Rapporto di Intervento".' },
+      { key: 'rapportoFirmaCliente', label: 'Rapporto - Firma Cliente', type: 'text', readonly: true, help: 'Firma olografa del cliente, disegnata a mano sul pad e salvata come immagine (PNG codificata in data URL). Compilata tramite "Rapporto di Intervento".' },
       { key: 'rapportoCompilatoIl', label: 'Rapporto Compilato il', type: 'text', readonly: true, help: 'Data/ora dell\'ultimo salvataggio del "Rapporto di Intervento": impostata automaticamente, mai da altrove. Un secondo salvataggio la sovrascrive con la data più recente.' }
     ]
   },

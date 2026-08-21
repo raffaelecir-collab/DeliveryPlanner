@@ -670,6 +670,12 @@
   @media (max-width: 640px) {
     .rapporto-articolo-riga { grid-template-columns: 1fr 1fr; }
   }
+  /* pad firma olografa: sfondo bianco fisso (superficie "carta"), indipendente dal tema chiaro/scuro */
+  .rapporto-firma-pad { display: flex; flex-direction: column; gap: 6px; }
+  .rapporto-firma-pad canvas {
+    width: 100%; max-width: 360px; height: 140px; border: 1px solid var(--dp-line); border-radius: var(--dp-radius-sm);
+    background: #fff; touch-action: none; cursor: crosshair;
+  }
 
   /* Indicatore di caricamento generico: applicato a un container mentre attende una risposta dal
      server (che su Apps Script/Sheets può richiedere qualche secondo) — attenua il contenuto e
