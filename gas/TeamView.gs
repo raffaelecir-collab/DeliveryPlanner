@@ -36,7 +36,11 @@ function getProgrammazioneSquadraPropria(dataInizioStr, dataFineStr) {
         id: i.id, _row: i._row, cliente: i.cliente, indirizzo: i.indirizzo, lat: i.lat, lng: i.lng,
         telefono: i.telefono, competenza: i.competenza, priorita: i.priorita, durataMinuti: i.durataMinuti,
         dataPianificata: i.dataPianificata, oraPianificata: i.oraPianificata, ordineTappa: i.ordineTappa,
-        stato: i.stato, storiaSospensioni: i.storiaSospensioni, note: i.note
+        stato: i.stato, storiaSospensioni: i.storiaSospensioni, note: i.note,
+        rapportoOraInizio: i.rapportoOraInizio, rapportoOraFine: i.rapportoOraFine,
+        rapportoArticoli: i.rapportoArticoli, rapportoNote: i.rapportoNote, rapportoConcluso: i.rapportoConcluso,
+        rapportoOraChiusura: i.rapportoOraChiusura, rapportoFirmaTecnico: i.rapportoFirmaTecnico,
+        rapportoFirmaCliente: i.rapportoFirmaCliente, rapportoCompilatoIl: i.rapportoCompilatoIl
       };
     })
   };

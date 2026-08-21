@@ -809,6 +809,7 @@
   var ICONA_RICAVO_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7a7.5 7.5 0 1 0 0 10"></path><path d="M3.5 10h10M3.5 14h8"></path></svg>';
   var ICONA_MENU_ = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>';
   var ICONA_DOCUMENTO_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 6.5 9 14a2.1 2.1 0 0 1-3-3l7.5-7.5a3.5 3.5 0 0 1 5 5L11 16"></path></svg>';
+  var ICONA_RAPPORTO_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6a1 1 0 0 1 1 1v1H8V4a1 1 0 0 1 1-1Z"></path><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"></path><path d="M8 12h8M8 16h5"></path><path d="m8.5 9 1.5 1.5L12.5 8"></path></svg>';
 
   var STATI_SOSPENSIONE_CLIENT_ = ['Sospeso - ys', 'Sospeso - zp', 'Sospeso - zc'];
   function isStatoSospesoClient_(stato) { return STATI_SOSPENSIONE_CLIENT_.indexOf(stato) !== -1; }
@@ -3230,6 +3231,14 @@
     on('btn-ms-aggiorna', 'click', caricaMiaSquadra);
 
     wireMsAzioni_('#ms-agenda-corpo');
+
+    on('btn-rapporto-aggiungi-articolo', 'click', aggiungiRigaArticoloRapporto_);
+    on('btn-salva-rapporto', 'click', salvaRapportoIntervento_);
+    onQuery('#rapporto-articoli-corpo', 'click', function (e) {
+      var btn = e.target.closest('button[data-action="rimuovi-articolo"]');
+      if (!btn) return;
+      rimuoviRigaArticoloRapporto_(parseInt(btn.dataset.idx, 10));
+    });
   }
 
   /** Delega i click su Nota/Vedi note/Completa: riusa gli stessi dialog/azioni già usati nel tab Interventi. */
@@ -3244,6 +3253,7 @@
       if (action === 'nota') { apriNotaIntervento(obj); return; }
       if (action === 'vedi-note') { apriListaNote(obj); return; }
       if (action === 'documenti') { apriDocumentiIntervento(obj); return; }
+      if (action === 'rapporto') { apriRapportoIntervento_(obj); return; }
       if (action === 'completa') { completaInterventoSquadra_(obj); return; }
     });
   }
@@ -3253,6 +3263,94 @@
       toast('Intervento segnato come completato.', 'success');
       caricaMiaSquadra();
     }).catch(function (err) { toast(err.message || String(err), 'error'); });
+  }
+
+  // ---------- dialog: Rapporto di Intervento (dalla vista Squadra) ----------
+  var rapportoInterventoState = { id: null, row: null, articoli: [] };
+  var ARTICOLO_VUOTO_RAPPORTO_ = { codice: '', qta: '', consegnato: false, ritirato: false, descrizione: '' };
+
+  function apriRapportoIntervento_(obj) {
+    rapportoInterventoState.id = obj.id;
+    rapportoInterventoState.row = obj._row;
+    document.getElementById('dlg-rapporto-titolo').textContent = 'Rapporto di Intervento — ' + obj.cliente;
+    document.getElementById('rapporto-info-cliente').textContent = obj.cliente || '—';
+    document.getElementById('rapporto-info-indirizzo').textContent = obj.indirizzo || '—';
+    document.getElementById('rapporto-info-data').textContent = (obj.dataPianificata || '—') + (obj.oraPianificata ? ' · ' + obj.oraPianificata : '');
+    document.getElementById('rapporto-ora-inizio').value = obj.rapportoOraInizio || obj.oraPianificata || '';
+    document.getElementById('rapporto-ora-fine').value = obj.rapportoOraFine || '';
+    document.getElementById('rapporto-note').value = obj.rapportoNote || '';
+    document.getElementById('rapporto-concluso').value = obj.rapportoConcluso === 'Sì' ? 'Sì' : 'No';
+    document.getElementById('rapporto-ora-chiusura').value = obj.rapportoOraChiusura || '';
+    document.getElementById('rapporto-firma-tecnico').value = obj.rapportoFirmaTecnico || '';
+    document.getElementById('rapporto-firma-cliente').value = obj.rapportoFirmaCliente || '';
+    var articoli = [];
+    try { articoli = JSON.parse(obj.rapportoArticoli || '[]'); } catch (e) { articoli = []; }
+    if (!Array.isArray(articoli) || !articoli.length) articoli = [Object.assign({}, ARTICOLO_VUOTO_RAPPORTO_)];
+    rapportoInterventoState.articoli = articoli;
+    renderRapportoArticoli_();
+    document.getElementById('dlg-rapporto').classList.remove('hidden');
+  }
+
+  function renderRapportoArticoli_() {
+    var el = document.getElementById('rapporto-articoli-corpo');
+    el.innerHTML = rapportoInterventoState.articoli.map(function (a, idx) {
+      return '<div class="rapporto-articolo-riga">' +
+        '<input type="text" data-campo="codice" data-idx="' + idx + '" value="' + escapeHtml(a.codice || '') + '" placeholder="Cod. Articolo">' +
+        '<input type="text" data-campo="qta" data-idx="' + idx + '" value="' + escapeHtml(a.qta || '') + '" placeholder="Q.tà">' +
+        '<label class="rapporto-check"><input type="checkbox" data-campo="consegnato"' + (a.consegnato ? ' checked' : '') + '> Consegnato</label>' +
+        '<label class="rapporto-check"><input type="checkbox" data-campo="ritirato"' + (a.ritirato ? ' checked' : '') + '> Ritirato</label>' +
+        '<input type="text" data-campo="descrizione" data-idx="' + idx + '" value="' + escapeHtml(a.descrizione || '') + '" placeholder="Descrizione articolo">' +
+        '<button type="button" class="btn-icon danger" data-action="rimuovi-articolo" data-idx="' + idx + '" title="Rimuovi riga">' + ICONA_CESTINO_ + '</button>' +
+      '</div>';
+    }).join('');
+  }
+
+  /** Legge lo stato attuale della tabella articoli direttamente dal DOM (prima di aggiungere/rimuovere una riga, per non perdere quanto già digitato). */
+  function raccogliArticoliRapportoDalDom_() {
+    var righe = document.querySelectorAll('#rapporto-articoli-corpo .rapporto-articolo-riga');
+    return Array.prototype.map.call(righe, function (riga) {
+      return {
+        codice: riga.querySelector('[data-campo=codice]').value,
+        qta: riga.querySelector('[data-campo=qta]').value,
+        consegnato: riga.querySelector('[data-campo=consegnato]').checked,
+        ritirato: riga.querySelector('[data-campo=ritirato]').checked,
+        descrizione: riga.querySelector('[data-campo=descrizione]').value
+      };
+    });
+  }
+
+  function aggiungiRigaArticoloRapporto_() {
+    rapportoInterventoState.articoli = raccogliArticoliRapportoDalDom_();
+    rapportoInterventoState.articoli.push(Object.assign({}, ARTICOLO_VUOTO_RAPPORTO_));
+    renderRapportoArticoli_();
+  }
+
+  function rimuoviRigaArticoloRapporto_(idx) {
+    var articoli = raccogliArticoliRapportoDalDom_();
+    articoli.splice(idx, 1);
+    if (!articoli.length) articoli.push(Object.assign({}, ARTICOLO_VUOTO_RAPPORTO_));
+    rapportoInterventoState.articoli = articoli;
+    renderRapportoArticoli_();
+  }
+
+  function salvaRapportoIntervento_() {
+    var btn = document.getElementById('btn-salva-rapporto');
+    var dati = {
+      oraInizio: document.getElementById('rapporto-ora-inizio').value,
+      oraFine: document.getElementById('rapporto-ora-fine').value,
+      articoli: raccogliArticoliRapportoDalDom_(),
+      note: document.getElementById('rapporto-note').value,
+      concluso: document.getElementById('rapporto-concluso').value,
+      oraChiusura: document.getElementById('rapporto-ora-chiusura').value,
+      firmaTecnico: document.getElementById('rapporto-firma-tecnico').value,
+      firmaCliente: document.getElementById('rapporto-firma-cliente').value
+    };
+    btn.disabled = true;
+    callServer('salvaRapportoIntervento', rapportoInterventoState.id, rapportoInterventoState.row, dati).then(function () {
+      toast('Rapporto di intervento salvato.', 'success');
+      document.getElementById('dlg-rapporto').classList.add('hidden');
+      caricaMiaSquadra();
+    }).catch(function (err) { toast(err.message || String(err), 'error'); }).finally(function () { btn.disabled = false; });
   }
 
   function caricaMiaSquadra() {
@@ -3286,7 +3384,10 @@
       : '';
     var completato = t.stato === 'Completato';
     var azioni = '<button class="btn-icon" data-action="nota" data-row="' + t._row + '" title="Aggiungi nota">' + ICONA_NOTA_ + '</button>' + storiaHtml +
-      '<button class="btn-icon" data-action="documenti" data-row="' + t._row + '" title="Documenti">' + ICONA_DOCUMENTO_ + '</button>';
+      '<button class="btn-icon" data-action="documenti" data-row="' + t._row + '" title="Documenti">' + ICONA_DOCUMENTO_ + '</button>' +
+      '<button class="btn-icon' + (t.rapportoCompilatoIl ? ' sent' : '') + '" data-action="rapporto" data-row="' + t._row + '" title="' +
+        (t.rapportoCompilatoIl ? 'Rapporto di Intervento (già compilato il ' + escapeHtml(t.rapportoCompilatoIl) + ')' : 'Compila Rapporto di Intervento') +
+      '">' + ICONA_RAPPORTO_ + '</button>';
     if (!completato) {
       azioni += '<button class="btn-icon good" data-action="completa" data-row="' + t._row + '" title="Segna come completato">' + ICONA_CHECK_ + '</button>';
     }

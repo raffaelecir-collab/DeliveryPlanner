@@ -505,6 +505,56 @@ function segnaCompletatoSquadraPropria(id, row) {
 }
 
 /**
+ * Salva il "Rapporto di Intervento" compilato dalla squadra (pulsante 📋 in "La mia squadra",
+ * modellato sul modulo cartaceo SICURITALIA allegato): i soli campi previsti sono quelli
+ * effettivamente compilabili sul campo — durata (ora inizio/fine), tabella articoli
+ * (consegnato/ritirato), descrizione e note, esito ("Intervento concluso"), ora di chiusura e le
+ * firme (testo libero digitato, non un disegno). Tutti gli altri dati del modulo cartaceo
+ * (cliente, tecnico, tipo impianto, causale, regime, test effettuati...) sono già presenti
+ * sull'intervento/sulla squadra e non vanno ridigitati qui.
+ *
+ * Se "Intervento concluso" è "Sì", l'intervento passa anche a stato Completato (stessa
+ * transizione di segnaCompletatoSquadraPropria), a meno che non lo sia già. Registra
+ * rapportoCompilatoIl (data/ora dell'ultimo salvataggio) così il pulsante nella UI può colorarsi
+ * per segnalare un rapporto già compilato — un nuovo salvataggio resta comunque sempre permesso
+ * (es. per correggere un rapporto già inviato).
+ */
+function salvaRapportoIntervento(id, row, dati) {
+  var esistente = trovaInterventoPerIdORiga_(id, row);
+  if (!esistente) throw new Error('Intervento non trovato.');
+  verificaAccessoSquadraIntervento_(esistente);
+  dati = dati || {};
+  var concluso = dati.concluso === 'Sì' ? 'Sì' : 'No';
+  var articoli = Array.isArray(dati.articoli) ? dati.articoli.map(function (a) {
+    return {
+      codice: String((a && a.codice) || '').trim(),
+      qta: String((a && a.qta) || '').trim(),
+      consegnato: !!(a && a.consegnato),
+      ritirato: !!(a && a.ritirato),
+      descrizione: String((a && a.descrizione) || '').trim()
+    };
+  }).filter(function (a) { return a.codice || a.qta || a.descrizione || a.consegnato || a.ritirato; }) : [];
+  var compilatoIl = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
+  var campi = {
+    rapportoOraInizio: String(dati.oraInizio || '').trim(),
+    rapportoOraFine: String(dati.oraFine || '').trim(),
+    rapportoArticoli: JSON.stringify(articoli),
+    rapportoNote: String(dati.note || '').trim(),
+    rapportoConcluso: concluso,
+    rapportoOraChiusura: String(dati.oraChiusura || '').trim(),
+    rapportoFirmaTecnico: String(dati.firmaTecnico || '').trim(),
+    rapportoFirmaCliente: String(dati.firmaCliente || '').trim(),
+    rapportoCompilatoIl: compilatoIl
+  };
+  if (concluso === 'Sì' && esistente.stato !== STATO_INTERVENTO.COMPLETATO) {
+    campi.stato = STATO_INTERVENTO.COMPLETATO;
+  }
+  updateRowFields_('INTERVENTI', esistente._row, Object.assign(campi, campiAnalisi_(esistente, campi)));
+  creaNotificaIntervento_(esistente, 'Rapporto di intervento compilato' + (campi.stato ? ' (intervento concluso)' : ''), RUOLO.SQUADRA);
+  return { compilatoIl: compilatoIl, stato: campi.stato || esistente.stato };
+}
+
+/**
  * Ricalcola la Priorità automatica (vedi calcolaPrioritaAutomatica_) di tutti gli Interventi
  * idonei (Tipo Attività SM01-SM05 con una Scadenza, Priorità non forzata a mano) e riscrive solo
  * quelli il cui valore risulta cambiato: a differenza della Scadenza (fissa una volta calcolata),

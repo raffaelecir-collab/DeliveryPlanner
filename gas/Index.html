@@ -607,6 +607,74 @@
       </div>
     </div>
 
+    <!-- DIALOG: Rapporto di Intervento (vista Squadra) -->
+    <div id="dlg-rapporto" class="dlg-overlay hidden">
+      <div class="dlg-box wide">
+        <div class="dlg-head">
+          <h3 id="dlg-rapporto-titolo">Rapporto di Intervento</h3>
+          <button type="button" class="dlg-close" data-close-dlg="dlg-rapporto">✕</button>
+        </div>
+        <div class="rapporto-info">
+          <div><strong id="rapporto-info-cliente"></strong></div>
+          <div id="rapporto-info-indirizzo" class="sub"></div>
+          <div id="rapporto-info-data" class="sub"></div>
+        </div>
+        <form id="form-rapporto">
+          <div class="row">
+            <div class="field">
+              <label>Durata intervento — dalle ore</label>
+              <input type="time" id="rapporto-ora-inizio">
+            </div>
+            <div class="field">
+              <label>alle ore</label>
+              <input type="time" id="rapporto-ora-fine">
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Cod. Articolo / Q.tà / Consegnato / Ritirato / Descrizione articolo</label>
+            <div id="rapporto-articoli-corpo" class="rapporto-articoli"></div>
+            <button type="button" class="btn-secondary-sm" id="btn-rapporto-aggiungi-articolo" style="margin-top:6px;">+ Aggiungi riga</button>
+          </div>
+
+          <div class="field">
+            <label>Descrizione dell'intervento e note</label>
+            <textarea id="rapporto-note" rows="4" placeholder="Descrizione dell'intervento e note…"></textarea>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label>Intervento concluso</label>
+              <select id="rapporto-concluso">
+                <option value="No">No</option>
+                <option value="Sì">Sì</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Ora chiusura</label>
+              <input type="time" id="rapporto-ora-chiusura">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label>Firma Tecnico</label>
+              <input type="text" id="rapporto-firma-tecnico" placeholder="Nome e cognome">
+            </div>
+            <div class="field">
+              <label>Firma Cliente</label>
+              <input type="text" id="rapporto-firma-cliente" placeholder="Nome e cognome">
+            </div>
+          </div>
+          <p class="field-help">Le firme sono testuali (nome digitato), non un disegno. Se "Intervento concluso" è impostato su "Sì", al salvataggio l'intervento passa automaticamente a stato Completato.</p>
+        </form>
+        <div class="modal-actions">
+          <button type="button" class="btn secondary" data-close-dlg="dlg-rapporto">Annulla</button>
+          <button type="button" class="btn" id="btn-salva-rapporto">Salva rapporto</button>
+        </div>
+      </div>
+    </div>
+
     <!-- DIALOG: legenda Tipo Attività (codici SM01-SM05) -->
     <div id="dlg-legenda-tipo-attivita" class="dlg-overlay hidden">
       <div class="dlg-box">

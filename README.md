@@ -756,11 +756,42 @@ Da qualunque vista, un account Squadra può solo **aggiungere una nota**
 (stesso storico/popup già visto per Admin/Cliente, con "Squadra" come
 autore), **segnare un intervento come completato** (icona ✓, senza
 vincoli di data: recupera anche un intervento di un giorno passato non
-ancora spuntato) o **visualizzare i documenti allegati** (icona 📎, sola
+ancora spuntato), **compilare il Rapporto di Intervento** (icona 📋, vedi
+sezione successiva) o **visualizzare i documenti allegati** (icona 📎, sola
 lettura — vedi sezione successiva) — non può creare, modificare, eliminare,
 sospendere, annullare, pianificare né caricare/eliminare documenti, né
 vedere il **Ricavo (€)** degli interventi (nascosto di proposito, dato non
 necessario sul campo).
+
+### Rapporto di Intervento (Account Squadra)
+
+Modellato sul modulo cartaceo SICURITALIA "Rapporto di Intervento": dall'icona
+📋 sulla riga di un intervento in "La mia squadra" si apre un modulo dove la
+squadra compila **solo** i dati raccolti effettivamente sul campo — tutti gli
+altri dati del modulo cartaceo (cliente, tecnico, tipo impianto, causale,
+regime, test effettuati...) sono già presenti sull'intervento/sulla squadra e
+non vanno ridigitati:
+
+- **Durata dell'intervento** (dalle ore / alle ore, hh:mm).
+- **Tabella articoli**: Cod. Articolo, Q.tà, Consegnato/Ritirato (spunte),
+  Descrizione articolo — righe aggiungibili/rimovibili liberamente (le righe
+  lasciate completamente vuote non vengono salvate).
+- **Descrizione dell'intervento e note** (testo libero).
+- **Intervento concluso** (Sì/No): se impostato su **Sì**, al salvataggio
+  l'intervento passa automaticamente a stato **Completato** (stessa
+  transizione del pulsante ✓ "segna come completato" — non serve premerlo
+  separatamente).
+- **Ora di chiusura** (hh:mm).
+- **Firme** (Tecnico e Cliente): sono **firme testuali** (nome e cognome
+  digitato), non un disegno/immagine catturata.
+
+Il pulsante 📋 diventa verde e mostra la data/ora dell'ultimo salvataggio
+(stessa convenzione del pulsante ✉ "mail pianificazione") non appena un
+rapporto è stato compilato almeno una volta: un nuovo salvataggio resta
+comunque sempre possibile (es. per correggere un rapporto già inviato) e
+sovrascrive il precedente. I dati del rapporto sono visibili in sola lettura
+anche nel form "Modifica" di un intervento lato Admin (campi "Rapporto - ...",
+non modificabili da lì).
 
 ### Documenti allegati (Google Drive)
 
