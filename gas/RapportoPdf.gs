@@ -49,6 +49,17 @@ function valorePdf_(xPx, yPx, testo, fontPt, stileExtra) {
   return overlayPdf_(xPx, yPx, escapeHtmlPdf_(testo), 'font-family:Courier,monospace;font-size:' + (fontPt || 10) + 'pt;color:#000;white-space:nowrap;' + (stileExtra || ''));
 }
 
+/**
+ * Come valorePdf_, ma centrata orizzontalmente sulla coordinata data (xPx = CENTRO della casella
+ * sul modulo, non il suo margine sinistro): più robusta per caselle strette (Km/Tempo di
+ * trasferimento, Durata, N. tecnici aggiuntive) dove un valore più lungo/corto del previsto non
+ * deve sbordare da un lato.
+ */
+function valoreCentratoPdf_(xPx, yPx, testo, fontPt, stileExtra) {
+  if (!testo) return '';
+  return overlayPdf_(xPx, yPx, escapeHtmlPdf_(testo), 'font-family:Courier,monospace;font-size:' + (fontPt || 10) + 'pt;color:#000;white-space:nowrap;transform:translateX(-50%);' + (stileExtra || ''));
+}
+
 /** "X" di spunta centrata sulla casella alle coordinate (px) date (centro della casella, non angolo). */
 function spuntaPdf_(xPx, yPx) {
   return overlayPdf_(xPx, yPx, 'X', 'font-family:Arial,sans-serif;font-size:9pt;font-weight:bold;color:#000;transform:translate(-50%,-50%);line-height:1;');
@@ -74,14 +85,21 @@ function nomeFilePdfRapporto_(intervento) {
  * correggere in caso di ritocchi di posizionamento.
  */
 var COORD_RAPPORTO_ = {
-  tipoIntervento: { SOPRALLUOGO: 50, INSTALLAZIONE: 158, COLLAUDO: 266, SMONTAGGIO: 356, 'MANUTENZIONE PREVENTIVA': 436, 'MANUTENZIONE CORRETTIVA': 636, y: 109 },
-  kmAndata: { x: 200, y: 503 }, kmRitorno: { x: 340, y: 503 },
-  tempoOre: { x: 170, y: 533 }, tempoMinuti: { x: 240, y: 533 },
-  durataDalle: { x: 472, y: 503 }, durataAlle: { x: 628, y: 503 },
-  tecniciAggiuntivi: { x: 725, y: 530 },
+  // Centri esatti delle caselle (misurati sui tratti blu dello sfondo): SOPRALLUOGO 53-64,
+  // INSTALLAZIONE 157-169, COLLAUDO 262-274, SMONTAGGIO 344-355, MAN.PREVENTIVA 437-448,
+  // MAN.CORRETTIVA 609-620 (y centrata sul rigo caselle, spuntaPdf_ centra anche verticalmente).
+  tipoIntervento: { SOPRALLUOGO: 58, INSTALLAZIONE: 163, COLLAUDO: 268, SMONTAGGIO: 349, 'MANUTENZIONE PREVENTIVA': 442, 'MANUTENZIONE CORRETTIVA': 614, y: 109 },
+  // Centri delle "parentesi" Andata/Ritorno (misurate: Andata 154-207, Ritorno 228-280).
+  kmAndata: { x: 180, y: 508 }, kmRitorno: { x: 254, y: 508 },
+  tempoOre: { x: 180, y: 529 }, tempoMinuti: { x: 254, y: 529 },
+  // Centri dei riquadri "dalle ore"/"alle ore" (misurati: 461-573 e 615-683).
+  durataDalle: { x: 517, y: 508 }, durataAlle: { x: 649, y: 508 },
+  // Centro del riquadro N. tecnici aggiuntive (misurato: 724-742).
+  tecniciAggiuntivi: { x: 733, y: 527 },
   articoli: { colCodice: 45, colQta: 195, colConsegnato: 258, colRitirato: 320, colDescrizione: 358, rigaY: [587, 617, 647, 677, 707] },
   note: { x: 48, y: 806, widthPx: 730 },
-  conclusoSi: { x: 730, y: 925 }, conclusoNo: { x: 768, y: 925 },
+  // Centri caselle Sì/No (misurate: Sì 723-735, No 753-765).
+  conclusoSi: { x: 729, y: 925 }, conclusoNo: { x: 759, y: 925 },
   dataChiusura: { x: 45, y: 1028 }, oraChiusuraOre: { x: 150, y: 1032 }, oraChiusuraMinuti: { x: 200, y: 1032 },
   firmaTecnico: { x: 245, y: 1016, w: 250, h: 26 },
   firmaCliente: { x: 525, y: 1016, w: 250, h: 26 },
@@ -119,13 +137,13 @@ function generaHtmlRapportoIntervento_(intervento) {
     if (tipiSelezionati.indexOf(t) !== -1) overlay.push(spuntaPdf_(COORD_RAPPORTO_.tipoIntervento[t], COORD_RAPPORTO_.tipoIntervento.y));
   });
 
-  overlay.push(valorePdf_(COORD_RAPPORTO_.kmAndata.x, COORD_RAPPORTO_.kmAndata.y, intervento.rapportoKmAndata, 9));
-  overlay.push(valorePdf_(COORD_RAPPORTO_.kmRitorno.x, COORD_RAPPORTO_.kmRitorno.y, intervento.rapportoKmRitorno, 9));
-  overlay.push(valorePdf_(COORD_RAPPORTO_.tempoOre.x, COORD_RAPPORTO_.tempoOre.y, intervento.rapportoTempoTrasferimentoOre, 9));
-  overlay.push(valorePdf_(COORD_RAPPORTO_.tempoMinuti.x, COORD_RAPPORTO_.tempoMinuti.y, intervento.rapportoTempoTrasferimentoMinuti, 9));
-  overlay.push(valorePdf_(COORD_RAPPORTO_.durataDalle.x, COORD_RAPPORTO_.durataDalle.y, intervento.rapportoOraInizio, 9));
-  overlay.push(valorePdf_(COORD_RAPPORTO_.durataAlle.x, COORD_RAPPORTO_.durataAlle.y, intervento.rapportoOraFine, 9));
-  overlay.push(valorePdf_(COORD_RAPPORTO_.tecniciAggiuntivi.x, COORD_RAPPORTO_.tecniciAggiuntivi.y, intervento.rapportoTecniciAggiuntivi, 9));
+  overlay.push(valoreCentratoPdf_(COORD_RAPPORTO_.kmAndata.x, COORD_RAPPORTO_.kmAndata.y, intervento.rapportoKmAndata, 8.5));
+  overlay.push(valoreCentratoPdf_(COORD_RAPPORTO_.kmRitorno.x, COORD_RAPPORTO_.kmRitorno.y, intervento.rapportoKmRitorno, 8.5));
+  overlay.push(valoreCentratoPdf_(COORD_RAPPORTO_.tempoOre.x, COORD_RAPPORTO_.tempoOre.y, intervento.rapportoTempoTrasferimentoOre, 8.5));
+  overlay.push(valoreCentratoPdf_(COORD_RAPPORTO_.tempoMinuti.x, COORD_RAPPORTO_.tempoMinuti.y, intervento.rapportoTempoTrasferimentoMinuti, 8.5));
+  overlay.push(valoreCentratoPdf_(COORD_RAPPORTO_.durataDalle.x, COORD_RAPPORTO_.durataDalle.y, intervento.rapportoOraInizio, 8.5));
+  overlay.push(valoreCentratoPdf_(COORD_RAPPORTO_.durataAlle.x, COORD_RAPPORTO_.durataAlle.y, intervento.rapportoOraFine, 8.5));
+  overlay.push(valoreCentratoPdf_(COORD_RAPPORTO_.tecniciAggiuntivi.x, COORD_RAPPORTO_.tecniciAggiuntivi.y, intervento.rapportoTecniciAggiuntivi, 8.5));
 
   overlay.push(overlayArticoliPdf_(intervento.rapportoArticoli));
 
