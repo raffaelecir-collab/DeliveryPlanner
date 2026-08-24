@@ -17,6 +17,11 @@
  * Coordinate: riprese ESATTAMENTE (in cm) dal file "rapporto_intervento_layout_base.html" fornito
  * dall'utente — una mappatura pixel-precisa dello stesso sfondo con veri <input>/<textarea>
  * posizionati in absolute, molto più affidabile di una misurazione manuale — vedi COORD_RAPPORTO_.
+ * Eccezione: le caselle/il testo della tabella articoli (COORD_RAPPORTO_.articoli) erano
+ * costantemente ~0.14cm più in basso nell'immagine di sfondo rispetto a quanto dichiarato nel file
+ * (scostamento verificato pixel per pixel sulle 5 righe, mentre tutte le altre sezioni combaciavano
+ * esattamente) — per quella tabella le coordinate sono quindi state ri-misurate direttamente
+ * sull'immagine di sfondo effettiva.
  * Font Courier nero per i valori compilati (stessa scelta tipografica del file fornito), a
  * differenza delle etichette/testi di stampa del modulo che sono in blu.
  */
@@ -102,11 +107,11 @@ var COORD_RAPPORTO_ = {
   durataDalle: { x: 12.687, y: 12.7385 }, durataAlle: { x: 15.532, y: 12.7385 },
   tecniciAggiuntivi: { x: 18.6315, y: 13.271 },
   articoli: [
-    { codX: 1.218, codY: 14.395, qtaX: 5.2835, qtaY: 14.5415, consX: 6.566, consY: 14.516, ritX: 8.141, ritY: 14.516, descX: 8.991, descY: 14.395 },
-    { codX: 1.218, codY: 15.208, qtaX: 5.2835, qtaY: 15.3545, consX: 6.566, consY: 15.329, ritX: 8.141, ritY: 15.329, descX: 8.991, descY: 15.208 },
-    { codX: 1.218, codY: 16.02, qtaX: 5.2835, qtaY: 16.1665, consX: 6.566, consY: 16.142, ritX: 8.141, ritY: 16.142, descX: 8.991, descY: 16.02 },
-    { codX: 1.218, codY: 16.833, qtaX: 5.2835, qtaY: 16.9795, consX: 6.566, consY: 16.954, ritX: 8.141, ritY: 16.954, descX: 8.991, descY: 16.833 },
-    { codX: 1.218, codY: 17.646, qtaX: 5.2835, qtaY: 17.7925, consX: 6.566, consY: 17.767, ritX: 8.141, ritY: 17.767, descX: 8.991, descY: 17.646 }
+    { codX: 1.218, codY: 14.535, qtaX: 5.2835, qtaY: 14.6815, consX: 6.553, consY: 14.656, ritX: 8.115, ritY: 14.643, descX: 8.991, descY: 14.535 },
+    { codX: 1.218, codY: 15.348, qtaX: 5.2835, qtaY: 15.4945, consX: 6.553, consY: 15.468, ritX: 8.115, ritY: 15.456, descX: 8.991, descY: 15.348 },
+    { codX: 1.218, codY: 16.16, qtaX: 5.2835, qtaY: 16.3065, consX: 6.553, consY: 16.281, ritX: 8.115, ritY: 16.281, descX: 8.991, descY: 16.16 },
+    { codX: 1.218, codY: 16.973, qtaX: 5.2835, qtaY: 17.1195, consX: 6.54, consY: 17.094, ritX: 8.115, ritY: 17.094, descX: 8.991, descY: 16.973 },
+    { codX: 1.218, codY: 17.786, qtaX: 5.2835, qtaY: 17.9325, consX: 6.553, consY: 17.907, ritX: 8.115, ritY: 17.894, descX: 8.991, descY: 17.786 }
   ],
   note: { x: 1.168, y: 20.705, widthCm: 18.671 },
   conclusoSi: { x: 18.529, y: 23.5205 }, conclusoNo: { x: 19.291, y: 23.5205 },
