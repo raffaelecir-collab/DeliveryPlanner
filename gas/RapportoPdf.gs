@@ -49,14 +49,15 @@ function valorePdf_(xCm, yCm, testo, fontPt, stileExtra) {
 }
 
 /**
- * Come valorePdf_, ma centrata orizzontalmente sulla coordinata data (xCm = CENTRO della casella
- * sul modulo, non il suo margine sinistro): più robusta per caselle strette (Km/Tempo di
- * trasferimento, Durata, N. tecnici aggiuntive) dove un valore più lungo/corto del previsto non
- * deve sbordare da un lato.
+ * Come valorePdf_, ma centrata sia orizzontalmente che verticalmente sulla coordinata data
+ * (xCm/yCm = CENTRO della casella sul modulo, non il suo margine superiore sinistro): più
+ * robusta per caselle strette (Km/Tempo di trasferimento, Durata, N. tecnici aggiuntive, Q.tà
+ * articoli, Data/ora di chiusura) dove un valore più lungo/corto del previsto non deve sbordare
+ * da un lato, e dove la casella è troppo bassa per allineare il testo dal solo margine superiore.
  */
 function valoreCentratoPdf_(xCm, yCm, testo, fontPt, stileExtra) {
   if (!testo) return '';
-  return overlayPdf_(xCm, yCm, escapeHtmlPdf_(testo), 'font-family:Courier,monospace;font-size:' + (fontPt || 10) + 'pt;color:#000;white-space:nowrap;transform:translateX(-50%);' + (stileExtra || ''));
+  return overlayPdf_(xCm, yCm, escapeHtmlPdf_(testo), 'font-family:Courier,monospace;font-size:' + (fontPt || 10) + 'pt;color:#000;white-space:nowrap;transform:translate(-50%,-50%);' + (stileExtra || ''));
 }
 
 /** "X" di spunta centrata sulla casella alle coordinate (cm, centro della casella) date. */
@@ -109,7 +110,7 @@ var COORD_RAPPORTO_ = {
   ],
   note: { x: 1.168, y: 20.705, widthCm: 18.671 },
   conclusoSi: { x: 18.529, y: 23.5205 }, conclusoNo: { x: 19.291, y: 23.5205 },
-  dataChiusura: { x: 2.26, y: 26.191 }, oraChiusuraOre: { x: 3.8735, y: 26.191 }, oraChiusuraMinuti: { x: 4.94, y: 26.191 },
+  dataChiusura: { x: 2.26, y: 26.276 }, oraChiusuraOre: { x: 3.8735, y: 26.276 }, oraChiusuraMinuti: { x: 4.94, y: 26.276 },
   firmaTecnico: { x: 5.842, y: 25.641, w: 5.791, h: 0.8 },
   firmaCliente: { x: 11.811, y: 25.641, w: 8.077, h: 0.8 },
   firmaClienteBis: { x: 9.652, y: 27.622, w: 6.731, h: 0.8 }
