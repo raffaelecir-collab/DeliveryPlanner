@@ -771,9 +771,12 @@ function riempiBucoSenzaSpostare_(squadra, giaPianificati, disponibili, regole) 
         if (!slot || slot.fine > finestraFineInt) return;
 
         // Deve lasciare il tempo di raggiungere la prossima ancora fissa (se il varco non è
-        // l'ultimo della giornata) entro il suo orario di inizio già salvato.
+        // l'ultimo della giornata) entro il suo orario di inizio già salvato, e senza superare
+        // il tetto di viaggio massimo su quella tratta (stesso vincolo già applicato sopra alla
+        // tratta in ENTRATA: qui si applica anche a quella in USCITA verso l'ancora fissa).
         if (varco.prima) {
           var viaggioVersoProssimo = ottieniViaggio_(cand, varco.prima.intervento, regole).minuti;
+          if (tempoViaggioMassimo > 0 && viaggioVersoProssimo > tempoViaggioMassimo) return;
           if (slot.fine + viaggioVersoProssimo + bufferSetup > limiteMax) return;
         } else if (slot.fine > limiteMax) {
           return;
