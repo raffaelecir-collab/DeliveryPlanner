@@ -647,7 +647,13 @@
             </div>
             <div class="field">
               <label>minuti</label>
-              <input type="number" id="rapporto-tempo-trasferimento-minuti" min="0" max="59" step="1" placeholder="m">
+              <select id="rapporto-tempo-trasferimento-minuti">
+                <option value="">m</option>
+                <option value="00">00</option>
+                <option value="15">15</option>
+                <option value="30">30</option>
+                <option value="45">45</option>
+              </select>
             </div>
             <div class="field">
               <label>Tempo trasferimento ritorno — ore</label>
@@ -655,18 +661,44 @@
             </div>
             <div class="field">
               <label>minuti</label>
-              <input type="number" id="rapporto-tempo-trasferimento-ritorno-minuti" min="0" max="59" step="1" placeholder="m">
+              <select id="rapporto-tempo-trasferimento-ritorno-minuti">
+                <option value="">m</option>
+                <option value="00">00</option>
+                <option value="15">15</option>
+                <option value="30">30</option>
+                <option value="45">45</option>
+              </select>
             </div>
           </div>
 
           <div class="row">
             <div class="field">
               <label>Durata intervento — dalle ore</label>
-              <input type="time" id="rapporto-ora-inizio">
+              <input type="number" id="rapporto-ora-inizio-ore" min="0" max="23" step="1" placeholder="h">
+            </div>
+            <div class="field">
+              <label>minuti</label>
+              <select id="rapporto-ora-inizio-minuti">
+                <option value="">m</option>
+                <option value="00">00</option>
+                <option value="15">15</option>
+                <option value="30">30</option>
+                <option value="45">45</option>
+              </select>
             </div>
             <div class="field">
               <label>alle ore</label>
-              <input type="time" id="rapporto-ora-fine">
+              <input type="number" id="rapporto-ora-fine-ore" min="0" max="23" step="1" placeholder="h">
+            </div>
+            <div class="field">
+              <label>minuti</label>
+              <select id="rapporto-ora-fine-minuti">
+                <option value="">m</option>
+                <option value="00">00</option>
+                <option value="15">15</option>
+                <option value="30">30</option>
+                <option value="45">45</option>
+              </select>
             </div>
           </div>
 

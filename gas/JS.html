@@ -3288,6 +3288,43 @@
     }).join('');
   }
 
+  /** Arrotonda i minuti al quarto d'ora più vicino (00/15/30/45), per i <select> a scaglioni di 15 minuti: dati salvati con minuti "liberi" (prima di questa modifica, o da oraPianificata) restano comunque selezionabili senza bloccare l'apertura del rapporto. Se l'arrotondamento supera i 59' riporta 1 ora (riportoOre). */
+  function arrotondaMinuti15Rapporto_(minuti) {
+    var m = parseInt(minuti, 10);
+    if (isNaN(m)) return { minuti: '', riportoOre: 0 };
+    var arrotondato = Math.round(m / 15) * 15;
+    var riportoOre = 0;
+    if (arrotondato >= 60) { arrotondato -= 60; riportoOre = 1; }
+    return { minuti: (arrotondato < 10 ? '0' : '') + arrotondato, riportoOre: riportoOre };
+  }
+
+  /** Popola ore(number, libere)/minuti(select a scaglioni di 15) da un conteggio ore+minuti separato (es. tempo di trasferimento: non un orario di clock, le ore non sono limitate a 0-23). */
+  function popolaOreMinuti15Rapporto_(idOre, idMinuti, ore, minuti) {
+    var arrotondato = arrotondaMinuti15Rapporto_(minuti);
+    var oreVal = (ore || ore === 0) ? String(parseInt(ore, 10) + arrotondato.riportoOre) : '';
+    document.getElementById(idOre).value = oreVal;
+    document.getElementById(idMinuti).value = arrotondato.minuti;
+  }
+
+  /** Popola ore(number, 0-23)/minuti(select a scaglioni di 15) da un orario di clock "HH:MM" (es. durata intervento — dalle/alle ore), con riporto circolare sulle ore. */
+  function popolaOraClockMinuti15Rapporto_(idOre, idMinuti, orario) {
+    var parti = String(orario || '').split(':');
+    var ore = parti[0] || '';
+    var arrotondato = arrotondaMinuti15Rapporto_(parti[1]);
+    if (ore !== '' && arrotondato.riportoOre) ore = String((parseInt(ore, 10) + arrotondato.riportoOre) % 24);
+    document.getElementById(idOre).value = ore;
+    document.getElementById(idMinuti).value = arrotondato.minuti;
+  }
+
+  /** Combina ore(number)/minuti(select) in un orario di clock "HH:MM", o stringa vuota se entrambi vuoti. */
+  function combinaOraClockMinuti15Rapporto_(idOre, idMinuti) {
+    var ore = document.getElementById(idOre).value;
+    var minuti = document.getElementById(idMinuti).value;
+    if (ore === '' && minuti === '') return '';
+    var oreNum = parseInt(ore, 10) || 0;
+    return (oreNum < 10 ? '0' : '') + oreNum + ':' + (minuti || '00');
+  }
+
   function apriRapportoIntervento_(obj) {
     rapportoInterventoState.id = obj.id;
     rapportoInterventoState.row = obj._row;
@@ -3297,13 +3334,11 @@
     document.getElementById('rapporto-info-data').textContent = (obj.dataPianificata || '—') + (obj.oraPianificata ? ' · ' + obj.oraPianificata : '');
     document.getElementById('rapporto-km-andata').value = obj.rapportoKmAndata || '';
     document.getElementById('rapporto-km-ritorno').value = obj.rapportoKmRitorno || '';
-    document.getElementById('rapporto-tempo-trasferimento-ore').value = obj.rapportoTempoTrasferimentoOre || '';
-    document.getElementById('rapporto-tempo-trasferimento-minuti').value = obj.rapportoTempoTrasferimentoMinuti || '';
-    document.getElementById('rapporto-tempo-trasferimento-ritorno-ore').value = obj.rapportoTempoTrasferimentoRitornoOre || '';
-    document.getElementById('rapporto-tempo-trasferimento-ritorno-minuti').value = obj.rapportoTempoTrasferimentoRitornoMinuti || '';
+    popolaOreMinuti15Rapporto_('rapporto-tempo-trasferimento-ore', 'rapporto-tempo-trasferimento-minuti', obj.rapportoTempoTrasferimentoOre, obj.rapportoTempoTrasferimentoMinuti);
+    popolaOreMinuti15Rapporto_('rapporto-tempo-trasferimento-ritorno-ore', 'rapporto-tempo-trasferimento-ritorno-minuti', obj.rapportoTempoTrasferimentoRitornoOre, obj.rapportoTempoTrasferimentoRitornoMinuti);
     document.getElementById('rapporto-tecnici-aggiuntivi').value = obj.rapportoTecniciAggiuntivi || '';
-    document.getElementById('rapporto-ora-inizio').value = obj.rapportoOraInizio || obj.oraPianificata || '';
-    document.getElementById('rapporto-ora-fine').value = obj.rapportoOraFine || '';
+    popolaOraClockMinuti15Rapporto_('rapporto-ora-inizio-ore', 'rapporto-ora-inizio-minuti', obj.rapportoOraInizio || obj.oraPianificata || '');
+    popolaOraClockMinuti15Rapporto_('rapporto-ora-fine-ore', 'rapporto-ora-fine-minuti', obj.rapportoOraFine || '');
     document.getElementById('rapporto-note').value = obj.rapportoNote || '';
     document.getElementById('rapporto-concluso').value = obj.rapportoConcluso === 'Sì' ? 'Sì' : 'No';
     document.getElementById('rapporto-ora-chiusura').value = obj.rapportoOraChiusura || '';
@@ -3380,8 +3415,8 @@
       tempoTrasferimentoRitornoOre: document.getElementById('rapporto-tempo-trasferimento-ritorno-ore').value,
       tempoTrasferimentoRitornoMinuti: document.getElementById('rapporto-tempo-trasferimento-ritorno-minuti').value,
       tecniciAggiuntivi: document.getElementById('rapporto-tecnici-aggiuntivi').value,
-      oraInizio: document.getElementById('rapporto-ora-inizio').value,
-      oraFine: document.getElementById('rapporto-ora-fine').value,
+      oraInizio: combinaOraClockMinuti15Rapporto_('rapporto-ora-inizio-ore', 'rapporto-ora-inizio-minuti'),
+      oraFine: combinaOraClockMinuti15Rapporto_('rapporto-ora-fine-ore', 'rapporto-ora-fine-minuti'),
       articoli: raccogliArticoliRapportoDalDom_(),
       note: document.getElementById('rapporto-note').value,
       concluso: document.getElementById('rapporto-concluso').value,

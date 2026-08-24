@@ -777,9 +777,12 @@ non vanno ridigitati:
   sul modulo cartaceo.
 - **Km di trasferimento** (andata/ritorno) e **Tempo di trasferimento**, ore e
   minuti separati per andata e per ritorno (4 campi, come sul modulo
-  cartaceo).
+  cartaceo) — i minuti si scelgono da un menu a tendina a scaglioni di 15
+  minuti (00/15/30/45), le ore restano libere.
 - **N° tecnici aggiuntive**.
-- **Durata dell'intervento** (dalle ore / alle ore, hh:mm).
+- **Durata dell'intervento** (dalle ore / alle ore): ore libere, minuti da
+  menu a tendina a scaglioni di 15 (stessa convenzione del tempo di
+  trasferimento).
 - **Tabella articoli**: Cod. Articolo, Q.tà, Consegnato/Ritirato (spunte),
   Descrizione articolo — righe aggiungibili/rimovibili liberamente (le righe
   lasciate completamente vuote non vengono salvate).
