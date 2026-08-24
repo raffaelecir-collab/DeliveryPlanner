@@ -802,23 +802,23 @@ sovrascrive il precedente. I dati del rapporto sono visibili in sola lettura
 anche nel form "Modifica" di un intervento lato Admin (campi "Rapporto - ...",
 non modificabili da lì).
 
-**PDF con la stessa impaginazione del modulo cartaceo.** Ad ogni salvataggio
-del Rapporto viene generato in automatico anche un **PDF** — logo e
-intestazione SICURITALIA, sezioni, tabelle e caselle nella stessa disposizione
-del modulo originale — salvato/**sovrascritto** (il PDF del salvataggio
-precedente viene cestinato) tra i **Documenti allegati** dell'intervento
-(icona 📎, già visibile ad Admin/Cliente/Squadra). Vengono autocompilati anche
-i campi del modulo cartaceo non gestiti dalla squadra, secondo convenzioni
-concordate:
-- **Tipo d'impianto** = Cliente · **Causale dell'intervento** = Tipo Attività.
-- **Richiesto da** = "Cristiano Damiani" per gli interventi di Tipo Attività
-  SM01, "Sara Baran" per qualsiasi altro Tipo Attività.
-- **In data** = Data Dispacciamento · **N° ordine** = Codice Esterno.
-- **Regime dell'intervento** = sempre "Ordinario" (unico regime gestito, per
-  ora — nessuna regola per reperibilità/garanzia/a pagamento/contratto).
-- **Unità operativa** = "SITE SPA" (fisso). **Cod. Tecnico**, **Prov.** e
-  **Test effettuati** restano vuoti (dati non presenti in anagrafica/non
-  raccolti dalla squadra).
+**PDF con l'identica impaginazione del modulo cartaceo.** Ad ogni salvataggio
+del Rapporto viene generato in automatico anche un **PDF**, salvato/
+**sovrascritto** (il PDF del salvataggio precedente viene cestinato) tra i
+**Documenti allegati** dell'intervento (icona 📎, già visibile ad
+Admin/Cliente/Squadra). A differenza di un primo tentativo che ricostruiva il
+modulo da zero con tabelle/CSS, il PDF usa come sfondo a piena pagina la
+**scansione originale del modulo cartaceo SICURITALIA** (stesso file fornito
+dall'Admin), garantendo un'impaginazione davvero identica (logo, colori,
+sezioni, caselle) — e scrive in overlay, a coordinate precise, **solo** i dati
+compilati dalla squadra tramite il dialog "Rapporto di Intervento": tipo di
+intervento, km/tempo di trasferimento, durata, n. tecnici aggiuntive,
+articoli, descrizione e note, esito, ora di chiusura e le firme olografe.
+Nessun altro campo del modulo (cliente, tecnico, tipo impianto, causale,
+richiesto da, regime, ecc.) viene scritto: restano quelli già stampati sul
+modulo o da compilare a mano, non essendo compilati dalla squadra. L'unica
+eccezione è "Unità operativa" = "SITE SPA", scritta in overlay a un valore
+fisso perché così previsto dal modulo fornito.
 Se la cartella Drive dei documenti non è configurata (regola
 "driveCartellaRadiceId", vedi sezione successiva) la generazione del PDF
 fallisce silenziosamente (loggato nell'esecuzione Apps Script): il
