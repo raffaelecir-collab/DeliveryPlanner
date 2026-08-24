@@ -43,7 +43,10 @@ function getProgrammazioneSquadraPropria(dataInizioStr, dataFineStr) {
         rapportoFirmaCliente: i.rapportoFirmaCliente, rapportoCompilatoIl: i.rapportoCompilatoIl,
         rapportoTipoIntervento: i.rapportoTipoIntervento, rapportoKmAndata: i.rapportoKmAndata,
         rapportoKmRitorno: i.rapportoKmRitorno, rapportoTempoTrasferimentoOre: i.rapportoTempoTrasferimentoOre,
-        rapportoTempoTrasferimentoMinuti: i.rapportoTempoTrasferimentoMinuti, rapportoTecniciAggiuntivi: i.rapportoTecniciAggiuntivi
+        rapportoTempoTrasferimentoMinuti: i.rapportoTempoTrasferimentoMinuti,
+        rapportoTempoTrasferimentoRitornoOre: i.rapportoTempoTrasferimentoRitornoOre,
+        rapportoTempoTrasferimentoRitornoMinuti: i.rapportoTempoTrasferimentoRitornoMinuti,
+        rapportoTecniciAggiuntivi: i.rapportoTecniciAggiuntivi
       };
     })
   };

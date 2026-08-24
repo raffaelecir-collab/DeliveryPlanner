@@ -775,8 +775,9 @@ non vanno ridigitati:
 - **Tipo di intervento** (SOPRALLUOGO / INSTALLAZIONE / COLLAUDO / SMONTAGGIO /
   MANUTENZIONE PREVENTIVA / MANUTENZIONE CORRETTIVA): una o più caselle, come
   sul modulo cartaceo.
-- **Km di trasferimento** (andata/ritorno) e **Tempo di trasferimento** (ore e
-  minuti).
+- **Km di trasferimento** (andata/ritorno) e **Tempo di trasferimento**, ore e
+  minuti separati per andata e per ritorno (4 campi, come sul modulo
+  cartaceo).
 - **N° tecnici aggiuntive**.
 - **Durata dell'intervento** (dalle ore / alle ore, hh:mm).
 - **Tabella articoli**: Cod. Articolo, Q.tà, Consegnato/Ritirato (spunte),
@@ -810,10 +811,12 @@ Admin/Cliente/Squadra). A differenza di un primo tentativo che ricostruiva il
 modulo da zero con tabelle/CSS, il PDF usa come sfondo a piena pagina la
 **scansione originale del modulo cartaceo SICURITALIA** (stesso file fornito
 dall'Admin), garantendo un'impaginazione davvero identica (logo, colori,
-sezioni, caselle) — e scrive in overlay, a coordinate precise, **solo** i dati
-compilati dalla squadra tramite il dialog "Rapporto di Intervento": tipo di
-intervento, km/tempo di trasferimento, durata, n. tecnici aggiuntive,
-articoli, descrizione e note, esito, ora di chiusura e le firme olografe.
+sezioni, caselle) — e scrive in overlay, a coordinate precise (derivate in cm
+da una mappatura HTML del modulo fornita direttamente dall'Admin, campo per
+campo), **solo** i dati compilati dalla squadra tramite il dialog "Rapporto
+di Intervento": tipo di intervento, km/tempo di trasferimento (andata e
+ritorno), durata, n. tecnici aggiuntive, articoli, descrizione e note, esito,
+ora di chiusura e le firme olografe.
 Nessun altro campo del modulo (cliente, tecnico, tipo impianto, causale,
 richiesto da, regime, ecc.) viene scritto: restano quelli già stampati sul
 modulo o da compilare a mano, non essendo compilati dalla squadra. L'unica

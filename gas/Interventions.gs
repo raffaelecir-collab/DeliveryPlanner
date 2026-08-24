@@ -509,12 +509,13 @@ function segnaCompletatoSquadraPropria(id, row) {
  * modellato sul modulo cartaceo SICURITALIA allegato): i soli campi previsti sono quelli
  * effettivamente compilabili sul campo — tipo di intervento (SOPRALLUOGO/INSTALLAZIONE/COLLAUDO/
  * SMONTAGGIO/MANUTENZIONE PREVENTIVA/MANUTENZIONE CORRETTIVA), durata (ora inizio/fine), km e
- * tempo di trasferimento, n° tecnici aggiuntive, tabella articoli (consegnato/ritirato),
- * descrizione e note, esito ("Intervento concluso"), ora di chiusura e le firme olografe
- * (disegnate a mano sul pad lato client, salvate come immagine PNG codificata in data URL — non
- * testo libero). Tutti gli altri dati del modulo cartaceo (cliente, tecnico, tipo impianto,
- * causale, regime, test effettuati...) sono già presenti sull'intervento/sulla squadra o fissi per
- * convenzione, e vengono autocompilati solo nel PDF (vedi RapportoPdf.gs) — non ridigitati qui.
+ * tempo di trasferimento (andata e ritorno, separati), n° tecnici aggiuntive, tabella articoli
+ * (consegnato/ritirato), descrizione e note, esito ("Intervento concluso"), ora di chiusura e le
+ * firme olografe (disegnate a mano sul pad lato client, salvate come immagine PNG codificata in
+ * data URL — non testo libero). Tutti gli altri dati del modulo cartaceo (cliente, tecnico, tipo
+ * impianto, causale, regime, test effettuati...) sono già presenti sull'intervento/sulla squadra o
+ * fissi per convenzione, e vengono autocompilati solo nel PDF (vedi RapportoPdf.gs) — non
+ * ridigitati qui.
  *
  * Se "Intervento concluso" è "Sì", l'intervento passa anche a stato Completato (stessa
  * transizione di segnaCompletatoSquadraPropria), a meno che non lo sia già. Registra
@@ -557,6 +558,8 @@ function salvaRapportoIntervento(id, row, dati) {
     rapportoKmRitorno: String(dati.kmRitorno || '').trim(),
     rapportoTempoTrasferimentoOre: String(dati.tempoTrasferimentoOre || '').trim(),
     rapportoTempoTrasferimentoMinuti: String(dati.tempoTrasferimentoMinuti || '').trim(),
+    rapportoTempoTrasferimentoRitornoOre: String(dati.tempoTrasferimentoRitornoOre || '').trim(),
+    rapportoTempoTrasferimentoRitornoMinuti: String(dati.tempoTrasferimentoRitornoMinuti || '').trim(),
     rapportoTecniciAggiuntivi: String(dati.tecniciAggiuntivi || '').trim()
   };
   if (concluso === 'Sì' && esistente.stato !== STATO_INTERVENTO.COMPLETATO) {

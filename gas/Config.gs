@@ -169,10 +169,12 @@ var SCHEMA = {
       { key: 'rapportoTipoIntervento', label: 'Rapporto - Tipo Intervento (JSON)', type: 'text', readonly: true, help: 'Elenco (JSON) delle caselle barrate tra SOPRALLUOGO/INSTALLAZIONE/COLLAUDO/SMONTAGGIO/MANUTENZIONE PREVENTIVA/MANUTENZIONE CORRETTIVA, in cima al PDF del rapporto. Compilato dalla squadra tramite "Rapporto di Intervento".' },
       { key: 'rapportoKmAndata', label: 'Rapporto - Km Trasferimento Andata', type: 'text', readonly: true, help: 'Compilato dalla squadra tramite "Rapporto di Intervento", non modificabile da qui.' },
       { key: 'rapportoKmRitorno', label: 'Rapporto - Km Trasferimento Ritorno', type: 'text', readonly: true, help: 'Compilato dalla squadra tramite "Rapporto di Intervento", non modificabile da qui.' },
-      { key: 'rapportoTempoTrasferimentoOre', label: 'Rapporto - Tempo Trasferimento (ore)', type: 'text', readonly: true, help: 'Compilato dalla squadra tramite "Rapporto di Intervento", non modificabile da qui.' },
-      { key: 'rapportoTempoTrasferimentoMinuti', label: 'Rapporto - Tempo Trasferimento (minuti)', type: 'text', readonly: true, help: 'Compilato dalla squadra tramite "Rapporto di Intervento", non modificabile da qui.' },
+      { key: 'rapportoTempoTrasferimentoOre', label: 'Rapporto - Tempo Trasferimento Andata (ore)', type: 'text', readonly: true, help: 'Compilato dalla squadra tramite "Rapporto di Intervento", non modificabile da qui.' },
+      { key: 'rapportoTempoTrasferimentoMinuti', label: 'Rapporto - Tempo Trasferimento Andata (minuti)', type: 'text', readonly: true, help: 'Compilato dalla squadra tramite "Rapporto di Intervento", non modificabile da qui.' },
       { key: 'rapportoTecniciAggiuntivi', label: 'Rapporto - N. Tecnici Aggiuntivi', type: 'text', readonly: true, help: 'Compilato dalla squadra tramite "Rapporto di Intervento", non modificabile da qui.' },
-      { key: 'rapportoPdfFileId', label: 'Rapporto - ID File PDF', type: 'text', readonly: true, help: 'ID del PDF del Rapporto di Intervento generato in automatico (stessa impaginazione del modulo cartaceo SICURITALIA), archiviato tra i Documenti allegati e rigenerato/sovrascritto ad ogni salvataggio del rapporto. Usato solo internamente, non modificabile.' }
+      { key: 'rapportoPdfFileId', label: 'Rapporto - ID File PDF', type: 'text', readonly: true, help: 'ID del PDF del Rapporto di Intervento generato in automatico (stessa impaginazione del modulo cartaceo SICURITALIA), archiviato tra i Documenti allegati e rigenerato/sovrascritto ad ogni salvataggio del rapporto. Usato solo internamente, non modificabile.' },
+      { key: 'rapportoTempoTrasferimentoRitornoOre', label: 'Rapporto - Tempo Trasferimento Ritorno (ore)', type: 'text', readonly: true, help: 'Compilato dalla squadra tramite "Rapporto di Intervento", non modificabile da qui.' },
+      { key: 'rapportoTempoTrasferimentoRitornoMinuti', label: 'Rapporto - Tempo Trasferimento Ritorno (minuti)', type: 'text', readonly: true, help: 'Compilato dalla squadra tramite "Rapporto di Intervento", non modificabile da qui.' }
     ]
   },
   REGOLE: {
