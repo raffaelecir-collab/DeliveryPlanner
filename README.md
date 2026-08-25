@@ -766,12 +766,24 @@ necessario sul campo).
 ### Rapporto di Intervento (Account Squadra)
 
 Modellato sul modulo cartaceo SICURITALIA "Rapporto di Intervento": dall'icona
-📋 sulla riga di un intervento in "La mia squadra" si apre un modulo dove la
-squadra compila **solo** i dati raccolti effettivamente sul campo — tutti gli
-altri dati del modulo cartaceo (cliente, tecnico, tipo impianto, causale,
-regime, test effettuati...) sono già presenti sull'intervento/sulla squadra e
-non vanno ridigitati:
+📋 sulla riga di un intervento in "La mia squadra" si apre un modulo che
+ricalca l'intero modulo cartaceo, sezione per sezione:
 
+- **Dati identificativi**: Tecnico (nome e cognome) e Cod., Intervenuto
+  presso il Cliente, Telefono, Indirizzo, Comune, Prov., Tipo d'impianto,
+  Cod. Equipment — precompilati dai dati già presenti sull'intervento dove
+  disponibili (Cliente/Telefono/Indirizzo/Comune/Cod. Equipment), oppure
+  vuoti (Tecnico, Cod. tecnico, Prov., Tipo d'impianto, che non hanno un
+  corrispondente altrove), ma sempre **modificabili dalla squadra** per
+  questo rapporto: una seconda copia pensata solo per il PDF, che non
+  aggiorna i campi "ufficiali" dell'intervento (visibile altrove nell'app,
+  editabile solo dall'Admin).
+- **Causale dell'intervento**, **Richiesto da** (precompilato con "Cristiano
+  Damiani" se il Tipo Attività è SM01, altrimenti "Sara Baran"), **In data**
+  e **N° ordine** (precompilati da Tipo Attività/Data Dispacciamento/Codice
+  Esterno dell'intervento) — stessa logica: modificabili dalla squadra.
+- **Regime dell'intervento**: Ordinario/In reperibilità/In garanzia/A
+  pagamento/Contratto o assistenza, precompilato su "Ordinario".
 - **Tipo di intervento** (SOPRALLUOGO / INSTALLAZIONE / COLLAUDO / SMONTAGGIO /
   MANUTENZIONE PREVENTIVA / MANUTENZIONE CORRETTIVA): una o più caselle, come
   sul modulo cartaceo.
@@ -791,7 +803,9 @@ non vanno ridigitati:
   l'intervento passa automaticamente a stato **Completato** (stessa
   transizione del pulsante ✓ "segna come completato" — non serve premerlo
   separatamente).
-- **Ora di chiusura** (hh:mm).
+- **Ora di chiusura**: non è un campo separato da compilare — coincide
+  sempre con "Durata dell'intervento — alle ore" (l'orario di fine
+  intervento appena inserito qui sopra).
 - **Firme olografe** (Tecnico e Cliente): si disegnano a mano — col dito,
   pennino o mouse — direttamente in un riquadro dedicato (pad di firma),
   esattamente come su un tablet POS; un pulsante "Cancella firma" per ciascuna
@@ -816,15 +830,16 @@ modulo da zero con tabelle/CSS, il PDF usa come sfondo a piena pagina la
 dall'Admin), garantendo un'impaginazione davvero identica (logo, colori,
 sezioni, caselle) — e scrive in overlay, a coordinate precise (derivate in cm
 da una mappatura HTML del modulo fornita direttamente dall'Admin, campo per
-campo), **solo** i dati compilati dalla squadra tramite il dialog "Rapporto
-di Intervento": tipo di intervento, km/tempo di trasferimento (andata e
-ritorno), durata, n. tecnici aggiuntive, articoli, descrizione e note, esito,
-ora di chiusura e le firme olografe.
-Nessun altro campo del modulo (cliente, tecnico, tipo impianto, causale,
-richiesto da, regime, ecc.) viene scritto: restano quelli già stampati sul
-modulo o da compilare a mano, non essendo compilati dalla squadra. L'unica
-eccezione è "Unità operativa" = "SITE SPA", scritta in overlay a un valore
-fisso perché così previsto dal modulo fornito.
+campo), tutti i dati del dialog "Rapporto di Intervento": tipo di
+intervento, dati identificativi (Tecnico, Cliente, Telefono, Indirizzo,
+Comune, Prov., Tipo d'impianto, Cod. Equipment), Causale/Richiesto
+da/In data/N° ordine, Regime, km/tempo di trasferimento (andata e ritorno),
+durata, n. tecnici aggiuntive, articoli, descrizione e note, esito, ora di
+chiusura e le firme olografe. "Unità operativa" resta l'unico valore
+completamente fisso ("SITE SPA", come previsto dal modulo fornito); tutti
+gli altri campi "amministrativi" sono precompilati dai dati dell'intervento
+dove disponibili ma restano modificabili dalla squadra per questo PDF (vedi
+sopra) — un campo lasciato vuoto non scrive nulla in overlay.
 Se la cartella Drive dei documenti non è configurata (regola
 "driveCartellaRadiceId", vedi sezione successiva) la generazione del PDF
 fallisce silenziosamente (loggato nell'esecuzione Apps Script): il

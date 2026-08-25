@@ -37,6 +37,8 @@ function getProgrammazioneSquadraPropria(dataInizioStr, dataFineStr) {
         telefono: i.telefono, competenza: i.competenza, priorita: i.priorita, durataMinuti: i.durataMinuti,
         dataPianificata: i.dataPianificata, oraPianificata: i.oraPianificata, ordineTappa: i.ordineTappa,
         stato: i.stato, storiaSospensioni: i.storiaSospensioni, note: i.note,
+        comune: i.comune, codEquipment: i.codEquipment, codiceEsterno: i.codiceEsterno,
+        dataDispacciamento: i.dataDispacciamento, tipoAttivita: i.tipoAttivita,
         rapportoOraInizio: i.rapportoOraInizio, rapportoOraFine: i.rapportoOraFine,
         rapportoArticoli: i.rapportoArticoli, rapportoNote: i.rapportoNote, rapportoConcluso: i.rapportoConcluso,
         rapportoOraChiusura: i.rapportoOraChiusura, rapportoFirmaTecnico: i.rapportoFirmaTecnico,
@@ -46,7 +48,14 @@ function getProgrammazioneSquadraPropria(dataInizioStr, dataFineStr) {
         rapportoTempoTrasferimentoMinuti: i.rapportoTempoTrasferimentoMinuti,
         rapportoTempoTrasferimentoRitornoOre: i.rapportoTempoTrasferimentoRitornoOre,
         rapportoTempoTrasferimentoRitornoMinuti: i.rapportoTempoTrasferimentoRitornoMinuti,
-        rapportoTecniciAggiuntivi: i.rapportoTecniciAggiuntivi
+        rapportoTecniciAggiuntivi: i.rapportoTecniciAggiuntivi,
+        rapportoTecnicoNome: i.rapportoTecnicoNome, rapportoTecnicoCod: i.rapportoTecnicoCod,
+        rapportoCliente: i.rapportoCliente, rapportoTelefono: i.rapportoTelefono,
+        rapportoIndirizzo: i.rapportoIndirizzo, rapportoComune: i.rapportoComune,
+        rapportoProvincia: i.rapportoProvincia, rapportoTipoImpianto: i.rapportoTipoImpianto,
+        rapportoCodEquipment: i.rapportoCodEquipment, rapportoCausale: i.rapportoCausale,
+        rapportoRichiestoDa: i.rapportoRichiestoDa, rapportoInData: i.rapportoInData,
+        rapportoNumeroOrdine: i.rapportoNumeroOrdine, rapportoRegime: i.rapportoRegime
       };
     })
   };

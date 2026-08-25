@@ -3280,6 +3280,11 @@
   // Stessa lista di TIPI_INTERVENTO_RAPPORTO_ (RapportoPdf.gs): le caselle in cima al modulo cartaceo.
   var TIPI_INTERVENTO_RAPPORTO_CLIENT_ = ['SOPRALLUOGO', 'INSTALLAZIONE', 'COLLAUDO', 'SMONTAGGIO', 'MANUTENZIONE PREVENTIVA', 'MANUTENZIONE CORRETTIVA'];
 
+  /** Valore precompilato di default per "Richiesto da": Cristiano Damiani per Tipo Attività SM01, Sara Baran altrimenti. */
+  function defaultRichiestoDaRapporto_(tipoAttivita) {
+    return tipoAttivita === 'SM01' ? 'Cristiano Damiani' : 'Sara Baran';
+  }
+
   function renderRapportoTipoIntervento_(selezionati) {
     var el = document.getElementById('rapporto-tipo-intervento');
     el.innerHTML = TIPI_INTERVENTO_RAPPORTO_CLIENT_.map(function (t) {
@@ -3341,7 +3346,20 @@
     popolaOraClockMinuti15Rapporto_('rapporto-ora-fine-ore', 'rapporto-ora-fine-minuti', obj.rapportoOraFine || '');
     document.getElementById('rapporto-note').value = obj.rapportoNote || '';
     document.getElementById('rapporto-concluso').value = obj.rapportoConcluso === 'Sì' ? 'Sì' : 'No';
-    document.getElementById('rapporto-ora-chiusura').value = obj.rapportoOraChiusura || '';
+    document.getElementById('rapporto-tecnico-nome').value = obj.rapportoTecnicoNome || (msState.dati && msState.dati.squadra && msState.dati.squadra.nome) || '';
+    document.getElementById('rapporto-tecnico-cod').value = obj.rapportoTecnicoCod || '';
+    document.getElementById('rapporto-cliente').value = obj.rapportoCliente || obj.cliente || '';
+    document.getElementById('rapporto-telefono').value = obj.rapportoTelefono || obj.telefono || '';
+    document.getElementById('rapporto-indirizzo').value = obj.rapportoIndirizzo || obj.indirizzo || '';
+    document.getElementById('rapporto-comune').value = obj.rapportoComune || obj.comune || '';
+    document.getElementById('rapporto-provincia').value = obj.rapportoProvincia || '';
+    document.getElementById('rapporto-tipo-impianto').value = obj.rapportoTipoImpianto || '';
+    document.getElementById('rapporto-cod-equipment').value = obj.rapportoCodEquipment || obj.codEquipment || '';
+    document.getElementById('rapporto-causale').value = obj.rapportoCausale || obj.tipoAttivita || '';
+    document.getElementById('rapporto-richiesto-da').value = obj.rapportoRichiestoDa || defaultRichiestoDaRapporto_(obj.tipoAttivita);
+    document.getElementById('rapporto-in-data').value = obj.rapportoInData || obj.dataDispacciamento || '';
+    document.getElementById('rapporto-numero-ordine').value = obj.rapportoNumeroOrdine || obj.codiceEsterno || '';
+    document.getElementById('rapporto-regime').value = obj.rapportoRegime || 'Ordinario';
     caricaFirmaSuCanvas_(document.getElementById('rapporto-firma-tecnico-canvas'), obj.rapportoFirmaTecnico || '');
     caricaFirmaSuCanvas_(document.getElementById('rapporto-firma-cliente-canvas'), obj.rapportoFirmaCliente || '');
     var tipiSelezionati = [];
@@ -3420,9 +3438,24 @@
       articoli: raccogliArticoliRapportoDalDom_(),
       note: document.getElementById('rapporto-note').value,
       concluso: document.getElementById('rapporto-concluso').value,
-      oraChiusura: document.getElementById('rapporto-ora-chiusura').value,
+      // L'ora di chiusura del rapporto coincide sempre con "Durata dell'intervento — alle ore": nessun campo separato da compilare a mano.
+      oraChiusura: combinaOraClockMinuti15Rapporto_('rapporto-ora-fine-ore', 'rapporto-ora-fine-minuti'),
       firmaTecnico: firmaCanvasVuota_(canvasTecnico) ? '' : canvasTecnico.toDataURL('image/png'),
-      firmaCliente: firmaCanvasVuota_(canvasCliente) ? '' : canvasCliente.toDataURL('image/png')
+      firmaCliente: firmaCanvasVuota_(canvasCliente) ? '' : canvasCliente.toDataURL('image/png'),
+      tecnicoNome: document.getElementById('rapporto-tecnico-nome').value,
+      tecnicoCod: document.getElementById('rapporto-tecnico-cod').value,
+      cliente: document.getElementById('rapporto-cliente').value,
+      telefono: document.getElementById('rapporto-telefono').value,
+      indirizzo: document.getElementById('rapporto-indirizzo').value,
+      comune: document.getElementById('rapporto-comune').value,
+      provincia: document.getElementById('rapporto-provincia').value,
+      tipoImpianto: document.getElementById('rapporto-tipo-impianto').value,
+      codEquipment: document.getElementById('rapporto-cod-equipment').value,
+      causale: document.getElementById('rapporto-causale').value,
+      richiestoDa: document.getElementById('rapporto-richiesto-da').value,
+      inData: document.getElementById('rapporto-in-data').value,
+      numeroOrdine: document.getElementById('rapporto-numero-ordine').value,
+      regime: document.getElementById('rapporto-regime').value
     };
     btn.disabled = true;
     callServer('salvaRapportoIntervento', rapportoInterventoState.id, rapportoInterventoState.row, dati).then(function (esito) {

@@ -627,6 +627,79 @@
 
           <div class="row">
             <div class="field">
+              <label>Tecnico (nome e cognome)</label>
+              <input type="text" id="rapporto-tecnico-nome" placeholder="Nome e cognome">
+            </div>
+            <div class="field">
+              <label>Cod.</label>
+              <input type="text" id="rapporto-tecnico-cod" placeholder="Cod. tecnico">
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>Intervenuto presso il Cliente</label>
+              <input type="text" id="rapporto-cliente" placeholder="Cliente">
+            </div>
+            <div class="field">
+              <label>Telefono</label>
+              <input type="text" id="rapporto-telefono" placeholder="Telefono">
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>Indirizzo dell'ubicazione</label>
+              <input type="text" id="rapporto-indirizzo" placeholder="Via e n° civico">
+            </div>
+            <div class="field">
+              <label>Comune</label>
+              <input type="text" id="rapporto-comune" placeholder="Comune">
+            </div>
+            <div class="field">
+              <label>Prov.</label>
+              <input type="text" id="rapporto-provincia" maxlength="2" placeholder="Prov." style="text-transform:uppercase;">
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>Tipo d'impianto</label>
+              <input type="text" id="rapporto-tipo-impianto" placeholder="Tipo d'impianto">
+            </div>
+            <div class="field">
+              <label>Cod. Equipment</label>
+              <input type="text" id="rapporto-cod-equipment" placeholder="Cod. Equipment">
+            </div>
+          </div>
+          <div class="field">
+            <label>Causale dell'intervento</label>
+            <textarea id="rapporto-causale" rows="2" placeholder="Causale dell'intervento…"></textarea>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>Richiesto da</label>
+              <input type="text" id="rapporto-richiesto-da" placeholder="Richiesto da">
+            </div>
+            <div class="field">
+              <label>In data</label>
+              <input type="text" id="rapporto-in-data" placeholder="gg/mm/aaaa">
+            </div>
+            <div class="field">
+              <label>N° ordine</label>
+              <input type="text" id="rapporto-numero-ordine" placeholder="N° ordine">
+            </div>
+          </div>
+          <div class="field">
+            <label>Regime dell'intervento</label>
+            <select id="rapporto-regime">
+              <option value="Ordinario">Ordinario</option>
+              <option value="In reperibilità">In reperibilità</option>
+              <option value="In garanzia">In garanzia</option>
+              <option value="A pagamento">A pagamento</option>
+              <option value="Contratto o assistenza">Contratto o assistenza</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <div class="field">
               <label>Km trasferimento — andata</label>
               <input type="number" id="rapporto-km-andata" min="0" step="0.1" placeholder="Km">
             </div>
@@ -713,18 +786,13 @@
             <textarea id="rapporto-note" rows="4" placeholder="Descrizione dell'intervento e note…"></textarea>
           </div>
 
-          <div class="row">
-            <div class="field">
-              <label>Intervento concluso</label>
-              <select id="rapporto-concluso">
-                <option value="No">No</option>
-                <option value="Sì">Sì</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>Ora chiusura</label>
-              <input type="time" id="rapporto-ora-chiusura">
-            </div>
+          <div class="field">
+            <label>Intervento concluso</label>
+            <select id="rapporto-concluso">
+              <option value="No">No</option>
+              <option value="Sì">Sì</option>
+            </select>
+            <p class="field-help">L'ora di chiusura del rapporto viene presa automaticamente da "Durata dell'intervento — alle ore" qui sopra.</p>
           </div>
 
           <div class="row">

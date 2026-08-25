@@ -549,7 +549,7 @@ function salvaRapportoIntervento(id, row, dati) {
     rapportoArticoli: JSON.stringify(articoli),
     rapportoNote: String(dati.note || '').trim(),
     rapportoConcluso: concluso,
-    rapportoOraChiusura: String(dati.oraChiusura || '').trim(),
+    rapportoOraChiusura: String(dati.oraChiusura || dati.oraFine || '').trim(),
     rapportoFirmaTecnico: String(dati.firmaTecnico || '').trim(),
     rapportoFirmaCliente: String(dati.firmaCliente || '').trim(),
     rapportoCompilatoIl: compilatoIl,
@@ -560,7 +560,21 @@ function salvaRapportoIntervento(id, row, dati) {
     rapportoTempoTrasferimentoMinuti: String(dati.tempoTrasferimentoMinuti || '').trim(),
     rapportoTempoTrasferimentoRitornoOre: String(dati.tempoTrasferimentoRitornoOre || '').trim(),
     rapportoTempoTrasferimentoRitornoMinuti: String(dati.tempoTrasferimentoRitornoMinuti || '').trim(),
-    rapportoTecniciAggiuntivi: String(dati.tecniciAggiuntivi || '').trim()
+    rapportoTecniciAggiuntivi: String(dati.tecniciAggiuntivi || '').trim(),
+    rapportoTecnicoNome: String(dati.tecnicoNome || '').trim(),
+    rapportoTecnicoCod: String(dati.tecnicoCod || '').trim(),
+    rapportoCliente: String(dati.cliente || '').trim(),
+    rapportoTelefono: String(dati.telefono || '').trim(),
+    rapportoIndirizzo: String(dati.indirizzo || '').trim(),
+    rapportoComune: String(dati.comune || '').trim(),
+    rapportoProvincia: String(dati.provincia || '').trim(),
+    rapportoTipoImpianto: String(dati.tipoImpianto || '').trim(),
+    rapportoCodEquipment: String(dati.codEquipment || '').trim(),
+    rapportoCausale: String(dati.causale || '').trim(),
+    rapportoRichiestoDa: String(dati.richiestoDa || '').trim(),
+    rapportoInData: String(dati.inData || '').trim(),
+    rapportoNumeroOrdine: String(dati.numeroOrdine || '').trim(),
+    rapportoRegime: String(dati.regime || '').trim()
   };
   if (concluso === 'Sì' && esistente.stato !== STATO_INTERVENTO.COMPLETATO) {
     campi.stato = STATO_INTERVENTO.COMPLETATO;

@@ -1,11 +1,15 @@
 /**
- * Generazione del PDF "Rapporto di Intervento", sovrapponendo SOLO i dati compilati dalla squadra
- * al layout base fornito dall'utente: l'immagine di sfondo a piena pagina è lo stesso modulo
- * cartaceo SICURITALIA (con logo, intestazione, sezioni, tabelle, caselle già disegnati), e ogni
- * valore viene scritto in overlay a coordinate assolute (cm, poi convertite in mm per il CSS) sopra
- * di essa. Nessun campo "amministrativo" (cliente, tecnico, causale, richiesto da, regime, tipo
- * impianto, cod. equipment...) viene scritto: sono già nel modulo cartaceo o restano da compilare
- * a mano, non essendo compilati dalla squadra.
+ * Generazione del PDF "Rapporto di Intervento", sovrapponendo i dati del rapporto al layout base
+ * fornito dall'utente: l'immagine di sfondo a piena pagina è lo stesso modulo cartaceo SICURITALIA
+ * (con logo, intestazione, sezioni, tabelle, caselle già disegnati), e ogni valore viene scritto in
+ * overlay a coordinate assolute (cm, poi convertite in mm per il CSS) sopra di essa. Oltre ai campi
+ * compilati unicamente dalla squadra (tipo intervento, km/tempo trasferimento, durata, articoli,
+ * note, esito, firme), i campi "amministrativi" del modulo (Tecnico, Cliente, Telefono, Indirizzo,
+ * Comune, Prov., Tipo d'impianto, Cod. Equipment, Causale, Richiesto da, In data, N° ordine,
+ * Regime) sono anch'essi scritti in overlay: precompilati dai dati dell'intervento dove disponibili
+ * (rapportoCliente/rapportoTelefono/ecc., vedi salvaRapportoIntervento in Interventions.gs), ma
+ * modificabile dalla squadra tramite lo stesso dialog "Rapporto di Intervento" — una seconda copia
+ * pensata solo per questo PDF, che non aggiorna i campi "ufficiali" dell'intervento.
  *
  * Costruito come HTML (sfondo a piena pagina + <div> posizionati in absolute) e convertito in PDF
  * (Utilities.newBlob(...).getAs(...)), poi archiviato nella cartella Documenti Drive dell'intervento
@@ -17,11 +21,12 @@
  * Coordinate: riprese ESATTAMENTE (in cm) dal file "rapporto_intervento_layout_base.html" fornito
  * dall'utente — una mappatura pixel-precisa dello stesso sfondo con veri <input>/<textarea>
  * posizionati in absolute, molto più affidabile di una misurazione manuale — vedi COORD_RAPPORTO_.
- * Eccezione: le caselle/il testo della tabella articoli (COORD_RAPPORTO_.articoli) erano
- * costantemente ~0.14cm più in basso nell'immagine di sfondo rispetto a quanto dichiarato nel file
- * (scostamento verificato pixel per pixel sulle 5 righe, mentre tutte le altre sezioni combaciavano
- * esattamente) — per quella tabella le coordinate sono quindi state ri-misurate direttamente
- * sull'immagine di sfondo effettiva.
+ * Eccezioni verificate pixel per pixel sull'immagine di sfondo effettiva (perché non combaciavano
+ * col file mappato) e quindi ri-misurate direttamente: la tabella articoli (COORD_RAPPORTO_.articoli,
+ * ~0.14cm più in basso di quanto dichiarato) e la riga "Data e ora di chiusura" (COORD_RAPPORTO_.
+ * dataChiusura/oraChiusuraOre/oraChiusuraMinuti — la casella "hh" in particolare è larga solo
+ * ~0.2cm sullo sfondo reale, molto meno dei 0.381cm dichiarati, da cui il font ridotto in
+ * generaHtmlRapportoIntervento_). Tutte le altre sezioni combaciano esattamente col file mappato.
  * Font Courier nero per i valori compilati (stessa scelta tipografica del file fornito), a
  * differenza delle etichette/testi di stampa del modulo che sono in blu.
  */
@@ -101,6 +106,17 @@ var COORD_RAPPORTO_ = {
     SOPRALLUOGO: { x: 1.4985, y: 2.7435 }, INSTALLAZIONE: { x: 4.153, y: 2.7435 }, COLLAUDO: { x: 6.82, y: 2.7435 },
     SMONTAGGIO: { x: 8.8905, y: 2.7435 }, 'MANUTENZIONE PREVENTIVA': { x: 11.2525, y: 2.7435 }, 'MANUTENZIONE CORRETTIVA': { x: 15.6215, y: 2.7435 }
   },
+  tecnicoNome: { x: 3.911, y: 3.966 }, tecnicoCod: { x: 17.297, y: 3.966 },
+  cliente: { x: 1.168, y: 4.779 }, telefono: { x: 14.503, y: 4.779 },
+  indirizzo: { x: 1.168, y: 5.82 }, comune: { x: 10.718, y: 5.82 },
+  provincia: { x: 19.3675, y: 5.9685 },
+  tipoImpianto: { x: 1.168, y: 7.192 }, codEquipment: { x: 17.297, y: 7.192 },
+  causale: { x: 1.168, y: 8.64, widthCm: 18.671 },
+  richiestoDa: { x: 1.168, y: 9.732 }, inData: { x: 15.6975, y: 9.906 }, numeroOrdine: { x: 17.22, y: 9.732 },
+  regime: {
+    Ordinario: { x: 1.333, y: 11.202 }, 'In reperibilità': { x: 4.8515, y: 11.2015 }, 'In garanzia': { x: 6.871, y: 11.189 },
+    'A pagamento': { x: 11.6075, y: 11.214 }, 'Contratto o assistenza': { x: 17.285, y: 11.2015 }
+  },
   kmAndata: { x: 4.5975, y: 12.726 }, kmRitorno: { x: 6.4645, y: 12.726 },
   tempoOre: { x: 4.2295, y: 13.246 }, tempoMinuti: { x: 4.8895, y: 13.246 },
   tempoRitornoOre: { x: 6.096, y: 13.246 }, tempoRitornoMinuti: { x: 6.7695, y: 13.246 },
@@ -115,7 +131,7 @@ var COORD_RAPPORTO_ = {
   ],
   note: { x: 1.168, y: 20.705, widthCm: 18.671 },
   conclusoSi: { x: 18.529, y: 23.5205 }, conclusoNo: { x: 19.291, y: 23.5205 },
-  dataChiusura: { x: 2.26, y: 26.276 }, oraChiusuraOre: { x: 3.8735, y: 26.276 }, oraChiusuraMinuti: { x: 4.94, y: 26.276 },
+  dataChiusura: { x: 2.337, y: 26.238 }, oraChiusuraOre: { x: 3.785, y: 26.238 }, oraChiusuraMinuti: { x: 4.762, y: 26.238 },
   firmaTecnico: { x: 5.842, y: 25.641, w: 5.791, h: 0.8 },
   firmaCliente: { x: 11.811, y: 25.641, w: 8.077, h: 0.8 },
   firmaClienteBis: { x: 9.652, y: 27.622, w: 6.731, h: 0.8 }
@@ -155,6 +171,33 @@ function generaHtmlRapportoIntervento_(intervento) {
     }
   });
 
+  // Dati identificativi del tecnico e del cliente, tipo d'impianto, causale, regime: precompilati
+  // dai dati dell'intervento dove disponibili, ma modificabili dalla squadra tramite il dialog
+  // "Rapporto di Intervento" (vedi salvaRapportoIntervento in Interventions.gs) — a differenza dei
+  // campi puramente squadra qui sopra/sotto, questi hanno quindi un valore anche per interventi
+  // salvati prima di questa funzionalità solo se il rapporto è stato ri-salvato da allora.
+  overlay.push(valorePdf_(COORD_RAPPORTO_.tecnicoNome.x, COORD_RAPPORTO_.tecnicoNome.y, intervento.rapportoTecnicoNome, 9));
+  overlay.push(valorePdf_(COORD_RAPPORTO_.tecnicoCod.x, COORD_RAPPORTO_.tecnicoCod.y, intervento.rapportoTecnicoCod, 9));
+  overlay.push(valorePdf_(COORD_RAPPORTO_.cliente.x, COORD_RAPPORTO_.cliente.y, intervento.rapportoCliente, 9));
+  overlay.push(valorePdf_(COORD_RAPPORTO_.telefono.x, COORD_RAPPORTO_.telefono.y, intervento.rapportoTelefono, 9));
+  overlay.push(valorePdf_(COORD_RAPPORTO_.indirizzo.x, COORD_RAPPORTO_.indirizzo.y, intervento.rapportoIndirizzo, 9));
+  overlay.push(valorePdf_(COORD_RAPPORTO_.comune.x, COORD_RAPPORTO_.comune.y, intervento.rapportoComune, 9));
+  overlay.push(valoreCentratoPdf_(COORD_RAPPORTO_.provincia.x, COORD_RAPPORTO_.provincia.y, intervento.rapportoProvincia, 9));
+  overlay.push(valorePdf_(COORD_RAPPORTO_.tipoImpianto.x, COORD_RAPPORTO_.tipoImpianto.y, intervento.rapportoTipoImpianto, 9));
+  overlay.push(valorePdf_(COORD_RAPPORTO_.codEquipment.x, COORD_RAPPORTO_.codEquipment.y, intervento.rapportoCodEquipment, 9));
+  if (intervento.rapportoCausale) {
+    overlay.push(overlayPdf_(COORD_RAPPORTO_.causale.x, COORD_RAPPORTO_.causale.y,
+      escapeHtmlPdf_(intervento.rapportoCausale).replace(/\n/g, '<br>'),
+      'font-family:Courier,monospace;font-size:9pt;color:#000;width:' + cmMm_(COORD_RAPPORTO_.causale.widthCm) + ';line-height:1.25;'));
+  }
+  overlay.push(valorePdf_(COORD_RAPPORTO_.richiestoDa.x, COORD_RAPPORTO_.richiestoDa.y, intervento.rapportoRichiestoDa, 9));
+  overlay.push(valoreCentratoPdf_(COORD_RAPPORTO_.inData.x, COORD_RAPPORTO_.inData.y, intervento.rapportoInData, 8.5));
+  overlay.push(valorePdf_(COORD_RAPPORTO_.numeroOrdine.x, COORD_RAPPORTO_.numeroOrdine.y, intervento.rapportoNumeroOrdine, 9));
+  if (intervento.rapportoRegime && COORD_RAPPORTO_.regime[intervento.rapportoRegime]) {
+    var posRegime = COORD_RAPPORTO_.regime[intervento.rapportoRegime];
+    overlay.push(spuntaPdf_(posRegime.x, posRegime.y));
+  }
+
   overlay.push(valoreCentratoPdf_(COORD_RAPPORTO_.kmAndata.x, COORD_RAPPORTO_.kmAndata.y, intervento.rapportoKmAndata, 8.5));
   overlay.push(valoreCentratoPdf_(COORD_RAPPORTO_.kmRitorno.x, COORD_RAPPORTO_.kmRitorno.y, intervento.rapportoKmRitorno, 8.5));
   overlay.push(valoreCentratoPdf_(COORD_RAPPORTO_.tempoOre.x, COORD_RAPPORTO_.tempoOre.y, intervento.rapportoTempoTrasferimentoOre, 8.5));
@@ -177,7 +220,9 @@ function generaHtmlRapportoIntervento_(intervento) {
   if (intervento.rapportoOraChiusura) {
     overlay.push(valoreCentratoPdf_(COORD_RAPPORTO_.dataChiusura.x, COORD_RAPPORTO_.dataChiusura.y, formatDateStr_(dataOggi_()), 7.5));
     var orario = String(intervento.rapportoOraChiusura).split(':');
-    overlay.push(valoreCentratoPdf_(COORD_RAPPORTO_.oraChiusuraOre.x, COORD_RAPPORTO_.oraChiusuraOre.y, orario[0] || '', 8.5));
+    // Casella "hh" molto stretta sullo sfondo reale (~0.2cm, più stretta di quanto dichiarato nel
+    // file mappato): font ridotto per restare leggibile senza sconfinare troppo oltre i bordi.
+    overlay.push(valoreCentratoPdf_(COORD_RAPPORTO_.oraChiusuraOre.x, COORD_RAPPORTO_.oraChiusuraOre.y, orario[0] || '', 7.5));
     overlay.push(valoreCentratoPdf_(COORD_RAPPORTO_.oraChiusuraMinuti.x, COORD_RAPPORTO_.oraChiusuraMinuti.y, orario[1] || '', 8.5));
   }
 
