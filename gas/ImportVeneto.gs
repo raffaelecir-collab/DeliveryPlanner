@@ -21,7 +21,7 @@
  * - N: Prezzo Importato (usato, come nell'import Excel, per calcolare la Durata Stimata di SM01 —
  *   vedi calcolaDurataSM_ in Import.gs).
  * - C: Comune (la stessa colonna usata anche per comporre l'Indirizzo).
- * - L: Telefono.
+ * - U: Telefono.
  *
  * Solo le righe la cui colonna M vale "Giacente" (case-insensitive, dopo trim) vengono
  * importate/aggiornate; le altre sono ignorate (né create né toccate). Come
@@ -80,7 +80,7 @@ function elaboraRigaVeneto_(row, interventiPerCodice) {
   var cliente = String(row[18] || '').trim(); // S
   var colB = String(row[1] || '').trim(); // B
   var comune = String(row[2] || '').trim(); // C
-  var telefono = String(row[11] || '').trim(); // L
+  var telefono = String(row[20] || '').trim(); // U
   if (!cliente) throw new Error('Colonna "Cliente" (S) mancante.');
   if (!colonnaT && !colB && !comune) throw new Error('Indirizzo mancante (colonne T/B/C tutte vuote).');
 

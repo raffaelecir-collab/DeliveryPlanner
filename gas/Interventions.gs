@@ -219,6 +219,60 @@ function eliminaIntervento(id, row) {
 }
 
 /**
+ * Calcola la prossima Operazione ("Op.", usata per la riconciliazione import — vedi Import.gs)
+ * avanzando di 10 un valore numerico (es. "10" -> "20"), preservando eventuali zeri iniziali
+ * (es. "0010" -> "0020"). Un valore vuoto o non puramente numerico resta invariato (nessun
+ * automatismo possibile).
+ */
+function avanzaOperazioneDi10_(operazione) {
+  var v = String(operazione || '').trim();
+  if (!/^\d+$/.test(v)) return v;
+  var nuovoTesto = String(parseInt(v, 10) + 10);
+  while (nuovoTesto.length < v.length) nuovoTesto = '0' + nuovoTesto;
+  return nuovoTesto;
+}
+
+/**
+ * Duplica un Intervento: crea un nuovo Intervento con gli stessi dati anagrafici/commerciali
+ * dell'originale (Cliente, Indirizzo/coordinate, Telefono, Competenza, listino/Ricavo, Tipo
+ * Attività, Cod. Cliente/Equipment, Codice Esterno...), ma pronto per un nuovo ciclo di
+ * lavorazione: stato sempre "Da pianificare", nessuna Squadra/Data/Ora pianificata, nessun
+ * Rapporto di Intervento/documento/storia sospensioni ereditato dall'originale (restano
+ * dell'intervento sorgente). Data Dispacciamento impostata a oggi, con Scadenza/Priorità
+ * ricalcolate di conseguenza (vedi calcolaScadenzaAutomatica_/calcolaPrioritaAutomatica_) invece
+ * di ereditare quelle — ormai riferite alla vecchia Data Dispacciamento — dell'originale.
+ * L'Operazione avanza di 10 rispetto all'originale (vedi avanzaOperazioneDi10_): stesso Codice
+ * Esterno (Ordine), come una nuova lavorazione sullo stesso Ordine.
+ */
+function duplicaIntervento(id, row) {
+  richiedeAdmin_();
+  var originale = trovaInterventoPerIdORiga_(id, row);
+  if (!originale) throw new Error('Intervento non trovato.');
+
+  var dataDispacciamentoNuova = formatDateStr_(dataOggi_());
+  var nuovo = {
+    cliente: originale.cliente, indirizzo: originale.indirizzo, lat: originale.lat, lng: originale.lng,
+    competenza: originale.competenza, durataMinuti: originale.durataMinuti,
+    finestraInizio: originale.finestraInizio, finestraFine: originale.finestraFine,
+    telefono: originale.telefono, ricavo: originale.ricavo, vociListino: originale.vociListino,
+    codiceEsterno: originale.codiceEsterno, richiestaAcquisto: originale.richiestaAcquisto,
+    codCliente: originale.codCliente, codEquipment: originale.codEquipment, prezzo: originale.prezzo,
+    tipoAttivita: originale.tipoAttivita, comune: originale.comune,
+    operatore: avanzaOperazioneDi10_(originale.operatore),
+    dataDispacciamento: dataDispacciamentoNuova,
+    stato: STATO_INTERVENTO.DA_PIANIFICARE
+  };
+  var scadenzaAuto = calcolaScadenzaAutomatica_(nuovo.tipoAttivita, nuovo.dataDispacciamento, '');
+  if (scadenzaAuto !== null) nuovo.scadenza = scadenzaAuto;
+  var prioritaAuto = calcolaPrioritaAutomatica_(nuovo.tipoAttivita, nuovo.scadenza || '');
+  if (prioritaAuto !== null) { nuovo.priorita = prioritaAuto; nuovo.prioritaManuale = false; }
+
+  var salvato = upsertRow_('INTERVENTI', nuovo);
+  creaNotificaIntervento_(salvato, 'Duplicato da intervento ' + (originale.codiceEsterno || originale.cliente), RUOLO.ADMIN);
+  return { id: salvato.id, _row: salvato._row };
+}
+
+/**
  * Calcola i campi "di analisi" (primoEventoData, dataPrimoPianificato, dataCompletamento) da
  * unire a un aggiornamento di un Intervento, in base allo stato esistente e a `nuoviCampi.stato`
  * (se presente): nessuno di questi viene mai sovrascritto una volta impostato, sono tutti "prima

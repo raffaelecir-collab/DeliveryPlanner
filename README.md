@@ -221,8 +221,19 @@ Tutto il codice sorgente si trova nella cartella [`gas/`](./gas).
    l'ordine/orario del percorso: verifica poi la programmazione della
    squadra coinvolta. Il pulsante **"⋮"** in fondo alla riga apre un
    sottomenu con le altre azioni disponibili (Modifica, Componi Ricavo,
-   Nota, Documenti, Completa, Sospendi/Annulla/Fine sospensione, Elimina —
-   quali compaiono dipende da ruolo e stato, come prima).
+   **Duplica**, Nota, Documenti, Completa, Sospendi/Annulla/Fine
+   sospensione, Elimina — quali compaiono dipende da ruolo e stato, come
+   prima). **Duplica** crea un nuovo Intervento con gli stessi dati
+   anagrafici/commerciali dell'originale (Cliente, Indirizzo, Telefono,
+   Tipo Attività, listino/Ricavo, Codice Esterno...), ma pronto per un
+   nuovo ciclo di lavorazione: stato "Da pianificare", nessuna Squadra/
+   Data/Ora/Rapporto di Intervento/documento ereditati (restano
+   sull'originale), Data Dispacciamento a oggi (Scadenza/Priorità
+   ricalcolate di conseguenza). L'**Op.** (Operazione, usata per la
+   riconciliazione import) avanza di 10 rispetto all'originale — es.
+   duplicando un intervento con Op. 10 il duplicato ha Op. 20 — a parità
+   di Codice Esterno (Ordine), come una nuova lavorazione sullo stesso
+   Ordine.
 
    La scheda "Nuovo intervento"/"Modifica" raccoglie cliente, indirizzo —
    geocodificato automaticamente —, Tipo Attività, durata stimata,

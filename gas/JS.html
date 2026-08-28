@@ -548,6 +548,7 @@
 
   // ---------- Squadre ----------
   var ICONA_MATITA_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>';
+  var ICONA_DUPLICA_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
   var ICONA_CESTINO_ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6M14 11v6"></path></svg>';
   var ICONA_PIN_ = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12Z"></path><circle cx="12" cy="9" r="2.4"></circle></svg>';
 
@@ -1084,6 +1085,7 @@
       if (isAdmin) {
         azioniHtml += '<button class="dropdown-item" data-action="modifica" data-row="' + i._row + '">' + ICONA_MATITA_ + '<span>Modifica</span></button>';
         azioniHtml += '<button class="dropdown-item" data-action="componi-ricavo" data-row="' + i._row + '">' + ICONA_RICAVO_ + '<span>Componi Ricavo</span></button>';
+        azioniHtml += '<button class="dropdown-item" data-action="duplica" data-row="' + i._row + '">' + ICONA_DUPLICA_ + '<span>Duplica</span></button>';
       }
       azioniHtml += '<button class="dropdown-item" data-action="nota" data-row="' + i._row + '">' + ICONA_NOTA_ + '<span>Aggiungi nota</span></button>';
       azioniHtml += '<button class="dropdown-item" data-action="documenti" data-row="' + i._row + '">' + ICONA_DOCUMENTO_ + '<span>Documenti</span></button>';
@@ -1276,6 +1278,11 @@
       if (action === 'vedi-note') { apriListaNote(obj); return; }
       if (action === 'documenti') { apriDocumentiIntervento(obj); return; }
       if (action === 'componi-ricavo') { apriComponiRicavo(obj); return; }
+      if (action === 'duplica') {
+        callServer('duplicaIntervento', obj.id, obj._row).then(function () { toast('Intervento duplicato.', 'success'); loadInterventi(); caricaDashboard(); })
+          .catch(function (err) { toast(err.message || String(err), 'error'); });
+        return;
+      }
       if (action === 'sospendi') { apriSospendiIntervento(obj); return; }
       if (action === 'annulla') { apriAnnullaIntervento(obj); return; }
       if (action === 'fine-sospensione') {
